@@ -1,11 +1,20 @@
 from typing_extensions import TypedDict
 import operator
+from typing import Optional, Callable, Any, Dict, List
+import logging
 #from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 from langchain_core.tools import tool
 import creds
 import os
 from pydantic import BaseModel, Field
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 #from langgraph.prebuilt import ToolNode, create_react_agent, InjectedState
 from langgraph.graph import START, END, StateGraph, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
@@ -49,6 +58,21 @@ googla_light_model = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", api_
 googla_heavy_model = ChatGoogleGenerativeAI(model="gemini-3-pro", api_key=creds.GEMINI_KEY)
 
 
+# Global callback for user clarification (can be overridden by UI)
+_user_clarification_callback: Optional[Callable[[str, str], str]] = None
+
+
+def set_user_clarification_callback(callback: Optional[Callable[[str, str], str]]):
+    """
+    Set the callback function for user clarification requests.
+
+    Args:
+        callback: Function that takes (question, intention) and returns response string
+    """
+    global _user_clarification_callback
+    _user_clarification_callback = callback
+
+
 # local tools
 @tool
 def search_internet(query: str) -> str:
@@ -63,7 +87,7 @@ def search_internet(query: str) -> str:
     print("="*20)
     print(f"Searching the internet for: {query}")
     response = thinking_model.invoke(
-        [HumanMessage(content=f"Search the internet for: {query}")], 
+        [HumanMessage(content=f"Search the internet for: {query}")],
         tools=[{"type":"web_search"}])
     return f"Search results for '{query}' are: {response.content}"
 
@@ -71,7 +95,7 @@ def search_internet(query: str) -> str:
 def user_clarification_and_action_tool(question: str, intention:str="") -> str:
     """Ask the user for clarification on a given question or for user to take action.
     This tool is used if the model needs more information from the user to provide an accurate response.
-    This tool can also be used by the AI model to ask user to take action and report when the action is 
+    This tool can also be used by the AI model to ask user to take action and report when the action is
     completed such actions can be like ping from user laptop, get info from user`s machine. or any other action to be taken by a remote user.
     Args:
         question (str): The question or action to ask the user. it can be a multi part question.
@@ -79,9 +103,14 @@ def user_clarification_and_action_tool(question: str, intention:str="") -> str:
     Returns:
         str: user's clarification.
     """
-    # Simulate asking the user for clarification
-    print(f"Agent needs more information to answer: {question} - intention: {intention}")
-    response = input(f"Agent needs more information to continue:\n {question}\nPlease provide clarification: ")
+    # Use callback if set (for UI integration), otherwise use input() for CLI
+    if _user_clarification_callback:
+        response = _user_clarification_callback(question, intention)
+    else:
+        # Simulate asking the user for clarification (CLI mode)
+        print(f"Agent needs more information to answer: {question} - intention: {intention}")
+        response = input(f"Agent needs more information to continue:\n {question}\nPlease provide clarification: ")
+
     return f"User clarification for '{question}': {response=}"
 
 @tool
@@ -102,48 +131,98 @@ def skill_generator_from_documentation(documentation: str) -> str:
     print(f"Generating skills from documentation.")
 
 
+# Dictionary of available models for selection
+AVAILABLE_MODELS = {
+    "gpt-5-mini": thinking_model_mini,
+    "gpt-5.1": thinking_model,
+    "gpt-5-response": thinking_model_response,
+    "gpt-5-mini-minimal": action_minimal_thinking_model,
+    "gpt-4.1": multi_purpose_model,
+    "gpt-5.1-codex": coding_model,
+    "claude-4": bias_removal_model,
+    "gemini-3-flash": googla_light_model,
+    "gemini-3-pro": googla_heavy_model,
+}
 
-async def main():
+
+async def create_network_agent(
+    mcp_server_url: str = "http://localhost:8000/mcp",
+    main_model_name: str = "gpt-5-mini",
+    subagent_model_name: str = "gpt-5-mini-minimal",
+    design_model_name: str = "gpt-4.1",
+    custom_system_prompt: Optional[str] = None,
+):
+    """
+    Create and configure the network deep agent with subagents.
+
+    Args:
+        mcp_server_url: URL for the MCP server
+        main_model_name: Model to use for main agent (default: gpt-5-mini)
+        subagent_model_name: Model to use for subagents (default: gpt-5-mini-minimal)
+        design_model_name: Model to use for design subagent (default: gpt-4.1)
+        custom_system_prompt: Optional custom system prompt for main agent
+
+    Returns:
+        Configured deep agent instance
+    """
+    logger.info("=== create_network_agent() called ===")
+    logger.debug(f"MCP URL: {mcp_server_url}")
+    logger.debug(f"Main model: {main_model_name}")
 
     ## MCP client and tools
-    client = MultiServerMCPClient(
-        {
-            "network": {
-                # Make sure you start your weather server on port 8000
-                "url": "http://localhost:8000/mcp",
-                "transport": "streamable_http",
+    logger.info("Creating MCP client...")
+    try:
+        client = MultiServerMCPClient(
+            {
+                "network": {
+                    "url": mcp_server_url,
+                    "transport": "streamable_http",
+                }
             }
-        }
-    )
-    tools = await client.get_tools()
+        )
+        logger.info("MCP client created successfully")
+    except Exception as e:
+        logger.error(f"Failed to create MCP client: {e}", exc_info=True)
+        raise
+
+    logger.info("Getting tools from MCP client...")
+    try:
+        tools = await client.get_tools()
+        logger.info(f"Got {len(tools)} tools from MCP")
+    except Exception as e:
+        logger.error(f"Failed to get tools from MCP: {e}", exc_info=True)
+        raise
     design_tools = [tool for tool in tools if tool.name in ["read_network_diagram", "read_design_document"]]
     cloud_tools = [tool for tool in tools if tool.name in ["aws_tool", "azure_tool", "gcp_tool", "ssh_tool"]]
 
+    # Get models
+    main_model = AVAILABLE_MODELS.get(main_model_name, thinking_model_mini)
+    subagent_model = AVAILABLE_MODELS.get(subagent_model_name, action_minimal_thinking_model)
+    design_model = AVAILABLE_MODELS.get(design_model_name, multi_purpose_model)
 
-
-    ## Create Subagents 
+    ## Create Subagents
     knowledge_acquisition_subagent = {
         "name": "knowledge_acquisition_subagent",
         "description": "Agent specialized in acquiring sdditional knowledge from various sources such as internet, search and documentation, detailed design, diagrams, etc. The acquired knowledge can be on topology details, network additional knowledge, devices specific details. This knowledge acquisition is necessary where the model confidence is low on the information provided by the user or if more clarification is needed from the user.",
         "system_prompt": "You are a knowledge acquisition expert agent. You help acquiring knowledge from various sources such as detailed design if present, network diagrams, internet, search and documentation, etc. You get invoked only if there is a need to enhance the information given by the user or if clarification to what the user is asking can be acquired from the documents or from the user, in some cases where you have no knowledge you can run a tool to ask user for clarification. your goal is to acquire more knowledge and share with the main agent to help the main agent accomplish its task.",
         "tools": [search_internet, user_clarification_and_action_tool],
-        "model": action_minimal_thinking_model,
-        }
-    
+        "model": subagent_model,
+    }
+
     LAN_subagent = {
         "name": "LAN_subagent",
         "description": "Agent specialized in the LAN network activities such as routing and switching related tasks.",
         "system_prompt": LAN_subagent_template,
         "tools": tools + [search_internet, user_clarification_and_action_tool],
-        "model": action_minimal_thinking_model,  # Optional override, defaults to main agent model
-        }
+        "model": subagent_model,
+    }
 
     network_design_subagent = {
         "name": "network_design_subagent",
         "description": "Agent specialized in network design and architecture tasks such as reading networkd diagram and reading design documents.",
         "system_prompt": "You are a network design expert. You help analyzing design and architect of networks in diagrams and documents.",
         "tools": design_tools,
-        "model": multi_purpose_model,
+        "model": design_model,
     }
 
     cloud_computing_subagent = {
@@ -151,22 +230,42 @@ async def main():
         "description": "Agent specialized in cloud computing related tasks such as AWS, Azure, GCP,  etc.",
         "system_prompt": "You are a cloud computing expert agent. You help with cloud computing related tasks.",
         "tools": cloud_tools + [search_internet],
-        "model": action_minimal_thinking_model,
+        "model": subagent_model,
     }
 
     subagents = [LAN_subagent, knowledge_acquisition_subagent, network_design_subagent, cloud_computing_subagent]
+
     ## create deep agent
     # TODO: add PII middleware to mask sensitive info like IPs, MACs, etc.
-    # TODO: add way to load skills from skill.md and add it to the different system_prompt, check if the
-    # langgraph dynamic prompt with function works with deepangents
-    # or for skills we can ise f-string to the system_prompt and have a filed <skillS> </skills> that is filled with skills
-    # skills will be defined before the net_deep_agent is defined.
-    net_deep_agent =  create_deep_agent(
-        tools=tools,
-        system_prompt=network_activity_planner_agent_template,
-        subagents=subagents,
-        model=thinking_model_mini,
+    # TODO: add way to load skills from skill.md and add it to the different system_prompt
+    system_prompt = custom_system_prompt if custom_system_prompt else network_activity_planner_agent_template
+
+    logger.info("Creating deep agent with create_deep_agent()...")
+    try:
+        net_deep_agent = create_deep_agent(
+            tools=tools,
+            system_prompt=system_prompt,
+            subagents=subagents,
+            model=main_model,
+            store=InMemoryStore(),
         )
+        logger.info(f"Deep agent created successfully! Type: {type(net_deep_agent)}")
+        logger.debug(f"Agent has astream: {hasattr(net_deep_agent, 'astream')}")
+    except Exception as e:
+        logger.error(f"Failed to create deep agent: {e}", exc_info=True)
+        raise
+
+    logger.info("=== create_network_agent() complete ===")
+    return net_deep_agent
+
+
+async def main():
+    """
+    Main function for standalone execution.
+    Demonstrates agent usage with TruLens evaluation.
+    """
+    # Create the network agent using the factory function
+    net_deep_agent = await create_network_agent()
     question_1 = """There is a connectivity issue in the LAN network and user with IP 10.10.10.4 and mac address aaaa.bb12.3456"
     is unable to reach any application, check why. it is connected on switch with management IP address of 192.168.81.222"""
     
@@ -176,16 +275,17 @@ async def main():
     is unable to reach any application, check why. it is connected on switch"""
 
     question_3 = """There is a connectivity issue  incident reported by Nirali Patel work on it"""
+    question_4 = "what is the broadcast address of 192.168.16.32/28"
 
-    async for chunk in net_deep_agent.astream({"messages": question_2}):
-        print("New chunk received:.......................................................\n")
-        print(f"{chunk=}")
-        if "messages" in chunk.get("model",""):
-            print("==="*10)
-            chunk["model"]["messages"][-1].pretty_print()
-        elif "messages" in chunk.get("tools",""):
-            print("+++"*10)
-            chunk["tools"]["messages"][-1].pretty_print()
+    #async for chunk in net_deep_agent.astream({"messages": question_2}):
+    #    print("New chunk received:.......................................................\n")
+    #    print(f"{chunk=}")
+    #    if "messages" in chunk.get("model",""):
+    #        print("==="*10)
+    #        chunk["model"]["messages"][-1].pretty_print()
+    #    elif "messages" in chunk.get("tools",""):
+    #        print("+++"*10)
+    #        chunk["tools"]["messages"][-1].pretty_print()
 
     # evaluation layer 
 
@@ -237,7 +337,7 @@ async def main():
     )
     chunks = []
     with tru_recorder as recording:
-        async for chunk in net_deep_agent.astream({"messages": [{"role": "user", "content": question_2}]}):
+        async for chunk in net_deep_agent.astream({"messages": [{"role": "user", "content": question_4}]}):
             chunks.append(chunk)
     
     print("\nFinal Response received:.......................................................\n")
@@ -269,7 +369,8 @@ async def main():
     session.run_dashboard()
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
 
 
 
