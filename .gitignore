@@ -1,3 +1,7 @@
 *creds*
 __pycache*
 *_old.py
+
+# uv
+.venv/
+uv.lock
