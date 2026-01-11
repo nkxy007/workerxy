@@ -1,0 +1,66 @@
+import asyncio
+import argparse
+import sys
+from pathlib import Path
+from net_deepagent_cli.config import AgentConfig
+from net_deepagent_cli.ui import TerminalUI
+from net_deepagent_cli.agent import create_cli_agent
+from net_deepagent_cli.loop import interactive_loop
+
+async def run_cli():
+    """Main CLI entry point logic"""
+    parser = argparse.ArgumentParser(description="Net DeepAgent CLI - A powerful terminal interface for network automation.")
+    
+    parser.add_argument("--agent", default="net-agent", help="Agent name (used for history and config)")
+    parser.add_argument("--model", default="gpt-5-mini", help="Main model to use")
+    parser.add_argument("--subagent-model", default="gpt-5-mini-minimal", help="Subagent model to use")
+    parser.add_argument("--design-model", default="gpt-4.1", help="Design model to use")
+    parser.add_argument("--mcp-server", default="http://localhost:8000/mcp", help="MCP server URL")
+    parser.add_argument("--auto-approve", action="store_true", help="Auto-approve all tool calls")
+    
+    args = parser.parse_args()
+    
+    # Load or create config
+    config_manager = AgentConfig(args.agent)
+    config = config_manager.load_config()
+    
+    # Override config with CLI args if provided
+    # (Simplified for now, just use args)
+    
+    ui = TerminalUI(args.agent)
+    ui.print_message("Starting CoworkerX Networking CLI...", role="system")
+    
+    try:
+        # Step 1: Create the agent
+        ui.print_message(f"Initializing agent with model {args.model} and MCP {args.mcp_server}...", role="system")
+        
+        # We'll try to initialize the agent. If it hangs, the user sees the message above.
+        agent = await create_cli_agent(
+            agent_name=args.agent,
+            mcp_server_url=args.mcp_server,
+            main_model_name=args.model,
+            subagent_model_name=args.subagent_model,
+            design_model_name=args.design_model,
+            auto_approve=args.auto_approve
+        )
+        
+        ui.print_message("Agent initialized successfully.", role="system")
+        
+        # Step 2: Run interactive loop
+        await interactive_loop(agent, args, ui)
+        
+    except Exception as e:
+        ui.print_message(f"Failed to start agent: {str(e)}", role="error")
+        import traceback
+        ui.console.print(f"[dim]{traceback.format_exc()}[/dim]")
+        sys.exit(1)
+
+def main():
+    """Synchronous entry point"""
+    try:
+        asyncio.run(run_cli())
+    except KeyboardInterrupt:
+        pass
+
+if __name__ == "__main__":
+    main()

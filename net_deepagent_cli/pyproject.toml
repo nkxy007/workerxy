@@ -1,0 +1,20 @@
+[project]
+name = "net-deepagent-cli"
+version = "0.1.0"
+description = "CLI interface for Net DeepAgent"
+dependencies = [
+    "rich>=13.0.0",
+    "prompt-toolkit>=3.0.0",
+    "pyyaml>=6.0",
+    "langchain",
+    "langchain-core",
+    "langchain-openai",
+    "langgraph",
+]
+
+[project.scripts]
+net-deepagent = "net_deepagent_cli.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
