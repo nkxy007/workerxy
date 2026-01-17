@@ -8,7 +8,17 @@ from mcp.server.fastmcp import FastMCP
 import json
 import paramiko
 import re
+import logging
+import sys
 from service_now_incidents_helper import ServiceNowIncident, instance_url, snow_api_key
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP("network_tools_server")
 
@@ -44,8 +54,7 @@ async def get_devices_management_ip(site_name:str, device_type:str) -> str:
     returns:
         str: management IP address of the device
     """
-    print("**"*20)
-    print(f"Getting management IP for device type {device_type} in site {site_name}")
+    logger.info(f"Getting management IP for device type {device_type} in site {site_name}")
     try:
         with open("sites.json", "r") as f:
             data = json.load(f)
@@ -56,16 +65,17 @@ async def get_devices_management_ip(site_name:str, device_type:str) -> str:
                         return device["management_ip"]
         # return only sites names so that AI checks if the site was not mispelled
         # filter sites names from data 
-        print(f"{site_name} is not found in sites container.")
+        logger.warning(f"{site_name} is not found in sites container.")
         sites_names = [site["name"] for site in data["sites"]]
         return f"Device management IP cannot be found, you could have issues wrong site name, try again. Available sites are: {', '.join(sites_names)}"
     except Exception as e:
-        print(f"Error reading sites container: {e}")
+        logger.error(f"Error reading sites container: {e}")
     return "Device management IP cannot be found."
 
 @mcp.tool()
 async def find_network_interfaces(device_management_ip: str) -> str:
     """connect to the device management IP and Find network interfaces"""
+    logger.info(f"Finding network interfaces for device: {device_management_ip}")
     device = DeviceSShSession(device_management_ip)
     interfaces = device.execute_command("show ip interfaces brief | exclude unassigned")
     return interfaces
@@ -73,11 +83,13 @@ async def find_network_interfaces(device_management_ip: str) -> str:
 @mcp.tool()
 async def ping_device_from_gateway(device_ip:str, target_ip: str, count: int =5) -> str:
     """Ping a device from a switch"""
+    logger.info(f"Pinging {target_ip} from {device_ip} (count={count})")
     return f"Pinged {target_ip} {count} times failed."
 
 @mcp.tool()
 async def get_network_device_arp_table(device_management_ip: str) -> List[str]:
     """Get ARP table from a device"""
+    logger.info(f"Getting ARP table for device: {device_management_ip}")
     device = DeviceSShSession(device_management_ip)
     arp_table = device.execute_command("show ip arp")
     return [line for line in arp_table.splitlines("\n") if line.strip()]
@@ -85,6 +97,7 @@ async def get_network_device_arp_table(device_management_ip: str) -> List[str]:
 @mcp.tool()
 async def get_switch_mac_address_table(device_management_ip: str) -> List[str]:
     """Get MAC address table from a device"""
+    logger.info(f"Getting MAC address table for device: {device_management_ip}")
     device = DeviceSShSession(device_management_ip)
     mac_table = device.execute_command("show mac address-table")
     return [line for line in mac_table.splitlines("\n") if line.strip()]
@@ -96,6 +109,7 @@ async def get_l2_forwarding_information(device_management_ip: str) -> str:
         device_management_ip (str): management IP of the switch
     """
     try:
+        logger.info(f"Getting L2 forwarding info for device: {device_management_ip}")
         device = DeviceSShSession(device_management_ip)
         # retrieve trunking and spanning tree info via ssh command
         trunking_info = device.execute_command("show interfaces trunk")
@@ -111,6 +125,7 @@ async def get_nat_table(router_management_ip: str) -> List[str]:
     params:
         router_management_ip (str): management IP of the router
     """
+    logger.info(f"Getting NAT table for router: {router_management_ip}")
     device = DeviceSShSession(router_management_ip)
     nat_table = device.execute_command("show ip nat translations")
     return [line for line in nat_table.splitlines("\n") if line.strip()]
@@ -118,6 +133,7 @@ async def get_nat_table(router_management_ip: str) -> List[str]:
 @mcp.tool()
 async def get_routing_table(router_management_ip: str) -> str:
     """Get routing table from a router"""
+    logger.info(f"Getting routing table for router: {router_management_ip}")
     device = DeviceSShSession(router_management_ip)
     routing_table = device.execute_command("show ip route")
     return f"routing table for router {router_management_ip}:\n{routing_table.splitlines("\n")}"
@@ -127,9 +143,10 @@ async def capture_network_traffic(device_management_ip:str, interface: str, dura
     """Capture network traffic on a given interface for a specified duration"""
     # returns a filtered pickup file
     captured_network_traffic = "No captured traffic"
+    logger.info(f"Capturing network traffic on {device_management_ip} interface {interface} for {duration_seconds}s")
     device = DeviceSShSession(device_management_ip)
     if device_model := device.execute_command("show version | include Model number"):
-        print(f"Device model is {device_model}")
+        logger.info(f"Device model is {device_model}")
     if "cisco" in device_model.lower():
 
         commands = [
@@ -152,7 +169,7 @@ async def capture_network_traffic(device_management_ip:str, interface: str, dura
         # TODO: implement a cisco capture to pcap converter then apply it to the traffic and make it into text for LLM
     else:
         # TODO: implement for juniper, arista, palo alto, etc.
-        print(f"Device model {device_model} not supported for traffic capture yet.")
+        logger.warning(f"Device model {device_model} not supported for traffic capture yet.")
     return f"Captured traffic on {interface} for {duration_seconds} seconds. is {captured_network_traffic}"
 
 @mcp.tool()
@@ -164,6 +181,7 @@ async def get_device_logs(device_management_ip: str, log_type: str, time_range: 
         time_range (str): time range for the logs (e.g., last 1 hour, last 24 hours)
         filter_regex Optional[str]: optional regex or keyword to filter logs
     """
+    logger.info(f"Getting device logs for {device_management_ip} (type={log_type}, range={time_range})")
     device = DeviceSShSession(device_management_ip)
     # retrieve logs via ssh command
     if log_type.lower() == "error":
@@ -185,7 +203,7 @@ async def get_device_logs(device_management_ip: str, log_type: str, time_range: 
     return device_logs[:10]  # return first 10 logs for brevity
 
 @mcp.tool()
-async def run_command_on_device(device_management_ip: str, commands: List[str]) -> str:
+async def run_commands_on_device(device_management_ip: str, commands: List[str]) -> str:
     """Run a command on a network device via SSH
     args:
         device_management_ip (str): management IP of the device
@@ -193,6 +211,7 @@ async def run_command_on_device(device_management_ip: str, commands: List[str]) 
     returns:
         str: output of the command execution
     """
+    logger.info(f"Running commands on {device_management_ip}: {commands}")
     device = DeviceSShSession(device_management_ip)
     output = ""
     for command in commands:
@@ -212,6 +231,7 @@ async def get_servicenow_incidents_by_priority(priority: int) -> str:
     ACCESS_TOKEN = snow_api_key
     
     # Create ServiceNow client
+    logger.info(f"Getting active ServiceNow incidents with priority {priority}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
     result = sn_client.get_active_incidents(priority=priority)
@@ -237,6 +257,7 @@ async def get_servicenow_incidents_by_incident_id(incident_id: str) -> str:
     ACCESS_TOKEN = snow_api_key
     
     # Create ServiceNow client
+    logger.info(f"Getting ServiceNow incident details for ID: {incident_id}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     # get all incidents and filter incidents where 
     result = sn_client.get_incidents()
@@ -260,6 +281,7 @@ async def get_servicenow_incident_by_user(user: str) -> str:
     ACCESS_TOKEN = snow_api_key
     
     # Create ServiceNow client
+    logger.info(f"Getting ServiceNow incidents for user: {user}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
     result = sn_client.get_my_incidents(user)
@@ -285,14 +307,13 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str,
     returns:
         str: output of the command execution
     """
+    logger.info(f"Connecting to {cloud_provider} VM at {management_ip} as {username}")
     device = DeviceSShSession(management_ip, username, password)
-    print(f"Connecting to {cloud_provider} VM at {management_ip} as {username}")
     output = ""
     for cmd in command:
-        print(f"Executing command: {cmd}")
+        logger.info(f"Executing command: {cmd}")
         _output = device.execute_command(cmd)
         output += f"Command: {cmd}\nOutput: {_output}\n"
-    return output
     return output
 
 

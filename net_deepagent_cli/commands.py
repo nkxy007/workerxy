@@ -13,7 +13,8 @@ async def handle_command(command: str, ui, messages):
   [bold cyan]/clear[/bold cyan]      - Clear conversation history
   [bold cyan]/tokens[/bold cyan]     - Show token usage for the entire session
   [bold cyan]/context[/bold cyan]    - Analyze current context (messages and system prompt)
-  [bold cyan]/skills[/bold cyan]     - List available skills
+  [bold cyan]/skills[/bold cyan]            - List available skills
+  [bold cyan]/skills add <path>[/bold cyan]    - Extract and add skills from a document
   [bold cyan]/memory[/bold cyan]     - Show current agent memory
   [bold cyan]/exit[/bold cyan]       - Exit the CLI
   [bold cyan]/help[/bold cyan]       - Show this help message
@@ -81,6 +82,11 @@ async def handle_command(command: str, ui, messages):
         ))
     
     elif cmd == "/skills":
+        if len(parts) > 2 and parts[1].lower() in ["add", "extract"]:
+            doc_path = parts[2]
+            await extract_skills_from_document(doc_path, ui.agent_name, ui)
+            return
+
         # List available skills
         skills_mw = SkillsMiddleware(ui.agent_name)
         skills = skills_mw.scan_skills()
@@ -107,5 +113,20 @@ async def handle_command(command: str, ui, messages):
     
     else:
         ui.print_message(f"Unknown command: {cmd}", role="error")
+
+async def extract_skills_from_document(doc_path: str, agent_name: str, ui):
+    """
+    Extract skills from a document and store them in the skills directory.
+    This is a stub for future implementation using RAG.
+    """
+    ui.print_message(f"Initiating skill extraction from: [bold]{doc_path}[/bold]", role="system")
+    
+    # Placeholder for future implementation:
+    # 1. Load document (doc_path)
+    # 2. Use RAG/LLM to identify best practices or specialized knowledge
+    # 3. Create a folder in ~/.net-deepagent/<agent_name>/skills/<skill_name>
+    # 4. Write SKILL.md with frontmatter and instructions
+    
+    ui.print_message("Note: Skill extraction logic is currently a placeholder. RAG-based extraction will be implemented in the next phase.", role="system")
 
 from rich.panel import Panel

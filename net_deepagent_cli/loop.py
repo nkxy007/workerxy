@@ -46,7 +46,7 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
     try:
         # We use a Live display for the assistant's growing message
         with ui.show_progress("Agent is thinking...") as progress:
-            task = progress.add_task("Processing...", total=None)
+            task = progress.add_task("Processing request...", total=None)
             
             # Since we're using deepagents which wraps a langgraph, 
             # we'll use astream with the messages
