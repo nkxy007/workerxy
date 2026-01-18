@@ -81,7 +81,7 @@ class SkillsMiddleware:
         if skills:
             skills_text = "## Available Skills\n\n"
             for skill in skills:
-                skills_text += f"- **{skill['name']}**: {skill['description']}\n"
+                skills_text += f"- **{skill['name']}**: {skill['description']} (Path: {skill['path']}\n"
             skills_text += "\nTo use a skill, read its full instructions with the appropriate tool (e.g., read_file or similar).\n"
             
             # 1. Inject into system_prompt if it exists
