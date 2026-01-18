@@ -38,13 +38,17 @@ class SkillsMiddleware:
         self.agent_name = agent_name
         self.skills_dir = Path.home() / ".net-deepagent" / agent_name / "skills"
         self.project_skills_dir = Path.cwd() / ".net-deepagent" / "skills"
+        self.hard_coded_skills = Path.cwd() /"skills"
+        print("*"*70)
+        print(f"{self.hard_coded_skills}")
+        print("*"*70)
         self.skills_dir.mkdir(parents=True, exist_ok=True)
         
     def scan_skills(self):
         """Scan for available skills and extract metadata"""
         skills = []
         
-        for s_dir in [self.skills_dir, self.project_skills_dir]:
+        for s_dir in [self.skills_dir, self.project_skills_dir, self.hard_coded_skills]:
             if not s_dir.exists():
                 continue
                 
