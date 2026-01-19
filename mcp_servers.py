@@ -571,5 +571,25 @@ def _get_tool_by_name(tool_name: str):
         logger.error(f"Error retrieving tool '{tool_name}': {str(e)}")
         return None
 
+@mcp.tool()
+async def get_skill_all_related_tools(skill_name: str) -> str:
+    """
+    Get all related tools for a given skill
+    args:
+        skill_name (str): The name of the skill
+    returns:
+        str: a string with a tuple of (tool_name, tool_description) for each related tool
+    """
+    # get all current MCP tools then filter them according to the skill_name given
+    # all skill related tools start with <skill-name>_name-of-the-tool
+    # example: linux_server_ssh_tool for linux server skill
+    # TODO: test if LLM is able to call such tools when they were not passed to LLM as part of the tools list
+    all_tools = globals()
+    skill_tools = [tool for tool in all_tools if tool.startswith(skill_name + "_")]
+    # get tool name and description
+    skill_tools = [(tool.__name__, tool.__doc__) for tool in skill_tools]
+    logger.info(f"Skill tools information: {skill_tools}")
+    return f"{skill_name} skill tools: {skill_tools}"
+
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
