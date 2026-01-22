@@ -1,0 +1,4 @@
+{
+    "dns_deepagent": "http://localhost:8003",
+    "dhcp_deepagent": "http://localhost:8004"
+}
