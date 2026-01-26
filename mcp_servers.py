@@ -11,6 +11,7 @@ import re
 import logging
 import sys
 from service_now_incidents_helper import ServiceNowIncident
+from service_now_changes_helper import ServiceNowChangeRequest
 from snow_creds import instance_url, snow_api_key
 import subprocess
 import tempfile
@@ -338,6 +339,40 @@ async def get_unassigned_incidents_for_group(group_name: str) -> str:
         return summary
     else:
         return f"Error retrieving unassigned incidents: {result.get('error', 'Unknown error')}"
+
+@mcp.tool()
+async def create_change_request(short_description: str, description: str, priority: str = '4', risk: str = '3', impact: str = '3', ci_name: str = '') -> str:
+    """Create a ServiceNow change request
+    args:
+        short_description (str): Short summary of the change
+        description (str): Detailed description
+        priority (str): Priority 1-5 (default: 4)
+        risk (str): Risk 1-3 (default: 3)
+        impact (str): Impact 1-3 (default: 3)
+        ci_name (str): specific Config Item name (server, app, etc)
+    returns:
+        str: summary of the created change request
+    """
+    SERVICENOW_INSTANCE = instance_url
+    ACCESS_TOKEN = snow_api_key
+    
+    logger.info(f"Creating change request: {short_description}")
+    sn_client = ServiceNowChangeRequest(SERVICENOW_INSTANCE, ACCESS_TOKEN)
+    
+    result = sn_client.create_change_request(
+        short_description=short_description,
+        description=description,
+        priority=priority,
+        risk=risk,
+        impact=impact,
+        cmdb_ci=ci_name
+    )
+    
+    if result['success']:
+        change_data = result['data']['result']
+        return f"✅ Change Request Created Successfully!\nNumber: {change_data.get('number')}\nSys ID: {change_data.get('sys_id')}\nLink: {result['data']['result'].get('link', 'N/A')}"
+    else:
+        return f"❌ Failed to create change request: {result.get('error', 'Unknown error')}"
 
 @mcp.tool()
 async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str, password: str, command: List[str]) -> str:

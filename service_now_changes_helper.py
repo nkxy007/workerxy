@@ -21,6 +21,72 @@ class ServiceNowChangeRequest:
             'x-sn-apikey': token
         }
     
+    def create_change_request(self, short_description, description, priority='4', risk='3', impact='3', cmdb_ci=''):
+        """
+        Create a generic change request
+        
+        Args:
+            short_description: Short summary of the change
+            description: Detailed description
+            priority: Priority 1-5 (default: 4)
+            risk: Risk 1-3 (default: 3)
+            impact: Impact 1-3 (default: 3)
+            cmdb_ci: Name of the CI (optional)
+        
+        Returns:
+            dict: Response from ServiceNow API
+        """
+        # Calculate planned start and end times (default: 2 hours from now, 1 hour duration)
+        planned_start = datetime.now() + timedelta(hours=2)
+        planned_end = planned_start + timedelta(hours=1)
+        
+        # Format dates for ServiceNow (YYYY-MM-DD HH:MM:SS)
+        start_time = planned_start.strftime('%Y-%m-%d %H:%M:%S')
+        end_time = planned_end.strftime('%Y-%m-%d %H:%M:%S')
+        
+        change_data = {
+            'short_description': short_description,
+            'description': description,
+            'category': 'Software',
+            'type': 'Standard',
+            'risk': risk,
+            'impact': impact,
+            'priority': priority,
+            'state': '1', # New
+            'planned_start_date': start_time,
+            'planned_end_date': end_time,
+            'work_start': start_time,
+            'work_end': end_time,
+        }
+        
+        if cmdb_ci:
+            change_data['cmdb_ci'] = cmdb_ci
+
+        url = f"{self.instance_url}/api/now/table/change_request"
+        
+        try:
+            response = requests.post(
+                url,
+                headers=self.headers,
+                data=json.dumps(change_data),
+                timeout=30
+            )
+            
+            response.raise_for_status()
+            
+            return {
+                'success': True,
+                'status_code': response.status_code,
+                'data': response.json()
+            }
+            
+        except requests.exceptions.RequestException as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'status_code': e.response.status_code if e.response else None
+            }
+
     def create_server_reboot_change(self, server_name, additional_details=None):
         """
         Create a change request for server reboot
