@@ -10,7 +10,8 @@ import paramiko
 import re
 import logging
 import sys
-from service_now_incidents_helper import ServiceNowIncident, instance_url, snow_api_key
+from service_now_incidents_helper import ServiceNowIncident
+from snow_creds import instance_url, snow_api_key
 import subprocess
 import tempfile
 import os
@@ -299,8 +300,44 @@ async def get_servicenow_incident_by_user(user: str) -> str:
         for inc in incidents:
             summary += f"- Number: {inc.get('number')}, Short Description: {inc.get('short_description')}\n"
         return summary
+    if result['success']:
+        incidents = result['data']['result']
+        summary = f"Retrieved {result['count']} incidents assigned to user {user}:\n"
+        for inc in incidents:
+            summary += f"- Number: {inc.get('number')}, Short Description: {inc.get('short_description')}\n"
+        return summary
     else:
         return f"Error retrieving incidents: {result['error']}"
+
+@mcp.tool()
+async def get_unassigned_incidents_for_group(group_name: str) -> str:
+    """Get unassigned ServiceNow incidents for a specific group
+    args:
+        group_name (str): The name of the group (e.g., 'Software')
+    returns:
+        str: summary of unassigned incidents for the group
+    """
+    SERVICENOW_INSTANCE = instance_url
+    ACCESS_TOKEN = snow_api_key
+    
+    # Create ServiceNow client
+    logger.info(f"Getting unassigned incidents for group: {group_name}")
+    sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
+    
+    result = sn_client.get_unassigned_group_incidents(group_name)
+    
+    if result['success']:
+        incidents = result['data']['result']
+        count = result['count']
+        if count == 0:
+            return f"No unassigned incidents found for group '{group_name}'."
+            
+        summary = f"Retrieved {count} unassigned incidents for group '{group_name}':\n"
+        for inc in incidents:
+            summary += f"- Number: {inc.get('number')}, Short Description: {inc.get('short_description')}\n"
+        return summary
+    else:
+        return f"Error retrieving unassigned incidents: {result.get('error', 'Unknown error')}"
 
 @mcp.tool()
 async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str, password: str, command: List[str]) -> str:
