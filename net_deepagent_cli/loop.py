@@ -77,7 +77,16 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                                 
                                 if hasattr(msg, "tool_calls") and msg.tool_calls:
                                     for tool_call in msg.tool_calls:
-                                        ui.print_tool_call(tool_call["name"], tool_call["args"])
+                                        # Update progress based on tool
+                                        tool_name = tool_call["name"]
+                                        if tool_name.startswith("communicate_with_"):
+                                            # Derive agent name (e.g., communicate_with_dns_deepagent -> dns-deepagent)
+                                            agent_name = tool_name.replace("communicate_with_", "").replace("_", "-")
+                                            progress.update(task, description=f"[bold cyan]Waiting for {agent_name}...[/bold cyan]")
+                                        else:
+                                            progress.update(task, description=f"[bold yellow]Executing {tool_name}...[/bold yellow]")
+                                            
+                                        ui.print_tool_call(tool_name, tool_call["args"])
                                         
                                         # Human-in-the-loop approval
                                         if not auto_approve and requires_approval(tool_call["name"]):
