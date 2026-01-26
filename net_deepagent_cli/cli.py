@@ -46,6 +46,7 @@ async def run_cli():
         
         ui.print_message("Agent initialized successfully.", role="system")
         
+        
         # Step 2: Run interactive loop
         await interactive_loop(agent, args, ui)
         
@@ -54,6 +55,11 @@ async def run_cli():
         import traceback
         ui.console.print(f"[dim]{traceback.format_exc()}[/dim]")
         sys.exit(1)
+    finally:
+        # Cleanup resources
+        if 'agent' in locals() and hasattr(agent, 'cleanup'):
+            ui.print_message("Cleaning up resources...", role="system")
+            await agent.cleanup()
 
 def main():
     """Synchronous entry point"""

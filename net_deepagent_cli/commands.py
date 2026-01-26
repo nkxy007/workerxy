@@ -1,6 +1,9 @@
 from rich.markdown import Markdown
+from rich.panel import Panel
 from pathlib import Path
 from net_deepagent_cli.agent import SkillsMiddleware
+from a2a_capability.middleware import A2AHTTPMiddleware
+import json
 
 async def handle_command(command: str, ui, messages):
     """Handle special slash commands"""
@@ -13,8 +16,9 @@ async def handle_command(command: str, ui, messages):
   [bold cyan]/clear[/bold cyan]      - Clear conversation history
   [bold cyan]/tokens[/bold cyan]     - Show token usage for the entire session
   [bold cyan]/context[/bold cyan]    - Analyze current context (messages and system prompt)
-  [bold cyan]/skills[/bold cyan]            - List available skills
+  [bold cyan]/skills[/bold cyan]     - List available skills
   [bold cyan]/skills add <path>[/bold cyan]    - Extract and add skills from a document
+  [bold cyan]/agents[/bold cyan]     - Show available A2A agents
   [bold cyan]/memory[/bold cyan]     - Show current agent memory
   [bold cyan]/exit[/bold cyan]       - Exit the CLI
   [bold cyan]/help[/bold cyan]       - Show this help message
@@ -99,6 +103,52 @@ async def handle_command(command: str, ui, messages):
                 ui.console.print(f"  • [bold yellow]{skill['name']}[/bold yellow]: {skill['description']}")
                 ui.console.print(f"    [dim]Path: {skill['path']}[/dim]")
     
+    elif cmd == "/agents":
+        ui.print_message("Discovering A2A agents...", role="system")
+        
+        # Locate registry
+        try:
+             import a2a_capability
+             registry_path = Path(a2a_capability.__file__).parent / "agents_registry.json"
+        except ImportError:
+             registry_path = Path.cwd() / "a2a_capability" / "agents_registry.json"
+             
+        if not registry_path.exists():
+            ui.print_message(f"Registry not found at {registry_path}", role="error")
+            return
+
+        mw = A2AHTTPMiddleware()
+        # This will try to connect to all agents
+        await mw.register_agents_from_file(str(registry_path))
+        
+        # Load full registry to show status of all configured agents
+        try:
+            with open(registry_path) as f:
+                full_registry = json.load(f)
+        except Exception as e:
+            ui.print_message(f"Error reading registry file: {e}", role="error")
+            full_registry = {}
+
+        if not full_registry:
+            ui.print_message("No agents configured in registry.", role="system")
+        else:
+            ui.console.print("[bold]A2A Agent Status:[/bold]")
+            for name, url in full_registry.items():
+                is_online = name in mw.remote_agents
+                status = "[bold green]Online[/bold green]" if is_online else "[bold red]Offline/Unreachable[/bold red]"
+                
+                details = ""
+                if is_online:
+                    client = mw.remote_agents[name]
+                    if client.agent_card:
+                        desc = client.agent_card.get('description', 'No description')
+                        caps = ", ".join(client.agent_card.get('capabilities', []))
+                        details = f"\n    [dim]Description:[/dim] {desc}\n    [dim]Capabilities:[/dim] {caps}"
+                
+                ui.console.print(f"  • [bold cyan]{name}[/bold cyan] ({url}) - {status}{details}")
+        
+        await mw.cleanup()
+
     elif cmd == "/memory":
         # Show agent memory
         memory_file = Path.home() / ".net-deepagent" / ui.agent_name / "agent.md"
@@ -128,5 +178,3 @@ async def extract_skills_from_document(doc_path: str, agent_name: str, ui):
     # 4. Write SKILL.md with frontmatter and instructions
     
     ui.print_message("Note: Skill extraction logic is currently a placeholder. RAG-based extraction will be implemented in the next phase.", role="system")
-
-from rich.panel import Panel

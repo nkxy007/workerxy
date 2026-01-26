@@ -151,6 +151,7 @@ async def create_network_agent(
     subagent_model_name: str = "gpt-5-mini-minimal",
     design_model_name: str = "gpt-4.1",
     custom_system_prompt: Optional[str] = None,
+    extra_tools: List[Any] = [],
 ):
     """
     Create and configure the network deep agent with subagents.
@@ -161,6 +162,7 @@ async def create_network_agent(
         subagent_model_name: Model to use for subagents (default: gpt-5-mini-minimal)
         design_model_name: Model to use for design subagent (default: gpt-4.1)
         custom_system_prompt: Optional custom system prompt for main agent
+        extra_tools: Optional list of additional tools to make available to the agent
 
     Returns:
         Configured deep agent instance
@@ -194,6 +196,10 @@ async def create_network_agent(
         raise
     design_tools = [tool for tool in tools if tool.name in ["read_network_diagram", "read_design_document"]]
     cloud_tools = [tool for tool in tools if tool.name in ["aws_tool", "azure_tool", "gcp_tool", "ssh_tool"]]
+
+    # Add extra tools if provided (e.g. A2A tools)
+    if extra_tools:
+        tools.extend(extra_tools)
 
     # Get models
     main_model = AVAILABLE_MODELS.get(main_model_name, thinking_model_mini)

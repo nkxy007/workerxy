@@ -81,7 +81,7 @@ class SkillsMiddleware:
         if skills:
             skills_text = "## Available Skills\n\n"
             for skill in skills:
-                skills_text += f"- **{skill['name']}**: {skill['description']} (Path: {skill['path']}\n"
+                skills_text += f"- **{skill['name']}**: {skill['description']} (Path: {skill['path']})\n"
             skills_text += "\nTo use a skill, read its full instructions with the appropriate tool (e.g., read_file or similar).\n"
             
             # 1. Inject into system_prompt if it exists
@@ -98,9 +98,10 @@ class SkillsMiddleware:
 class WrappedAgent:
     """Wrapper for the agent to apply middleware and handle streaming"""
     
-    def __init__(self, base_agent, middlewares: List[Any]):
+    def __init__(self, base_agent, middlewares: List[Any], resources: List[Any] = []):
         self.base_agent = base_agent
         self.middlewares = middlewares
+        self.resources = resources
         
     async def astream(self, input_data: Dict[str, Any], **kwargs):
         # Apply middlewares before calling the agent
@@ -117,6 +118,12 @@ class WrappedAgent:
         for middleware in self.middlewares:
             state = await middleware(state)
         return await self.base_agent.ainvoke(state, **kwargs)
+        
+    async def cleanup(self):
+        """Cleanup resources"""
+        for resource in self.resources:
+            if hasattr(resource, 'cleanup'):
+                await resource.cleanup()
 
 async def create_cli_agent(
     agent_name: str,
@@ -128,12 +135,33 @@ async def create_cli_agent(
 ):
     """Create agent with CLI-specific middleware"""
     
+    # Initialize A2A Middleware
+    from a2a_capability.middleware import A2AHTTPMiddleware
+    import os
+    
+    a2a_middleware = A2AHTTPMiddleware()
+    
+    # Try to find registry
+    try:
+        import a2a_capability
+        registry_path = Path(a2a_capability.__file__).parent / "agents_registry.json"
+    except ImportError:
+        registry_path = Path.cwd() / "a2a_capability" / "agents_registry.json"
+        
+    if registry_path.exists():
+        await a2a_middleware.register_agents_from_file(str(registry_path))
+        a2a_tools = a2a_middleware.tools
+    else:
+        print(f"Warning: A2A registry not found at {registry_path}")
+        a2a_tools = []
+    
     # Create base agent using the existing function from net_deepagent
     base_agent = await create_network_agent(
         mcp_server_url=mcp_server_url,
         main_model_name=main_model_name,
         subagent_model_name=subagent_model_name,
-        design_model_name=design_model_name
+        design_model_name=design_model_name,
+        extra_tools=a2a_tools
     )
     
     # Initialize middleware
@@ -144,6 +172,6 @@ async def create_cli_agent(
     wrapped_agent = WrappedAgent(base_agent, [
         memory_middleware,
         skills_middleware
-    ])
+    ], resources=[a2a_middleware])
     
     return wrapped_agent
