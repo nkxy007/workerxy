@@ -104,9 +104,14 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                                                 ui.print_message("Editing tool calls not yet implemented in this MVP.", role="system")
                             
                             elif isinstance(msg, ToolMessage):
-                                # We might want to show tool results if they are short
-                                # ui.print_message(f"Tool {msg.name} returned result.", role="system")
+                                # Tool has returned, update progress
+                                progress.update(task, description="[bold green]Processing tool output...[/bold green]")
                                 pass
+                            
+                            elif isinstance(msg, AIMessage) and msg.content:
+                                # Final response is being generated
+                                progress.update(task, description="[bold blue]Finalizing response...[/bold blue]")
+                                ui.print_message(msg.content, role="assistant")
                                 
                         last_message_count = len(all_messages)
                         # Update the messages history for the loop
