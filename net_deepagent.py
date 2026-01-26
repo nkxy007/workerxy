@@ -282,6 +282,8 @@ async def main():
 
     question_3 = """There is a connectivity issue  incident reported by Nirali Patel work on it"""
     question_4 = "what is the broadcast address of 192.168.16.32/28"
+    question_5 = """for Headquaters site devices create a change to update log servers to 10.99.99.99, our organization uses ansible for deployment. only create a standalone ansible yaml file
+                 """
 
     #async for chunk in net_deep_agent.astream({"messages": question_2}):
     #    print("New chunk received:.......................................................\n")
@@ -343,7 +345,7 @@ async def main():
     )
     chunks = []
     with tru_recorder as recording:
-        async for chunk in net_deep_agent.astream({"messages": [{"role": "user", "content": question_4}]}):
+        async for chunk in net_deep_agent.astream({"messages": [{"role": "user", "content": question_5}]}):
             chunks.append(chunk)
     
     print("\nFinal Response received:.......................................................\n")
