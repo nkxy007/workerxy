@@ -1,19 +1,29 @@
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.table import Table
 from pathlib import Path
 from net_deepagent_cli.agent import SkillsMiddleware
+from net_deepagent_cli.config import AgentConfig
 from a2a_capability.middleware import A2AHTTPMiddleware
+from langchain_core.messages import message_to_dict, messages_from_dict
 import json
+import datetime
 
 async def handle_command(command: str, ui, messages):
     """Handle special slash commands"""
     parts = command.split()
     cmd = parts[0].lower()
     
+    config_manager = AgentConfig(ui.agent_name)
+    sessions_dir = config_manager.sessions_dir
+
     if cmd == "/help":
         ui.console.print("""
 [bold]Available Commands:[/bold]
   [bold cyan]/clear[/bold cyan]      - Clear conversation history
+  [bold cyan]/save [name][/bold cyan] - Save current context to a session file
+  [bold cyan]/resume [name][/bold cyan] - Resume a saved session
+  [bold cyan]/sessions[/bold cyan]   - List all saved sessions
   [bold cyan]/tokens[/bold cyan]     - Show token usage for the entire session
   [bold cyan]/context[/bold cyan]    - Analyze current context (messages and system prompt)
   [bold cyan]/skills[/bold cyan]     - List available skills
@@ -27,6 +37,105 @@ async def handle_command(command: str, ui, messages):
     elif cmd == "/clear":
         messages.clear()
         ui.print_message("Conversation cleared", role="system")
+
+    elif cmd == "/save":
+        if not messages:
+            ui.print_message("No context to save.", role="warning")
+            return
+            
+        session_name = parts[1] if len(parts) > 1 else None
+        if not session_name:
+            session_name = ui.console.input("[bold blue]Enter session name to save:[/] ")
+            if not session_name:
+                return
+        
+        # Ensure .json extension
+        if not session_name.endswith(".json"):
+            filename = f"{session_name}.json"
+        else:
+            filename = session_name
+            
+        filepath = sessions_dir / filename
+        
+        try:
+            # Serialize messages
+            serialized_messages = [message_to_dict(m) for m in messages]
+            with open(filepath, 'w') as f:
+                json.dump(serialized_messages, f, indent=2)
+            ui.print_message(f"Session saved to [bold cyan]{filename}[/bold cyan]", role="system")
+        except Exception as e:
+            ui.print_message(f"Failed to save session: {e}", role="error")
+
+    elif cmd == "/resume":
+        session_name = parts[1] if len(parts) > 1 else None
+        
+        if not session_name:
+            # List available sessions
+            available = list(sessions_dir.glob("*.json"))
+            if not available:
+                ui.print_message("No saved sessions found.", role="system")
+                return
+                
+            ui.console.print("[bold blue]Available Sessions:[/bold blue]")
+            for i, p in enumerate(available):
+                ui.console.print(f"  {i+1}. [cyan]{p.stem}[/cyan]")
+                
+            choice = ui.console.input("[bold blue]Pick a session number or name (or Enter to cancel):[/] ")
+            if not choice:
+                return
+                
+            if choice.isdigit() and 1 <= int(choice) <= len(available):
+                filepath = available[int(choice)-1]
+            else:
+                if not choice.endswith(".json"):
+                    filepath = sessions_dir / f"{choice}.json"
+                else:
+                    filepath = sessions_dir / choice
+        else:
+            if not session_name.endswith(".json"):
+                filepath = sessions_dir / f"{session_name}.json"
+            else:
+                filepath = sessions_dir / session_name
+
+        if not filepath.exists():
+            ui.print_message(f"Session file [bold red]{filepath.name}[/bold red] not found.", role="error")
+            return
+            
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+                restored_messages = messages_from_dict(data)
+                
+            messages.clear()
+            messages.extend(restored_messages)
+            ui.print_message(f"Resumed session from [bold cyan]{filepath.name}[/bold cyan] ([bold green]{len(messages)}[/bold green] messages restored)", role="system")
+            ui.print_message("You can continue the conversation now.", role="system")
+        except Exception as e:
+            ui.print_message(f"Failed to resume session: {e}", role="error")
+
+    elif cmd == "/sessions":
+        available = list(sessions_dir.glob("*.json"))
+        if not available:
+            ui.print_message("No saved sessions found.", role="system")
+            return
+            
+        table = Table(title="Saved Conversation Sessions", border_style="blue")
+        table.add_column("Session Name", style="cyan")
+        table.add_column("Messages", style="green")
+        table.add_column("Last Modified", style="dim")
+        table.add_column("Size", style="dim")
+        
+        for p in sorted(available, key=lambda x: x.stat().st_mtime, reverse=True):
+            try:
+                mtime = datetime.datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+                size_kb = f"{p.stat().st_size / 1024:.1f} KB"
+                with open(p, 'r') as f:
+                    count = len(json.load(f))
+                table.add_row(p.stem, str(count), mtime, size_kb)
+            except:
+                table.add_row(p.stem, "Error", "???", "???")
+                
+        ui.console.print(table)
     
     elif cmd == "/tokens":
         ui.console.print(Panel(

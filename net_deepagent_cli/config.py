@@ -15,6 +15,11 @@ class AgentConfig:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         (self.config_dir / "skills").mkdir(exist_ok=True)
         (self.config_dir / "memories").mkdir(exist_ok=True)
+        (self.config_dir / "sessions").mkdir(exist_ok=True)
+        
+    @property
+    def sessions_dir(self) -> Path:
+        return self.config_dir / "sessions"
     
     def load_config(self) -> dict:
         """Load agent configuration"""
