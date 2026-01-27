@@ -24,6 +24,7 @@ import base64
 import aiohttp
 import urllib.parse
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 # Configure logging
 logging.basicConfig(
@@ -689,6 +690,7 @@ async def visualize_drawio_diagram(
 ) -> str:
     """
     Visualize a drawio diagram using Diagrams.net export API.
+    NOTE: Do not use until proven working
     
     Args:
         diagram_xml_code (str): The XML code of the diagram
@@ -756,6 +758,142 @@ async def visualize_drawio_diagram(
         except Exception as e:
             logger.error(f"Exception during draw.io visualization: {str(e)}")
             return f"Error: {str(e)}"
+
+@mcp.tool()
+async def analyze_drawio_diagram(diagram_xml: str, original_request: str = "") -> str:
+    """
+    Performs a deep audit of a Draw.io XML diagram to identify 'bizarre' errors.
+    Checks for overlapping nodes, missing connections, orphans, and alignment with the request.
+    
+    Args:
+        diagram_xml (str): The raw Draw.io XML code.
+        original_request (str): The initial user instruction to compare against.
+        
+    Returns:
+        str: A Markdown formatted audit report.
+    """
+    logger.info("Analyzing draw.io diagram logic")
+    try:
+        # 1. Parse XML
+        # Handle cases where XML might be wrapped in <mxfile> or starts at <mxGraphModel>
+        root = ET.fromstring(diagram_xml)
+        
+        nodes = {}
+        edges = []
+        
+        # Find all mxCell elements
+        for cell in root.iter('mxCell'):
+            cell_id = cell.get('id')
+            if not cell_id or cell_id in ('0', '1'):  # Skip root layers
+                continue
+                
+            # Node (vertex)
+            if cell.get('vertex') == '1':
+                geometry = cell.find('mxGeometry')
+                nodes[cell_id] = {
+                    'id': cell_id,
+                    'value': cell.get('value', '').replace('\n', ' '),
+                    'x': float(geometry.get('x', 0)) if geometry is not None else 0,
+                    'y': float(geometry.get('y', 0)) if geometry is not None else 0,
+                    'w': float(geometry.get('width', 0)) if geometry is not None else 0,
+                    'h': float(geometry.get('height', 0)) if geometry is not None else 0,
+                    'connections': 0
+                }
+            
+            # Edge (connection)
+            elif cell.get('edge') == '1':
+                edges.append({
+                    'id': cell_id,
+                    'source': cell.get('source'),
+                    'target': cell.get('target'),
+                    'value': cell.get('value', '')
+                })
+        
+        # 2. Connection Analysis
+        for edge in edges:
+            if edge['source'] in nodes:
+                nodes[edge['source']]['connections'] += 1
+            if edge['target'] in nodes:
+                nodes[edge['target']]['connections'] += 1
+                
+        # 3. Collision Detection (Overlaps)
+        overlaps = []
+        node_ids = list(nodes.keys())
+        for i in range(len(node_ids)):
+            for j in range(i + 1, len(node_ids)):
+                n1 = nodes[node_ids[i]]
+                n2 = nodes[node_ids[j]]
+                
+                # Check AABB collision
+                if (n1['x'] < n2['x'] + n2['w'] and
+                    n1['x'] + n1['w'] > n2['x'] and
+                    n1['y'] < n2['y'] + n2['h'] and
+                    n1['y'] + n1['h'] > n2['y']):
+                    overlaps.append(f"• **Overlap**: '{n1['value']}' and '{n2['value']}' are physically colliding.")
+
+        # 4. Logical Anomalies
+        orphans = [n['value'] for n in nodes.values() if n['connections'] == 0 and n['value']]
+        zero_size = [n['value'] for n in nodes.values() if (n['w'] <= 5 or n['h'] <= 5) and n['value']]
+
+        # 5. Gap Analysis (Contextual Layer)
+        gaps = []
+        if original_request:
+            req_lower = original_request.lower()
+            
+            # Categories of technology to check
+            TECH_KEYWORDS = {
+                "Routing Protocols": ["ospf", "bgp", "eigrp", "is-is", "rip", "static route"],
+                "Overlay/Tunneling": ["mpls", "gre", "vxlan", "dmvpn", "ipsec", "vpn"],
+                "Infrastructure": ["vlan", "subnet", "vrf", "stp", "lacp", "hsrp", "vrrp", "trunk"],
+                "Security/Services": ["firewall", "load balancer", "f5", "nat", "acl"],
+                "Device Types": ["router", "switch", "server", "pc", "laptop", "cloud", "aws", "azure"]
+            }
+            
+            # Flatten diagram content for easy searching
+            all_labels = " ".join([n['value'] for n in nodes.values()] + [e['value'] for e in edges]).lower()
+            
+            for category, keywords in TECH_KEYWORDS.items():
+                for kw in keywords:
+                    if kw in req_lower:
+                        # Request mentioned this keyword, check if it exists in the diagram
+                        if kw not in all_labels:
+                            gaps.append(f"• **Missing {category}**: '{kw.upper()}' was requested but not found in any labels or links.")
+
+        # 6. Generate Report
+        report = ["### 📊 Diagram Audit Report"]
+        
+        if overlaps:
+            report.append("\n#### ⚠️ Physical Issues (Bizarre Layout)")
+            report.extend(overlaps)
+        else:
+            report.append("\n✅ **No physical overlaps detected.**")
+            
+        if orphans or zero_size:
+            report.append("\n#### ❌ Logical Errors")
+            if orphans:
+                report.append(f"• **Orphan Nodes**: {', '.join(orphans)} have no connections.")
+            if zero_size:
+                report.append(f"• **Zero-Size Nodes**: {', '.join(zero_size)} are too small to see.")
+                
+        if gaps:
+            report.append("\n#### 🔍 Instruction Alignment (Gap Analysis)")
+            report.extend(gaps)
+
+        # TODO: 6. LLM Visual Analysis (Future Placeholder)
+        # This section is reserved for feeding the rendered PNG to a Vision LLM
+        # to detect aesthetic issues or missing logical flow that XML doesn't catch.
+        report.append("\n#### 👁️ Visual Semantic Analysis (Future Feature)")
+        report.append("• *Note: Automated visual inspection is currently disabled. Feed the rendered image to a vision-capable LLM for final aesthetic and contextual verification.*")
+            
+        report.append("\n#### 📈 Graph Stats")
+        report.append(f"- **Nodes**: {len(nodes)}")
+        report.append(f"- **Connections**: {len(edges)}")
+        
+        return "\n".join(report)
+
+    except Exception as e:
+        logger.error(f"Audit failed: {e}")
+        return f"Error analyzing XML: {str(e)}"
 
     
 
