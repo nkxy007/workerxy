@@ -53,6 +53,22 @@ class DeviceSShSession:
 
 
         
+@mcp.tool()
+async def get_site_info(site_name:str) -> str:
+    """Get site information or site inventory. This is information about site details, such as devices
+    name and IP address as well as site location and other details.
+    args:
+        site_name (str): name of the site
+    returns:
+        str: site information
+    """
+    logger.info(f"Getting site info for site: {site_name}")
+    with open("sites.json", "r") as f:
+        data = json.load(f)
+    for site in data["sites"]:
+        if site_name.lower() in site["name"].lower():
+            return site
+    return f"Site {site_name} not found"
 
 @mcp.tool()
 async def get_devices_management_ip(site_name:str, device_type:str) -> str:
@@ -269,10 +285,11 @@ async def get_servicenow_incidents_by_incident_id(incident_id: str) -> str:
     logger.info(f"Getting ServiceNow incident details for ID: {incident_id}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     # get all incidents and filter incidents where 
-    result = sn_client.get_incidents()
+    result = sn_client.get_incident_by_id(incident_id)
     
     if result['success']:
-        incident = result['data']
+        # get_incident_by_id returns {'result': {...}} so result['data']['result'] is the object
+        incident = result['data'].get('result', {})
         details = f"Incident Details:\nNumber: {incident.get('number')}\nShort Description: {incident.get('short_description')}\nState: {incident.get('state')}\nPriority: {incident.get('priority')}\n"
         return details
     else:
@@ -295,12 +312,6 @@ async def get_servicenow_incident_by_user(user: str) -> str:
     
     result = sn_client.get_my_incidents(user)
     
-    if result['success']:
-        incidents = result['data']['result']
-        summary = f"Retrieved {result['count']} incidents assigned to user {user}:\n"
-        for inc in incidents:
-            summary += f"- Number: {inc.get('number')}, Short Description: {inc.get('short_description')}\n"
-        return summary
     if result['success']:
         incidents = result['data']['result']
         summary = f"Retrieved {result['count']} incidents assigned to user {user}:\n"
@@ -396,18 +407,18 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str,
     return output
 
 @mcp.tool()
-async def linux_server_ssh_tool(management_ip: str, command: List[str]) -> str:
-    """SSH into a cloud VM and run a command, it can run commands on AWS, Azure, GCP
+async def linux_server_ssh_tool(management_ip: str, command: List[str], username: str = 'admin', password: str = 'password') -> str:
+    """SSH into a Linux server and run a command
     args:
         management_ip (str): management IP of the VM
-        username (str): SSH username
-        password (str): SSH password
+        username (str): SSH username (default: admin)
+        password (str): SSH password (default: password)
         command (List[str]): commands to execute
     returns:
         str: output of the command execution
     """
-    logger.info(f"Connecting to {cloud_provider} VM at {management_ip} as {username}")
-    device = DeviceSShSession(management_ip)
+    logger.info(f"Connecting to Linux server at {management_ip} as {username}")
+    device = DeviceSShSession(management_ip, username, password)
     output = ""
     for cmd in command:
         logger.info(f"Executing command: {cmd}")

@@ -167,17 +167,67 @@ class ServiceNowIncident:
         
         return self.get_incidents(query_params=query_params)
     
+    def resolve_user_name(self, user_name):
+        """
+        Resolve a user name to its sys_id
+        
+        Args:
+            user_name: Name of the user (e.g., 'Fred Luddy')
+            
+        Returns:
+            str: sys_id of the user or None if not found
+        """
+        url = f"{self.instance_url}/api/now/table/sys_user"
+        params = {
+            'sysparm_query': f'name={user_name}^active=true',
+            'sysparm_limit': 1,
+            'sysparm_fields': 'sys_id'
+        }
+        
+        try:
+            response = requests.get(
+                url,
+                headers=self.headers,
+                params=params,
+                timeout=30
+            )
+            response.raise_for_status()
+            result = response.json().get('result', [])
+            
+            if result and len(result) > 0:
+                return result[0]['sys_id']
+            return None
+            
+        except Exception as e:
+            print(f"Error resolving user name: {e}")
+            return None
+
     def get_my_incidents(self, user_sys_id):
         """
         Retrieve incidents assigned to a specific user
         
         Args:
-            user_sys_id: The sys_id of the user
+            user_sys_id: The sys_id or name of the user
         
         Returns:
             dict: Response from ServiceNow API with user's incidents
         """
-        query_params = {'assigned_to': user_sys_id}
+        # Check if user_sys_id looks like a sys_id
+        is_sys_id = len(user_sys_id) == 32 and all(c in '0123456789abcdef' for c in user_sys_id.lower())
+        
+        real_user_id = user_sys_id
+        if not is_sys_id:
+            resolved_id = self.resolve_user_name(user_sys_id)
+            if resolved_id:
+                real_user_id = resolved_id
+            else:
+                return {
+                    'success': False,
+                    'error': f"Could not resolve user name '{user_sys_id}' to a sys_id",
+                    'status_code': 400
+                }
+
+        query_params = {'assigned_to': real_user_id}
         return self.get_incidents(query_params=query_params)
     
     def resolve_group_name(self, group_name):
