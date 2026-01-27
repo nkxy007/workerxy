@@ -147,7 +147,7 @@ AVAILABLE_MODELS = {
 
 async def create_network_agent(
     mcp_server_url: str = "http://localhost:8000/mcp",
-    main_model_name: str = "gpt-5-mini",
+    main_model_name: str = "gpt-5.1",
     subagent_model_name: str = "gpt-5-mini-minimal",
     design_model_name: str = "gpt-4.1",
     custom_system_prompt: Optional[str] = None,

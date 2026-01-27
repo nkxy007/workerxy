@@ -22,6 +22,7 @@ async def run_cli():
     
     # Load or create config
     config_manager = AgentConfig(args.agent)
+    config_manager.save_config(args)
     config = config_manager.load_config()
     
     # Override config with CLI args if provided
