@@ -70,7 +70,10 @@ class TerminalUI:
         """Print a message with formatting"""
         if role == "assistant":
             # Render markdown for assistant messages
-            self.console.print(Markdown(message))
+            try:
+                self.console.print(Markdown(message))
+            except:
+                self.console.print(message)
         elif role == "system":
             self.console.print(f"[bold blue]System:[/bold blue] {message}")
         elif role == "error":
