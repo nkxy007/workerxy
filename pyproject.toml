@@ -21,4 +21,5 @@ dependencies = [
     "trulens-core",
     "trustcall",
     "mcp",
+    "playwright>=1.57.0",
 ]

@@ -3,7 +3,7 @@
 
 #1. mocks network operations
 #2. runs a MCP server exposing those operations as tools
-from typing import List
+from typing import List, Optional
 from mcp.server.fastmcp import FastMCP
 import json
 import paramiko
@@ -20,6 +20,10 @@ import contextlib
 import io
 import asyncio
 import traceback
+import base64
+import aiohttp
+import urllib.parse
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
@@ -673,6 +677,87 @@ async def get_skill_all_related_tools(skill_name: str) -> str:
     skill_tools = [(tool.__name__, tool.__doc__) for tool in skill_tools]
     logger.info(f"Skill tools information: {skill_tools}")
     return f"{skill_name} skill tools: {skill_tools}"
+
+@mcp.tool()
+async def visualize_drawio_diagram(
+    diagram_xml_code: str,
+    save_to_file: Optional[str] = None,
+    width: int = 800,
+    height: int = 600,
+    scale: float = 1.0,
+    border: int = 0
+) -> str:
+    """
+    Visualize a drawio diagram using Diagrams.net export API.
+    
+    Args:
+        diagram_xml_code (str): The XML code of the diagram
+        save_to_file (Optional[str]): Path to save the PNG image
+        width (int): Width of the image (default: 800)
+        height (int): Height of the image (default: 600)
+        scale (float): Scale factor (default: 1.0)
+        border (int): Border width (default: 0)
+        
+    Returns:
+        str: base64 encoded png image of the diagram
+    """
+    logger.info("Visualizing draw.io diagram via export API")
+    
+    export_url = "https://convert.diagrams.net/node/export"
+    
+    async with aiohttp.ClientSession() as session:
+        # We request binary data (base64=0) because we need it for saving to file
+        params = {
+            'format': 'png',
+            'xml': diagram_xml_code,
+            'bg': 'none',
+            'base64': '0',
+            'w': str(width),
+            'h': str(height),
+            'border': str(border),
+            'scale': str(scale)
+        }
+        
+        headers = {
+            'Origin': 'https://app.diagrams.net',
+            'Referer': 'https://app.diagrams.net/'
+        }
+        
+        try:
+            async with session.post(
+                export_url,
+                data=params,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as response:
+                if response.status != 200:
+                    error_body = await response.text()
+                    logger.error(f"Draw.io export failed: {response.status} - {error_body}")
+                    return f"Error: Export failed with status {response.status} - {error_body}"
+                
+                image_bytes = await response.read()
+                
+                if not image_bytes:
+                    logger.error("Received empty response from Draw.io API")
+                    return "Error: Received empty response from API"
+                
+                # Save to file if requested
+                if save_to_file:
+                    save_path = Path(save_to_file)
+                    save_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(save_path, 'wb') as f:
+                        f.write(image_bytes)
+                    logger.info(f"✓ PNG saved to: {save_path.absolute()}")
+                
+                base64_result = base64.b64encode(image_bytes).decode('utf-8')
+                logger.info(f"Successfully visualized diagram. Base64 length: {len(base64_result)}")
+                return base64_result
+                
+        except Exception as e:
+            logger.error(f"Exception during draw.io visualization: {str(e)}")
+            return f"Error: {str(e)}"
+
+    
 
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
