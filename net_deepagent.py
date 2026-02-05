@@ -130,6 +130,52 @@ def skill_generator_from_documentation(documentation: str) -> str:
     # this is a placeholder implementation
     print(f"Generating skills from documentation.")
 
+@tool
+def navigate_the_gui(url:str, question: str, browse_instruction:str=""):
+    """Function to scroll the gui of different devices or monitoring systems that use the graphical User interface.
+    As long as it has the URL and what to look for and if needed browser-instructions it can allow to navigate to the
+    right resource and get the information or even modify the information. This use browser_use as its agent to do the work"""
+    # TODO write a sync version of this tool.
+    print("="*20)
+    print(f"I am scrolling the gui of {url} to find information on {question}")
+    from browser_use import Agent
+    import asyncio
+    from langchain_openai import ChatOpenAI
+    from browser_use.browser.browser import Browser, BrowserConfig
+    
+    full_question = f"{question} at {url} using thes instruction {browse_instruction}"
+    browser = Browser(
+        config=BrowserConfig(
+            headless=True,
+        )
+    )
+    
+    async def main():
+        agent = Agent(
+            task=full_question,
+            llm=ChatOpenAI(model="gpt-4o"),
+            browser=browser,
+        )
+        # Explicitly return the result of the run method
+        result = await agent.run()
+        return result
+    
+    try:
+        # Use asyncio.run() to get the return value
+        real_answer = asyncio.run(main())
+        print(real_answer)
+        
+        # If no exception is raised, use the actual expert advice
+        mocked_return = f"Expert advise on {full_question} is: {real_answer}"
+    except Exception as e:
+        # Fallback to the mocked response if there's an error
+        mocked_response = "you need to add a new route to the device and run command ip route x.x.x.x y.y.y.y z.z.z.z"
+        print(f"Error obtaining expert advice: {e}")
+        mocked_return = f"Expert advise on {question} is: {mocked_response}"
+    
+    # Close the browser to prevent resource leaks
+    browser.close()
+    return real_answer
 
 # Dictionary of available models for selection
 AVAILABLE_MODELS = {
@@ -268,117 +314,155 @@ async def create_network_agent(
 async def main():
     """
     Main function for standalone execution.
-    Demonstrates agent usage with TruLens evaluation.
+    Demonstrates agent usage with optional TruLens evaluation.
     """
     # Create the network agent using the factory function
     net_deep_agent = await create_network_agent()
+    
     question_1 = """There is a connectivity issue in the LAN network and user with IP 10.10.10.4 and mac address aaaa.bb12.3456"
     is unable to reach any application, check why. it is connected on switch with management IP address of 192.168.81.222"""
     
     question_1_1 = """There is a connectivity issue in Brisbane LAN network and user with IP 10.10.10.4 and mac address 00:50:79:66:68:07"
     is unable to reach any application, check why. it is connected on switch, switch model is huaweis5530"""
+    
     question_2 = """There is a connectivity issue in Brisbane LAN network and user with IP 10.10.10.4 and mac address 00:50:79:66:68:07"
     is unable to reach any application, check why. it is connected on switch"""
 
-    question_3 = """There is a connectivity issue  incident reported by Nirali Patel work on it"""
+    question_3 = """There is a connectivity issue incident reported by Nirali Patel work on it"""
+    
     question_4 = "what is the broadcast address of 192.168.16.32/28"
+    
     question_5 = """for Headquaters site devices create a change to update log servers to 10.99.99.99, our organization uses ansible for deployment. only create a standalone ansible yaml file
                  """
 
-    #async for chunk in net_deep_agent.astream({"messages": question_2}):
-    #    print("New chunk received:.......................................................\n")
-    #    print(f"{chunk=}")
-    #    if "messages" in chunk.get("model",""):
-    #        print("==="*10)
-    #        chunk["model"]["messages"][-1].pretty_print()
-    #    elif "messages" in chunk.get("tools",""):
-    #        print("+++"*10)
-    #        chunk["tools"]["messages"][-1].pretty_print()
+    print("\n" + "="*50)
+    print("      NETWORK DEEP AGENT - EVALUATION MENU")
+    print("="*50)
+    print("1. Run Agent (Standard)")
+    print("2. Run Agent with TruLens Evaluation")
+    print("3. Exit")
+    print("="*50)
+    
+    choice = input("\nSelect an option (1-3): ").strip()
 
-    # evaluation layer 
-
-    session = TruSession()
-    session.reset_database()
-    # Goal-Plan-Act evaluation provider
-    gpa_eval_provider = TrulensOpenAI(model_engine="gpt-4.1",
-                                      api_key=creds.OPENAI_KEY)
+    if choice == '3':
+        print("Exiting...")
+        return
     
-    # Goal-Plan-Act: Logical consistency of trace
-    f_logical_consistency = Feedback(
-        gpa_eval_provider.logical_consistency_with_cot_reasons,
-        name="Logical Consistency",
-    ).on({
-        "trace": Selector(trace_level=True),
-    })
-    
-    # Goal-Plan-Act: Execution efficiency of trace
-    f_execution_efficiency = Feedback(
-        gpa_eval_provider.execution_efficiency_with_cot_reasons,
-        name="Execution Efficiency",
-    ).on({
-        "trace": Selector(trace_level=True),
-    })
-    
-    # Goal-Plan-Act: Plan adherence
-    f_plan_adherence = Feedback(
-        gpa_eval_provider.plan_adherence_with_cot_reasons,
-        name="Plan Adherence",
-    ).on({
-        "trace": Selector(trace_level=True),
-    })
-    
-    # Goal-Plan-Act: Plan quality
-    f_plan_quality = Feedback(
-        gpa_eval_provider.plan_quality_with_cot_reasons,
-        name="Plan Quality",
-    ).on({
-        "trace": Selector(trace_level=True),
-    })
-    tru_recorder = TruGraph(net_deep_agent,
-                            app_name="coworkerx_agent_app",
-                            app_version="0.2",
-                            feedbacks=[
-                                f_logical_consistency,
-                                f_execution_efficiency,
-                                f_plan_adherence,
-                                f_plan_quality]
-    )
-    chunks = []
-    with tru_recorder as recording:
+    if choice == '1':
+        print("\nRunning in Standard Mode...")
+        chunks = []
         async for chunk in net_deep_agent.astream({"messages": [{"role": "user", "content": question_5}]}):
             chunks.append(chunk)
-    
-    print("\nFinal Response received:.......................................................\n")
-    print("--"*40)
-    print(f"Final Response: {chunks[-1]}")
-    print("--"*40)
-    
-    from trulens.core import Tru
-    import time
-    time.sleep(10)  # Wait for feedbacks to complete
-    
-    # Get the record
-    record = recording.get()
-    
-    # Check if _wait_for_record is async
-    if hasattr(record._wait_for_record, '__await__'):
-        await record._wait_for_record()
+            # Print chunks as they come
+            if "model" in chunk and "messages" in chunk["model"]:
+                chunk["model"]["messages"][-1].pretty_print()
+            elif "tools" in chunk and "messages" in chunk["tools"]:
+                chunk["tools"]["messages"][-1].pretty_print()
+        
+        print("\n" + "--"*40)
+        print(f"Final Response: {chunks[-1] if chunks else 'No response'}")
+        print("--"*40)
+
+    elif choice == '2':
+        print("\nRunning in Evaluation Mode (TruLens)...")
+        # evaluation layer 
+        session = TruSession()
+        session.reset_database()
+        # Goal-Plan-Act evaluation provider
+        gpa_eval_provider = TrulensOpenAI(model_engine="gpt-4.1",
+                                          api_key=creds.OPENAI_KEY)
+        
+        # Goal-Plan-Act: Logical consistency of trace
+        f_logical_consistency = Feedback(
+            gpa_eval_provider.logical_consistency_with_cot_reasons,
+            name="Logical Consistency",
+        ).on({
+            "trace": Selector(trace_level=True),
+        })
+        
+        # Goal-Plan-Act: Execution efficiency of trace
+        f_execution_efficiency = Feedback(
+            gpa_eval_provider.execution_efficiency_with_cot_reasons,
+            name="Execution Efficiency",
+        ).on({
+            "trace": Selector(trace_level=True),
+        })
+        
+        # Goal-Plan-Act: Plan adherence
+        f_plan_adherence = Feedback(
+            gpa_eval_provider.plan_adherence_with_cot_reasons,
+            name="Plan Adherence",
+        ).on({
+            "trace": Selector(trace_level=True),
+        })
+        
+        # Goal-Plan-Act: Plan quality
+        f_plan_quality = Feedback(
+            gpa_eval_provider.plan_quality_with_cot_reasons,
+            name="Plan Quality",
+        ).on({
+            "trace": Selector(trace_level=True),
+        })
+        
+        tru_recorder = TruGraph(net_deep_agent,
+                                app_name="coworkerx_agent_app",
+                                app_version="0.2",
+                                feedbacks=[
+                                    f_logical_consistency,
+                                    f_execution_efficiency,
+                                    f_plan_adherence,
+                                    f_plan_quality]
+        )
+        
+        chunks = []
+        with tru_recorder as recording:
+            async for chunk in net_deep_agent.astream({"messages": [{"role": "user", "content": question_5}]}):
+                chunks.append(chunk)
+                # Print chunks as they come (optional, but good for feedback)
+                if "model" in chunk and "messages" in chunk["model"]:
+                    chunk["model"]["messages"][-1].pretty_print()
+                elif "tools" in chunk and "messages" in chunk["tools"]:
+                    chunk["tools"]["messages"][-1].pretty_print()
+        
+        print("\nFinal Response received:.......................................................\n")
+        print("--"*40)
+        print(f"Final Response: {chunks[-1] if chunks else 'No response'}")
+        print("--"*40)
+        
+        from trulens.core import Tru
+        import time
+        print("Waiting for feedbacks to complete...")
+        time.sleep(10)  # Wait for feedbacks to complete
+        
+        # Get the record
+        record = recording.get()
+        
+        # Check if _wait_for_record is async
+        if hasattr(record._wait_for_record, '__await__'):
+            await record._wait_for_record()
+        else:
+            record._wait_for_record()
+        
+        # Fix: Use the correct app_name here!
+        records_df, feedback_cols = session.get_records_and_feedback(app_ids=["coworkerx_agent_app"])
+        print(f"Records in DB: {len(records_df)}")
+        print(f"Feedback columns: {feedback_cols}")
+        
+        if len(records_df) > 0:
+            print(records_df[['input', 'output'] + feedback_cols])
+        
+        print("\nStarting TruLens Dashboard...")
+        session.run_dashboard()
     else:
-        record._wait_for_record()
-    
-    # Fix: Use the correct app_name here!
-    records_df, feedback_cols = session.get_records_and_feedback(app_ids=["coworkerx_agent_app"])
-    print(f"Records in DB: {len(records_df)}")
-    print(f"Feedback columns: {feedback_cols}")
-    
-    if len(records_df) > 0:
-        print(records_df[['input', 'output'] + feedback_cols])
-    
-    session.run_dashboard()
+        print("Invalid choice. Please select 1, 2, or 3.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nAborted by user.")
 
 
 
