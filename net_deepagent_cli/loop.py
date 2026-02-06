@@ -2,40 +2,63 @@ import asyncio
 from typing import List, Dict, Any
 from net_deepagent_cli.ui import TerminalUI
 from net_deepagent_cli.commands import handle_command
+from net_deepagent_cli.automata import AutomataManager, handle_automata_ui
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 async def interactive_loop(agent, args, ui: TerminalUI):
     """Main interactive loop"""
     ui.print_banner()
     
+    # Initialize Automata Manager
+    # We assume 'agent_name' is available in ui or args?
+    # ui.agent_name is available.
+    automata_manager = AutomataManager(ui.agent_name, agent)
+    automata_manager.start()
+    
     # Session state - store as LangChain messages
     messages: List[Any] = []
     
-    while True:
-        # Get user input
-        user_input = await ui.get_user_input()
-        
-        if user_input is None:
-            # Ctrl+C or EOF
-            ui.console.print("\n[yellow]Goodbye![/yellow]")
-            break
-        
-        if not user_input:
-            continue
+    try:
+        while True:
+            # Get user input
+            user_input = await ui.get_user_input()
             
-        # Handle special commands
-        if user_input.startswith("/"):
-            try:
-                await handle_command(user_input, ui, messages)
-            except EOFError:
+            if user_input is None:
+                # Ctrl+C or EOF
+                ui.console.print("\n[yellow]Goodbye![/yellow]")
                 break
-            continue
+            
+            if not user_input:
+                continue
+                
+            # Handle special commands
+            if user_input.startswith("/"):
+                if user_input.strip() == "/automata":
+                    await handle_automata_ui(ui, automata_manager)
+                    continue
+                elif user_input.startswith("/automata "):
+                     from net_deepagent_cli.automata import process_automata_command
+                     arg_str = user_input[len("/automata "):].strip()
+                     if arg_str:
+                         await process_automata_command(automata_manager, arg_str, ui)
+                         continue
+
+                try:
+                    await handle_command(user_input, ui, messages)
+                except EOFError:
+                    break
+                continue
         
-        # Add user message
-        messages.append(HumanMessage(content=user_input))
-        
-        # Stream agent response
-        await stream_agent_response(agent, messages, ui, args.auto_approve)
+            # Add user message
+            messages.append(HumanMessage(content=user_input))
+            
+            # Stream agent response
+            await stream_agent_response(agent, messages, ui, args.auto_approve)
+    except Exception as e:
+        ui.console.print(f"[red]Error in interactive loop: {e}[/red]")
+    finally:
+        if 'automata_manager' in locals():
+            automata_manager.stop()
 
 async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: bool):
     """Stream agent response with real-time updates"""

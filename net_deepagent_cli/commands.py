@@ -29,6 +29,7 @@ async def handle_command(command: str, ui, messages):
   [bold cyan]/skills[/bold cyan]     - List available skills
   [bold cyan]/skills add <path>[/bold cyan]    - Extract and add skills from a document
   [bold cyan]/agents[/bold cyan]     - Show available A2A agents
+  [bold cyan]/automata[/bold cyan]   - Manage scheduled background tasks
   [bold cyan]/memory[/bold cyan]     - Show current agent memory
   [bold cyan]/exit[/bold cyan]       - Exit the CLI
   [bold cyan]/help[/bold cyan]       - Show this help message
