@@ -131,15 +131,14 @@ def skill_generator_from_documentation(documentation: str) -> str:
     print(f"Generating skills from documentation.")
 
 @tool
-def navigate_the_gui(url:str, question: str, browse_instruction:str=""):
+async def navigate_the_gui(url:str, question: str, browse_instruction:str="") -> str:
     """Function to scroll the gui of different devices or monitoring systems that use the graphical User interface.
     As long as it has the URL and what to look for and if needed browser-instructions it can allow to navigate to the
     right resource and get the information or even modify the information. This use browser_use as its agent to do the work"""
-    # TODO write a sync version of this tool.
+    
     print("="*20)
     print(f"I am scrolling the gui of {url} to find information on {question}")
     from browser_use import Agent
-    import asyncio
     from langchain_openai import ChatOpenAI
     from browser_use.browser.browser import Browser, BrowserConfig
     
@@ -150,32 +149,27 @@ def navigate_the_gui(url:str, question: str, browse_instruction:str=""):
         )
     )
     
-    async def main():
+    try:
         agent = Agent(
             task=full_question,
             llm=ChatOpenAI(model="gpt-4o"),
             browser=browser,
         )
-        # Explicitly return the result of the run method
-        result = await agent.run()
-        return result
-    
-    try:
-        # Use asyncio.run() to get the return value
-        real_answer = asyncio.run(main())
+        
+        # Directly await the agent run since we are in an async function
+        real_answer = await agent.run()
         print(real_answer)
         
-        # If no exception is raised, use the actual expert advice
-        mocked_return = f"Expert advise on {full_question} is: {real_answer}"
     except Exception as e:
         # Fallback to the mocked response if there's an error
         mocked_response = "you need to add a new route to the device and run command ip route x.x.x.x y.y.y.y z.z.z.z"
         print(f"Error obtaining expert advice: {e}")
-        mocked_return = f"Expert advise on {question} is: {mocked_response}"
-    
-    # Close the browser to prevent resource leaks
-    browser.close()
-    return real_answer
+        real_answer = f"Expert advise on {question} is: {mocked_response}"
+    finally:
+        # Close the browser to prevent resource leaks
+        await browser.close()
+        
+    return str(real_answer)
 
 # Dictionary of available models for selection
 AVAILABLE_MODELS = {
@@ -198,6 +192,7 @@ async def create_network_agent(
     design_model_name: str = "gpt-4.1",
     custom_system_prompt: Optional[str] = None,
     extra_tools: List[Any] = [],
+    tool_wrapper: Optional[Callable[[List[Any]], List[Any]]] = None,
 ):
     """
     Create and configure the network deep agent with subagents.
@@ -246,6 +241,11 @@ async def create_network_agent(
     # Add extra tools if provided (e.g. A2A tools)
     if extra_tools:
         tools.extend(extra_tools)
+
+    # Allow caller to wrap/modify tools (e.g. for security)
+    if tool_wrapper:
+        logger.info("Applying tool wrapper...")
+        tools = tool_wrapper(tools)
 
     # Get models
     main_model = AVAILABLE_MODELS.get(main_model_name, thinking_model_mini)

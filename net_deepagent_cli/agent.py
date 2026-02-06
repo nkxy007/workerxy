@@ -131,7 +131,8 @@ async def create_cli_agent(
     main_model_name: str,
     subagent_model_name: str,
     design_model_name: str,
-    auto_approve: bool = False
+    auto_approve: bool = False,
+    ui: Any = None
 ):
     """Create agent with CLI-specific middleware"""
     
@@ -152,8 +153,44 @@ async def create_cli_agent(
         await a2a_middleware.register_agents_from_file(str(registry_path))
         a2a_tools = a2a_middleware.tools
     else:
-        print(f"Warning: A2A registry not found at {registry_path}")
+        # print(f"Warning: A2A registry not found at {registry_path}")
         a2a_tools = []
+        
+    # Security Wrapper Logic
+    from net_deepagent_cli.security import SecurityManager, SensitiveToolWrapper
+    
+    # Init security manager
+    security_manager = SecurityManager(ui_callback=ui.request_tool_approval if ui else None)
+    
+    if auto_approve:
+        # If auto-approve is on, we can skip wrapping or wrap with always-allow
+        # But 'Always allow' is handled by the manager anyway
+        security_manager.always_allow = ["*"] # Wildcard support could be added, or just don't wrap.
+        # However, for consistency, let's just make the callback always return 'allow_once' or not be called.
+        pass
+
+    SENSITIVE_TOOLS = ["execute_shell_command", "execute_generated_code", "user_clarification_and_action_tool"]
+
+    def security_tool_wrapper(tools: List[Any]) -> List[Any]:
+        wrapped = []
+        for tool in tools:
+            if tool.name in SENSITIVE_TOOLS or auto_approve == False: 
+                # Note: 'auto_approve==False' check here implies we wrap ALL tools? 
+                # No, we only want to wrap sensitive ones.
+                if tool.name in SENSITIVE_TOOLS:
+                      if auto_approve:
+                          # If auto-approve is explicitly requested via CLI flag, don't wrap?
+                          # Or wrap but auto-approve?
+                          # The user request said "option where we can by default authorize all".
+                          # The 'auto_approve' arg handles that. If True, we don't need to wrap.
+                          wrapped.append(tool)
+                      else:
+                          wrapped.append(SensitiveToolWrapper(tool, security_manager))
+                else:
+                    wrapped.append(tool)
+            else:
+                wrapped.append(tool)
+        return wrapped
     
     # Create base agent using the existing function from net_deepagent
     base_agent = await create_network_agent(
@@ -161,7 +198,8 @@ async def create_cli_agent(
         main_model_name=main_model_name,
         subagent_model_name=subagent_model_name,
         design_model_name=design_model_name,
-        extra_tools=a2a_tools
+        extra_tools=a2a_tools,
+        tool_wrapper=security_tool_wrapper
     )
     
     # Initialize middleware
@@ -175,3 +213,4 @@ async def create_cli_agent(
     ], resources=[a2a_middleware])
     
     return wrapped_agent
+

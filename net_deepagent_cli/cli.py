@@ -42,7 +42,8 @@ async def run_cli():
             main_model_name=args.model,
             subagent_model_name=args.subagent_model,
             design_model_name=args.design_model,
-            auto_approve=args.auto_approve
+            auto_approve=args.auto_approve,
+            ui=ui
         )
         
         ui.print_message("Agent initialized successfully.", role="system")

@@ -125,6 +125,43 @@ class TerminalUI:
             return "edit"
         else:
             return "reject"
+
+    def request_tool_approval(self, tool_name: str, args: dict) -> str:
+        """
+        Request approval for sensitive tool execution using interactive menu.
+        Returns: 'allow_once', 'allow_all', or 'deny'
+        """
+        import json
+        from InquirerPy import inquirer
+        from InquirerPy.base.control import Choice
+        
+        args_json = json.dumps(args, indent=2)
+        
+        panel = Panel(
+            f"[bold red]⚠️  Security Alert: Agent wants to execute a sensitive command[/bold red]\n\n"
+            f"[bold cyan]Tool:[/bold cyan] {tool_name}\n"
+            f"[bold cyan]Arguments:[/bold cyan]\n{args_json}\n",
+            title="Security Check",
+            border_style="red"
+        )
+        self.console.print(panel)
+        
+        choices = [
+            Choice(value="allow_once", name="Allow once"),
+            Choice(value="allow_all", name="Allow this tool for session"),
+            Choice(value="deny", name="Deny"),
+        ]
+        
+        # Use InquirerPy for interactive selection
+        # Note: We use .execute() to run it synchronously
+        result = inquirer.select(
+            message="Select action:",
+            choices=choices,
+            default="deny",
+            qmark="?",
+        ).execute()
+        
+        return result
     
     def show_progress(self, message: str):
         """Show progress indicator"""
