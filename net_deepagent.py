@@ -1,6 +1,7 @@
 from typing_extensions import TypedDict
 import operator
 from typing import Optional, Callable, Any, Dict, List
+from pathlib import Path
 import logging
 #from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
@@ -25,6 +26,7 @@ from langchain_core.tools import BaseTool
 import traceback
 from time import sleep
 from deepagents import create_deep_agent
+from deepagents.backends import FilesystemBackend
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import asyncio
 from langchain.agents import create_agent
@@ -171,6 +173,41 @@ async def navigate_the_gui(url:str, question: str, browse_instruction:str="") ->
         
     return str(real_answer)
 
+
+def get_network_skills(skills_dir: Optional[str] = None) -> List[str]:
+    """Dynamically discover network-related skills by name matching.
+    
+    Args:
+        skills_dir: Path to the skills directory (defaults to ./skills relative to this file)
+        
+    Returns:
+        List of absolute paths to network-related skill directories
+    """
+    if skills_dir is None:
+        # Use relative path from this file's location
+        skills_dir = str(Path(__file__).parent / "skills")
+    
+    skills_path = Path(skills_dir)
+    logger.info(f"Skills directory: {skills_dir}")
+    network_skills = []
+    
+    if not skills_path.exists() or not skills_path.is_dir():
+        logger.warning(f"Skills directory not found: {skills_dir}")
+        return network_skills
+    
+    for skill_dir in skills_path.iterdir():
+        if skill_dir.is_dir():
+            skill_md = skill_dir / "SKILL.md"
+            if skill_md.exists():
+                # Include skills with 'network' in name or specific network tools
+                if ('network' in skill_dir.name.lower() or 
+                    skill_dir.name in ['ansible-for-networks', 'drawio-network-diagram', 'prisma-sdwan']):
+                    network_skills.append(str(skill_dir.absolute()) + "/")
+                    logger.info(f"Loaded network skill: {skill_dir.name}")
+    
+    logger.info(f"Found {len(network_skills)} network-related skills")
+    return network_skills
+
 # Dictionary of available models for selection
 AVAILABLE_MODELS = {
     "gpt-5-mini": thinking_model_mini,
@@ -267,6 +304,7 @@ async def create_network_agent(
         "system_prompt": LAN_subagent_template,
         "tools": tools + [search_internet, user_clarification_and_action_tool],
         "model": subagent_model,
+        "skills": get_network_skills(),
     }
 
     network_design_subagent = {
@@ -299,6 +337,7 @@ async def create_network_agent(
             system_prompt=system_prompt,
             subagents=subagents,
             model=main_model,
+            backend=FilesystemBackend(),
             store=InMemoryStore(),
         )
         logger.info(f"Deep agent created successfully! Type: {type(net_deep_agent)}")
