@@ -13,7 +13,7 @@ class TerminalUI:
     """Rich terminal interface for agent interaction"""
     
     def __init__(self, agent_name: str):
-        self.console = Console()
+        self.console = Console(force_terminal=True, force_interactive=False)
         self.agent_name = agent_name
         self.config_dir = Path.home() / ".net-deepagent" / agent_name
         self.history_file = self.config_dir / "history"
@@ -43,7 +43,7 @@ class TerminalUI:
 /_/ |_/\___/\__/ |__/|__/\____/_/  /_/|_|/_/_/ /_/\__, /   
                                                   /____/   
 """
-        art = """
+        art = r"""
               ___           ___           ___           ___           ___           ___           ___           ___                               
      /\__\         /\  \         /\  \         /\__\         /\  \         /\  \         |\__\         |\__\                              
     /:/ _/_       /::\  \       /::\  \       /:/  /        /::\  \       /::\  \        |:|  |        |:|  |                             
@@ -68,12 +68,11 @@ class TerminalUI:
      \/__/         \/__/                       \/__/         \/__/         \|__|         \|__|                     \/__/         \/__/    
         """
         self.console.print(f"[bold cyan]{art}[/bold cyan]")
-        
         banner = Panel.fit(
             f"Agent: [bold yellow]{self.agent_name}[/bold yellow] | "
             "Type [bold cyan]/help[/bold cyan] for commands",
             border_style="blue",
-            title="[bold blue]CoworkerX Networking CLI[/bold blue]"
+            title="[bold blue]workerXY Networking CLI[/bold blue]"
         )
         self.console.print(banner)
         self.console.print("")
