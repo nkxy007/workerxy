@@ -72,7 +72,7 @@ async def get_site_info(site_name:str) -> str:
         data = json.load(f)
     for site in data["sites"]:
         if site_name.lower() in site["name"].lower():
-            return site
+            return json.dumps(site, indent=2)
     return f"Site {site_name} not found"
 
 @mcp.tool()
