@@ -25,6 +25,8 @@ import aiohttp
 import urllib.parse
 from pathlib import Path
 import xml.etree.ElementTree as ET
+import csv
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -35,6 +37,27 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP("network_tools_server")
+
+
+def log_tool_call_to_csv(tool_name: str, intention: str, **kwargs):
+    """Logs tool call details to a CSV file in ~/.net_deepagent/tool_calls_logger.csv"""
+    try:
+        log_dir = os.path.expanduser("~/.net_deepagent")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "tool_calls_logger.csv")
+        
+        file_exists = os.path.isfile(log_file)
+        with open(log_file, mode='a', newline='') as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(['timestamp', 'tool_name', 'arguments', 'intention'])
+            
+            timestamp = datetime.now().isoformat()
+            # Serialize arguments to JSON string to keep it in one CSV cell
+            arguments_json = json.dumps(kwargs)
+            writer.writerow([timestamp, tool_name, arguments_json, intention])
+    except Exception as e:
+        logger.error(f"Error logging tool call to CSV: {e}")
 
 
 class DeviceSShSession:
@@ -59,14 +82,17 @@ class DeviceSShSession:
 
         
 @mcp.tool()
-async def get_site_info(site_name:str) -> str:
+async def get_site_info(site_name: str, intention: str) -> str:
     """Get site information or site inventory. This is information about site details, such as devices
     name and IP address as well as site location and other details.
     args:
         site_name (str): name of the site
+        intention (str): llm intention to call this tool
     returns:
         str: site information
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_site_info", intention, site_name=site_name)
     logger.info(f"Getting site info for site: {site_name}")
     with open("sites.json", "r") as f:
         data = json.load(f)
@@ -76,14 +102,17 @@ async def get_site_info(site_name:str) -> str:
     return f"Site {site_name} not found"
 
 @mcp.tool()
-async def get_devices_management_ip(site_name:str, device_type:str) -> str:
+async def get_devices_management_ip(site_name: str, device_type: str, intention: str) -> str:
     """Get management IP of a network device from a site, uses infor from CMDB, IPAM and NMS to get the info
     args:
         site_name (str): name of the site stripped of anything like office, building, floor etc.
         device_type (str): type of the device (e.g., switch, router)
+        intention (str): llm intention to call this tool
     returns:
         str: management IP address of the device
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_devices_management_ip", intention, site_name=site_name, device_type=device_type)
     logger.info(f"Getting management IP for device type {device_type} in site {site_name}")
     try:
         with open("sites.json", "r") as f:
@@ -103,42 +132,71 @@ async def get_devices_management_ip(site_name:str, device_type:str) -> str:
     return "Device management IP cannot be found."
 
 @mcp.tool()
-async def find_network_interfaces(device_management_ip: str) -> str:
-    """connect to the device management IP and Find network interfaces"""
+async def find_network_interfaces(device_management_ip: str, intention: str) -> str:
+    """connect to the device management IP and Find network interfaces
+    args:
+        device_management_ip (str): management IP of the device
+        intention (str): llm intention to call this tool
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("find_network_interfaces", intention, device_management_ip=device_management_ip)
     logger.info(f"Finding network interfaces for device: {device_management_ip}")
     device = DeviceSShSession(device_management_ip)
     interfaces = device.execute_command("show ip interfaces brief | exclude unassigned")
     return interfaces
 
 @mcp.tool()
-async def ping_device_from_gateway(device_ip:str, target_ip: str, count: int =5) -> str:
-    """Ping a device from a switch"""
+async def ping_device_from_gateway(device_ip: str, target_ip: str, intention: str, count: int = 5) -> str:
+    """Ping a device from a switch
+    args:
+        device_ip (str): IP of the device
+        target_ip (str): target IP to ping
+        intention (str): llm intention to call this tool
+        count (int): number of pings (default: 5)
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("ping_device_from_gateway", intention, device_ip=device_ip, target_ip=target_ip, count=count)
     logger.info(f"Pinging {target_ip} from {device_ip} (count={count})")
     return f"Pinged {target_ip} {count} times failed."
 
 @mcp.tool()
-async def get_network_device_arp_table(device_management_ip: str) -> List[str]:
-    """Get ARP table from a device"""
+async def get_network_device_arp_table(device_management_ip: str, intention: str) -> List[str]:
+    """Get ARP table from a device
+    args:
+        device_management_ip (str): management IP of the device
+        intention (str): llm intention to call this tool
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_network_device_arp_table", intention, device_management_ip=device_management_ip)
     logger.info(f"Getting ARP table for device: {device_management_ip}")
     device = DeviceSShSession(device_management_ip)
     arp_table = device.execute_command("show ip arp")
     return [line for line in arp_table.splitlines("\n") if line.strip()]
 
 @mcp.tool()
-async def get_switch_mac_address_table(device_management_ip: str) -> List[str]:
-    """Get MAC address table from a device"""
+async def get_switch_mac_address_table(device_management_ip: str, intention: str) -> List[str]:
+    """Get MAC address table from a device
+    args:
+        device_management_ip (str): management IP of the device
+        intention (str): llm intention to call this tool
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_switch_mac_address_table", intention, device_management_ip=device_management_ip)
     logger.info(f"Getting MAC address table for device: {device_management_ip}")
     device = DeviceSShSession(device_management_ip)
     mac_table = device.execute_command("show mac address-table")
     return [line for line in mac_table.splitlines("\n") if line.strip()]
 
 @mcp.tool()
-async def get_l2_forwarding_information(device_management_ip: str) -> str:
+async def get_l2_forwarding_information(device_management_ip: str, intention: str) -> str:
     """Get trunking status and spanning tree information from the switch
     args:
         device_management_ip (str): management IP of the switch
+        intention (str): llm intention to call this tool
     """
     try:
+        logger.info(f"Intention: {intention}")
+        log_tool_call_to_csv("get_l2_forwarding_information", intention, device_management_ip=device_management_ip)
         logger.info(f"Getting L2 forwarding info for device: {device_management_ip}")
         device = DeviceSShSession(device_management_ip)
         # retrieve trunking and spanning tree info via ssh command
@@ -150,29 +208,46 @@ async def get_l2_forwarding_information(device_management_ip: str) -> str:
     
 
 @mcp.tool()
-async def get_nat_table(router_management_ip: str) -> List[str]:
+async def get_nat_table(router_management_ip: str, intention: str) -> List[str]:
     """Get NAT table from a router
-    params:
+    args:
         router_management_ip (str): management IP of the router
+        intention (str): llm intention to call this tool
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_nat_table", intention, router_management_ip=router_management_ip)
     logger.info(f"Getting NAT table for router: {router_management_ip}")
     device = DeviceSShSession(router_management_ip)
     nat_table = device.execute_command("show ip nat translations")
     return [line for line in nat_table.splitlines("\n") if line.strip()]
 
 @mcp.tool()
-async def get_routing_table(router_management_ip: str) -> str:
-    """Get routing table from a router"""
+async def get_routing_table(router_management_ip: str, intention: str) -> str:
+    """Get routing table from a router
+    args:
+        router_management_ip (str): management IP of the router
+        intention (str): llm intention to call this tool
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_routing_table", intention, router_management_ip=router_management_ip)
     logger.info(f"Getting routing table for router: {router_management_ip}")
     device = DeviceSShSession(router_management_ip)
     routing_table = device.execute_command("show ip route")
     return f"routing table for router {router_management_ip}:\n{routing_table.splitlines("\n")}"
 
 @mcp.tool()
-async def capture_network_traffic(device_management_ip:str, interface: str, duration_seconds: int) -> str:
-    """Capture network traffic on a given interface for a specified duration"""
+async def capture_network_traffic(device_management_ip: str, interface: str, duration_seconds: int, intention: str) -> str:
+    """Capture network traffic on a given interface for a specified duration
+    args:
+        device_management_ip (str): management IP of the device
+        interface (str): interface to capture traffic on
+        duration_seconds (int): duration of capture in seconds
+        intention (str): llm intention to call this tool
+    """
     # returns a filtered pickup file
     captured_network_traffic = "No captured traffic"
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("capture_network_traffic", intention, device_management_ip=device_management_ip, interface=interface, duration_seconds=duration_seconds)
     logger.info(f"Capturing network traffic on {device_management_ip} interface {interface} for {duration_seconds}s")
     device = DeviceSShSession(device_management_ip)
     if device_model := device.execute_command("show version | include Model number"):
@@ -203,14 +278,17 @@ async def capture_network_traffic(device_management_ip:str, interface: str, dura
     return f"Captured traffic on {interface} for {duration_seconds} seconds. is {captured_network_traffic}"
 
 @mcp.tool()
-async def get_device_logs(device_management_ip: str, log_type: str, time_range: str, filter_regex: str = "") -> List[str]:
+async def get_device_logs(device_management_ip: str, log_type: str, time_range: str, intention: str, filter_regex: str = "") -> List[str]:
     """Get device logs of a specific type within a time range
     args:
         device_management_ip (str): management IP of the device
         log_type (str): type of logs to retrieve (e.g., error, warning, info)
         time_range (str): time range for the logs (e.g., last 1 hour, last 24 hours)
+        intention (str): llm intention to call this tool
         filter_regex Optional[str]: optional regex or keyword to filter logs
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_device_logs", intention, device_management_ip=device_management_ip, log_type=log_type, time_range=time_range, filter_regex=filter_regex)
     logger.info(f"Getting device logs for {device_management_ip} (type={log_type}, range={time_range})")
     device = DeviceSShSession(device_management_ip)
     # retrieve logs via ssh command
@@ -233,14 +311,17 @@ async def get_device_logs(device_management_ip: str, log_type: str, time_range: 
     return device_logs[:10]  # return first 10 logs for brevity
 
 @mcp.tool()
-async def run_commands_on_device(device_management_ip: str, commands: List[str]) -> str:
+async def run_commands_on_device(device_management_ip: str, commands: List[str], intention: str) -> str:
     """Run a command on a network device via SSH
     args:
         device_management_ip (str): management IP of the device
-        command (List[str]): list of commands to execute on the device
+        commands (List[str]): list of commands to execute on the device
+        intention (str): llm intention to call this tool
     returns:
         str: output of the command execution
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("run_commands_on_device", intention, device_management_ip=device_management_ip, commands=commands)
     logger.info(f"Running commands on {device_management_ip}: {commands}")
     device = DeviceSShSession(device_management_ip)
     output = ""
@@ -250,10 +331,11 @@ async def run_commands_on_device(device_management_ip: str, commands: List[str])
     return output
 
 @mcp.tool()
-async def get_servicenow_incidents_by_priority(priority: int) -> str:
+async def get_servicenow_incidents_by_priority(priority: int, intention: str) -> str:
     """Get active ServiceNow incidents by priority
     args:
         priority (int): priority of the incidents to retrieve (1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning)
+        intention (str): llm intention to call this tool
     returns:
         str: summary of active incidents with the specified priority
     """
@@ -261,6 +343,8 @@ async def get_servicenow_incidents_by_priority(priority: int) -> str:
     ACCESS_TOKEN = snow_api_key
     
     # Create ServiceNow client
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_servicenow_incidents_by_priority", intention, priority=priority)
     logger.info(f"Getting active ServiceNow incidents with priority {priority}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
@@ -276,10 +360,11 @@ async def get_servicenow_incidents_by_priority(priority: int) -> str:
         return f"Error retrieving incidents: {result['error']}"
 
 @mcp.tool()
-async def get_servicenow_incidents_by_incident_id(incident_id: str) -> str:
+async def get_servicenow_incidents_by_incident_id(incident_id: str, intention: str) -> str:
     """Get ServiceNow incident details by incident ID
     args:
         incident_id (str): incident number to retrieve
+        intention (str): llm intention to call this tool
     returns:
         str: details of the specified incident
     """
@@ -287,6 +372,8 @@ async def get_servicenow_incidents_by_incident_id(incident_id: str) -> str:
     ACCESS_TOKEN = snow_api_key
     
     # Create ServiceNow client
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_servicenow_incidents_by_incident_id", intention, incident_id=incident_id)
     logger.info(f"Getting ServiceNow incident details for ID: {incident_id}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     # get all incidents and filter incidents where 
@@ -301,10 +388,11 @@ async def get_servicenow_incidents_by_incident_id(incident_id: str) -> str:
         return f"Error retrieving incident: {result['error']}"
     
 @mcp.tool()
-async def get_servicenow_incident_by_user(user: str) -> str:
+async def get_servicenow_incident_by_user(user: str, intention: str) -> str:
     """Get ServiceNow incidents assigned to a specific user
     args:
         user (str): a user like peter torch ...
+        intention (str): llm intention to call this tool
     returns:
         str: summary of incidents assigned to the user
     """
@@ -312,6 +400,8 @@ async def get_servicenow_incident_by_user(user: str) -> str:
     ACCESS_TOKEN = snow_api_key
     
     # Create ServiceNow client
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_servicenow_incident_by_user", intention, user=user)
     logger.info(f"Getting ServiceNow incidents for user: {user}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
@@ -327,10 +417,11 @@ async def get_servicenow_incident_by_user(user: str) -> str:
         return f"Error retrieving incidents: {result['error']}"
 
 @mcp.tool()
-async def get_unassigned_incidents_for_group(group_name: str) -> str:
+async def get_unassigned_incidents_for_group(group_name: str, intention: str) -> str:
     """Get unassigned ServiceNow incidents for a specific group
     args:
         group_name (str): The name of the group (e.g., 'Software')
+        intention (str): llm intention to call this tool
     returns:
         str: summary of unassigned incidents for the group
     """
@@ -338,6 +429,8 @@ async def get_unassigned_incidents_for_group(group_name: str) -> str:
     ACCESS_TOKEN = snow_api_key
     
     # Create ServiceNow client
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_unassigned_incidents_for_group", intention, group_name=group_name)
     logger.info(f"Getting unassigned incidents for group: {group_name}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
@@ -357,11 +450,12 @@ async def get_unassigned_incidents_for_group(group_name: str) -> str:
         return f"Error retrieving unassigned incidents: {result.get('error', 'Unknown error')}"
 
 @mcp.tool()
-async def create_change_request(short_description: str, description: str, priority: str = '4', risk: str = '3', impact: str = '3', ci_name: str = '') -> str:
+async def create_change_request(short_description: str, description: str, intention: str, priority: str = '4', risk: str = '3', impact: str = '3', ci_name: str = '') -> str:
     """Create a ServiceNow change request
     args:
         short_description (str): Short summary of the change
         description (str): Detailed description
+        intention (str): llm intention to call this tool
         priority (str): Priority 1-5 (default: 4)
         risk (str): Risk 1-3 (default: 3)
         impact (str): Impact 1-3 (default: 3)
@@ -372,6 +466,8 @@ async def create_change_request(short_description: str, description: str, priori
     SERVICENOW_INSTANCE = instance_url
     ACCESS_TOKEN = snow_api_key
     
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("create_change_request", intention, short_description=short_description, description=description, priority=priority, risk=risk, impact=impact, ci_name=ci_name)
     logger.info(f"Creating change request: {short_description}")
     sn_client = ServiceNowChangeRequest(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
@@ -391,7 +487,7 @@ async def create_change_request(short_description: str, description: str, priori
         return f"❌ Failed to create change request: {result.get('error', 'Unknown error')}"
 
 @mcp.tool()
-async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str, password: str, command: List[str]) -> str:
+async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str, password: str, command: List[str], intention: str) -> str:
     """SSH into a cloud VM and run a command, it can run commands on AWS, Azure, GCP
     args:
         management_ip (str): management IP of the VM
@@ -399,9 +495,12 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str,
         username (str): SSH username
         password (str): SSH password
         command (List[str]): commands to execute
+        intention (str): llm intention to call this tool
     returns:
         str: output of the command execution
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("cloud_ssh_tool", intention, management_ip=management_ip, cloud_provider=cloud_provider, username=username, command=command)
     logger.info(f"Connecting to {cloud_provider} VM at {management_ip} as {username}")
     device = DeviceSShSession(management_ip, username, password)
     output = ""
@@ -412,16 +511,19 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str,
     return output
 
 @mcp.tool()
-async def linux_server_ssh_tool(management_ip: str, command: List[str], username: str = 'admin', password: str = 'password') -> str:
+async def linux_server_ssh_tool(management_ip: str, command: List[str], intention: str, username: str = 'admin', password: str = 'password') -> str:
     """SSH into a Linux server and run a command
     args:
         management_ip (str): management IP of the VM
+        command (List[str]): commands to execute
+        intention (str): llm intention to call this tool
         username (str): SSH username (default: admin)
         password (str): SSH password (default: password)
-        command (List[str]): commands to execute
     returns:
         str: output of the command execution
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("linux_server_ssh_tool", intention, management_ip=management_ip, command=command, username=username)
     logger.info(f"Connecting to Linux server at {management_ip} as {username}")
     device = DeviceSShSession(management_ip, username, password)
     output = ""
@@ -432,18 +534,21 @@ async def linux_server_ssh_tool(management_ip: str, command: List[str], username
     return output
 
 @mcp.tool()
-async def execute_shell_command(command: str, timeout: int = 60) -> str:
+async def execute_shell_command(command: str, intention: str, timeout: int = 60) -> str:
     """
     Execute a shell command on the host machine.
     Use this for network diagnostics (ping, traceroute, dig, curl, etc.) or other CLI tasks.
     
     Args:
         command (str): The shell command to execute.
+        intention (str): llm intention to call this tool
         timeout (int): Timeout in seconds (default: 60).
         
     Returns:
         str: Combined stdout and stderr output.
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("execute_shell_command", intention, command=command, timeout=timeout)
     logger.info(f"Executing shell command: {command}")
     
     try:
@@ -482,12 +587,13 @@ async def execute_shell_command(command: str, timeout: int = 60) -> str:
         return f"Error executing command: {str(e)}"
 
 @mcp.tool()
-async def execute_generated_code(code: str, mode: str = "docker", dependencies: List[str] = []) -> str:
+async def execute_generated_code(code: str, intention: str, mode: str = "docker", dependencies: List[str] = []) -> str:
     """
     Executes Python code generated by an LLM with options for local, sandboxed, or internal execution.
 
     Args:
         code (str): The Python code to execute.
+        intention (str): llm intention to call this tool
         mode (str): The execution mode. options:
             - 'docker': (Default) Runs the code inside a 'python:3-slim' Docker container. (Recommended for safety).
             - 'local_process': Runs the code directly on the host system as a subprocess. (WARNING: Risky, uses system privileges).
@@ -497,6 +603,8 @@ async def execute_generated_code(code: str, mode: str = "docker", dependencies: 
     Returns:
         str: The combined stdout/stderr output of the executed code, or error details.
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("execute_generated_code", intention, code=code, mode=mode, dependencies=dependencies)
     logger.info(f"Executing generated code. Mode: {mode}")
     
     # Clean up code string (remove markdown code blocks if present)
@@ -592,7 +700,8 @@ async def execute_generated_code(code: str, mode: str = "docker", dependencies: 
 async def execute_with_tool_modification(
     tool_name: str,
     tool_params: dict,
-    modification_code: str
+    modification_code: str,
+    intention: str
 ) -> str:
     """
     Executes an existing MCP tool and then modifies its output using provided Python code.
@@ -605,6 +714,7 @@ async def execute_with_tool_modification(
         modification_code (str): Python code to modify the output. The original output is available 
                                 as 'original_output' variable. Set 'modified_output' variable with the result.
                                 Example: "modified_output = original_output.upper()"
+        intention (str): llm intention to call this tool
     
     Returns:
         str: The modified output from the tool, or error details if execution fails.
@@ -618,6 +728,8 @@ lines = original_output.split('\\n')
 modified_output = json.dumps({"line_count": len(lines), "preview": lines[0]})
 '''
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("execute_with_tool_modification", intention, tool_name=tool_name, tool_params=tool_params, modification_code=modification_code)
     logger.info(f"Executing tool '{tool_name}' with modification")
     
     try:
@@ -710,15 +822,18 @@ def _get_tool_by_name(tool_name: str):
         return None
 
 @mcp.tool()
-async def get_skill_all_related_tools(skill_name: str) -> str:
+async def get_skill_all_related_tools(skill_name: str, intention: str) -> str:
     """
     Get all related tools for a given skill
     args:
         skill_name (str): The name of the skill
+        intention (str): llm intention to call this tool
     returns:
         str: a string with a tuple of (tool_name, tool_description) for each related tool
     """
     # get all current MCP tools then filter them according to the skill_name given
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("get_skill_all_related_tools", intention, skill_name=skill_name)
     # all skill related tools start with <skill-name>_name-of-the-tool
     # example: linux_server_ssh_tool for linux server skill
     # TODO: test if LLM is able to call such tools when they were not passed to LLM as part of the tools list
@@ -732,6 +847,7 @@ async def get_skill_all_related_tools(skill_name: str) -> str:
 @mcp.tool()
 async def visualize_drawio_diagram(
     diagram_xml_code: str,
+    intention: str,
     save_to_file: Optional[str] = None,
     width: int = 800,
     height: int = 600,
@@ -744,6 +860,7 @@ async def visualize_drawio_diagram(
     
     Args:
         diagram_xml_code (str): The XML code of the diagram
+        intention (str): llm intention to call this tool
         save_to_file (Optional[str]): Path to save the PNG image
         width (int): Width of the image (default: 800)
         height (int): Height of the image (default: 600)
@@ -753,6 +870,8 @@ async def visualize_drawio_diagram(
     Returns:
         str: base64 encoded png image of the diagram
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("visualize_drawio_diagram", intention, diagram_xml_code=diagram_xml_code, save_to_file=save_to_file, width=width, height=height, scale=scale, border=border)
     logger.info("Visualizing draw.io diagram via export API")
     
     export_url = "https://convert.diagrams.net/node/export"
@@ -810,18 +929,21 @@ async def visualize_drawio_diagram(
             return f"Error: {str(e)}"
 
 @mcp.tool()
-async def analyze_drawio_diagram(diagram_xml: str, original_request: str = "") -> str:
+async def analyze_drawio_diagram(diagram_xml: str, intention: str, original_request: str = "") -> str:
     """
     Performs a deep audit of a Draw.io XML diagram to identify 'bizarre' errors.
     Checks for overlapping nodes, missing connections, orphans, and alignment with the request.
     
     Args:
         diagram_xml (str): The raw Draw.io XML code.
+        intention (str): llm intention to call this tool
         original_request (str): The initial user instruction to compare against.
         
     Returns:
         str: A Markdown formatted audit report.
     """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("analyze_drawio_diagram", intention, diagram_xml=diagram_xml, original_request=original_request)
     logger.info("Analyzing draw.io diagram logic")
     try:
         # 1. Parse XML
