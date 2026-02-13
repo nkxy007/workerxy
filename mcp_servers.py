@@ -3,7 +3,7 @@
 
 #1. mocks network operations
 #2. runs a MCP server exposing those operations as tools
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from mcp.server.fastmcp import FastMCP
 import json
 import paramiko
@@ -27,6 +27,8 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 import csv
 from datetime import datetime
+from tools_helpers.retriever_archiver import ArchiverRetriever
+import creds
 
 # Configure logging
 logging.basicConfig(
@@ -37,6 +39,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP("network_tools_server")
+
+# Initialize Retriever Archiver
+try:
+    os.environ["OPENAI_API_KEY"] = creds.OPENAI_KEY
+    archiver = ArchiverRetriever()
+    logger.info("Retriever Archiver initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Retriever Archiver: {e}")
+    archiver = None
 
 
 def log_tool_call_to_csv(tool_name: str, intention: str, **kwargs):
@@ -1067,7 +1078,86 @@ async def analyze_drawio_diagram(diagram_xml: str, intention: str, original_requ
         logger.error(f"Audit failed: {e}")
         return f"Error analyzing XML: {str(e)}"
 
+@mcp.tool()
+async def archive_current_conversation(messages: List[Dict[str, str]], intention: str, metadata: Optional[Dict] = None) -> str:
+    """
+    Save the current chat history to the long-term archive.
     
+    Args:
+        messages (List[Dict]): List of message objects with 'role' and 'content'.
+        intention (str): LLM intention to call this tool.
+        metadata (Optional[Dict]): Additional tags or context for the archive.
+        
+    Returns:
+        str: Outcome of the archival process.
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("archive_current_conversation", intention, num_messages=len(messages))
+    
+    if not archiver:
+        return "Error: Retriever Archiver is not initialized."
+    
+    try:
+        doc_id = archiver.archive_conversation(messages, metadata=metadata)
+        return f"✅ Conversation archived successfully with document ID: {doc_id}"
+    except Exception as e:
+        logger.error(f"Error archiving conversation: {e}")
+        return f"❌ Failed to archive conversation: {str(e)}"
+
+@mcp.tool()
+async def archive_local_document(file_path: str, intention: str, metadata: Optional[Dict] = None) -> str:
+    """
+    Ingest and embed a local file (Markdown, text, etc.) into the agent's knowledge base.
+    
+    Args:
+        file_path (str): Absolute path to the file to ingest.
+        intention (str): LLM intention to call this tool.
+        metadata (Optional[Dict]): Additional metadata for the document.
+        
+    Returns:
+        str: Outcome of the ingestion process.
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("archive_local_document", intention, file_path=file_path)
+    
+    if not archiver:
+        return "Error: Retriever Archiver is not initialized."
+    
+    try:
+        doc_id = archiver.archive_documentation(file_path, metadata=metadata)
+        return f"✅ Document '{file_path}' archived successfully with ID: {doc_id}"
+    except Exception as e:
+        logger.error(f"Error archiving document: {e}")
+        return f"❌ Failed to archive document: {str(e)}"
+
+@mcp.tool()
+async def query_agent_archives(query: str, intention: str) -> str:
+    """
+    Perform a semantic RAG search across archived conversations and documentation.
+    Use this to recall past solutions, technical details, or command syntax.
+    
+    Args:
+        query (str): The question or search term.
+        intention (str): LLM intention to call this tool.
+        
+    Returns:
+        str: Augmented answer based on archived information.
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("query_agent_archives", intention, query=query)
+    
+    if not archiver:
+        return "Error: Retriever Archiver is not initialized."
+    
+    try:
+        result = archiver.rag_query(query)
+        answer = result['answer']
+        sources = ", ".join(result['sources'])
+        return f"RECALLED INFORMATION:\n{answer}\n\nSOURCES: {sources}"
+    except Exception as e:
+        logger.error(f"Error querying archives: {e}")
+        return f"❌ Failed to query archives: {str(e)}"
+
 
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")

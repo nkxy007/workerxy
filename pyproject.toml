@@ -23,4 +23,9 @@ dependencies = [
     "mcp",
     "playwright>=1.57.0",
     "apscheduler",
+    "chromadb",
+    "pypdf2",
+    "python-docx",
+    "tqdm",
+    "rich",
 ]
