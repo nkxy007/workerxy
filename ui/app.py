@@ -190,6 +190,55 @@ if 'uploaded_docs' not in st.session_state:
     st.session_state.uploaded_docs = []
 if 'uploaded_diagrams' not in st.session_state:
     st.session_state.uploaded_diagrams = []
+if 'show_new_task_dialog' not in st.session_state:
+    st.session_state.show_new_task_dialog = False
+
+# Session Management Functions
+@st.dialog("Save Session before New Task")
+def save_before_new_task():
+    st.write("Would you like to save your current session before starting a new one?")
+    
+    # Auto-generate name from first message if possible
+    history = agent_service.get_session_history(st.session_state.session_id)
+    suggested_name = ""
+    if history:
+        for msg in history:
+            if msg['role'] == 'user':
+                suggested_name = msg['content'][:30] + "..." if len(msg['content']) > 30 else msg['content']
+                break
+    
+    session_title = st.text_input("Session Name", value=suggested_name or "New Session")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("💾 Save & New", use_container_width=True):
+            # Update metadata with title
+            agent_service.session_manager.update_session_metadata(
+                st.session_state.session_id, 
+                {'title': session_title}
+            )
+            # No need to manually save, auto-save should have handled message content, 
+            # but we update metadata title specifically here.
+            
+            # Start new task
+            agent_service.clear_session(st.session_state.session_id)
+            st.session_state.session_id = str(uuid.uuid4())
+            st.session_state.uploaded_docs = []
+            st.session_state.uploaded_diagrams = []
+            st.rerun()
+            
+    with col2:
+        if st.button("🗑️ Discard & New", use_container_width=True):
+            # Delete from disk and memory
+            run_async(agent_service.delete_saved_session(st.session_state.session_id))
+            st.session_state.session_id = str(uuid.uuid4())
+            st.session_state.uploaded_docs = []
+            st.session_state.uploaded_diagrams = []
+            st.rerun()
+            
+    with col3:
+        if st.button("✖️ Cancel", use_container_width=True):
+            st.rerun()
 
 # Sidebar
 with st.sidebar:
@@ -294,20 +343,79 @@ with st.sidebar:
 
     # New task button
     if st.button("🆕 New Task", use_container_width=True):
-        agent_service.clear_session(st.session_state.session_id)
-        st.session_state.session_id = str(uuid.uuid4())
-        st.session_state.uploaded_docs = []
-        st.session_state.uploaded_diagrams = []
-        st.rerun()
+        history = agent_service.get_session_history(st.session_state.session_id)
+        if history:
+            save_before_new_task()
+        else:
+            # Empty session, just refresh
+            st.session_state.session_id = str(uuid.uuid4())
+            st.session_state.uploaded_docs = []
+            st.session_state.uploaded_diagrams = []
+            st.rerun()
     
     st.markdown("---")
+
+    # Session Selection
+    st.subheader("💾 Saved Sessions")
+    
+    # Search sessions
+    search_query = st.text_input("🔍 Search sessions...", key="session_search", label_visibility="collapsed")
+    
+    saved_sessions = run_async(agent_service.list_saved_sessions())
+    
+    if saved_sessions:
+        # Filter sessions by search query
+        if search_query:
+            saved_sessions = [s for s in saved_sessions if search_query.lower() in s.get('title', '').lower()]
+        
+        session_options = {s['session_id']: f"{s.get('title', 'Untitled')} ({s.get('last_activity', '')[:10]})" for s in saved_sessions}
+        
+        # Add current session if not in list
+        if st.session_state.session_id not in session_options:
+            session_options[st.session_state.session_id] = "Current Session"
+            
+        selected_session_id = st.selectbox(
+            "Load Session",
+            options=list(session_options.keys()),
+            format_func=lambda x: session_options[x],
+            index=list(session_options.keys()).index(st.session_state.session_id) if st.session_state.session_id in session_options else 0
+        )
+        
+        if selected_session_id != st.session_state.session_id:
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Switch", use_container_width=True):
+                    if run_async(agent_service.load_saved_session(selected_session_id)):
+                        st.session_state.session_id = selected_session_id
+                        # Load uploaded files info from metadata
+                        uploaded = agent_service.get_uploaded_files(selected_session_id)
+                        st.session_state.uploaded_docs = [f['filename'] for f in uploaded['documents']]
+                        st.session_state.uploaded_diagrams = [f['filename'] for f in uploaded['diagrams']]
+                        st.rerun()
+                    else:
+                        st.error("Failed to load session")
+            with col2:
+                if st.button("🗑️ Delete", use_container_width=True):
+                    if run_async(agent_service.delete_saved_session(selected_session_id)):
+                        st.success("Deleted")
+                        st.rerun()
+                    else:
+                        st.error("Failed to delete")
+    else:
+        st.info("No saved sessions yet.")
+
+    st.markdown("---")
+    
+    # Auto-save status
+    st.caption("✅ Session Auto-save Enabled")
+    
     st.caption("Powered by Advanced AI • v2.0")
 
 # Main content area
 st.title("CoworkerX Workspace")
 
 # Create main tabs
-tab1, tab2, tab3, tab4 = st.tabs(["💬 Chat", "📦 Artifacts", "📡 Stream Logs", "⚠️ Errors"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["💬 Chat", "📦 Artifacts", "📡 Stream Logs", "⚠️ Errors", "🤖 A2A Agents"])
 
 with tab1:
     # Chat interface
@@ -493,6 +601,86 @@ with tab4:
             if error_traceback:
                 with st.expander("Details"):
                     st.code(error_traceback)
+
+with tab5:
+    # A2A Agents view
+    st.markdown("### Agent-to-Agent Network")
+    
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.caption("Discover and communicate with specialized remote agents")
+    with col2:
+        if st.button("🔄 Refresh", key="refresh_a2a", use_container_width=True):
+            with st.spinner("Refreshing agents..."):
+                run_async(agent_service.refresh_a2a_agents())
+            st.rerun()
+    
+    # Auto-refresh mechanism using session state
+    if 'a2a_last_refresh' not in st.session_state:
+        st.session_state.a2a_last_refresh = 0
+    
+    import time
+    current_time = time.time()
+    
+    # Auto-refresh every 30 seconds, but only if we're viewing this tab
+    # This prevents refresh on initial load
+    should_refresh = (current_time - st.session_state.a2a_last_refresh > 30) and st.session_state.a2a_last_refresh > 0
+    
+    if should_refresh:
+        with st.spinner("Auto-refreshing agents..."):
+            try:
+                run_async(agent_service.refresh_a2a_agents())
+                st.session_state.a2a_last_refresh = current_time
+            except Exception as e:
+                st.error(f"Failed to refresh agents: {e}")
+                logger.error(f"Auto-refresh failed: {e}", exc_info=True)
+    elif st.session_state.a2a_last_refresh == 0:
+        # First time viewing this tab, set the timestamp
+        st.session_state.a2a_last_refresh = current_time
+    
+    a2a_agents = run_async(agent_service.get_a2a_agents())
+    
+    if not a2a_agents:
+        st.info("🤖 No A2A agents configured. Add agents to `a2a_capability/agents_registry.json` to get started.")
+        st.markdown("""
+        **Example registry format:**
+        ```json
+        {
+            "dns_deepagent": "http://localhost:8003",
+            "dhcp_deepagent": "http://localhost:8004"
+        }
+        ```
+        """)
+    else:
+        # Display agents in expandable cards
+        for agent_name, agent_info in a2a_agents.items():
+            status_icon = "🟢" if agent_info['online'] else "🔴"
+            status_text = "Online" if agent_info['online'] else "Offline"
+            status_color = "green" if agent_info['online'] else "red"
+            
+            with st.expander(f"{status_icon} **{agent_name}** - {status_text}", expanded=agent_info['online']):
+                col_a, col_b = st.columns([3, 1])
+                
+                with col_a:
+                    st.markdown(f"**URL:** `{agent_info['url']}`")
+                    
+                    if agent_info['online']:
+                        st.markdown(f"**Description:** {agent_info.get('description', 'N/A')}")
+                        st.markdown(f"**Version:** {agent_info.get('version', 'N/A')}")
+                        
+                        capabilities = agent_info.get('capabilities', [])
+                        if capabilities:
+                            st.markdown("**Capabilities:**")
+                            for cap in capabilities:
+                                st.markdown(f"  • {cap}")
+                    else:
+                        st.warning("⚠️ Agent is offline or unreachable. Check if the agent server is running.")
+                
+                with col_b:
+                    if agent_info['online']:
+                        st.success("✅ Available")
+                    else:
+                        st.error("❌ Unavailable")
 
 # Display uploaded files summary
 uploaded_files = agent_service.get_uploaded_files(st.session_state.session_id)

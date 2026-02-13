@@ -6,7 +6,7 @@ Provides a service layer between UI and the net_deepagent backend.
 import asyncio
 import traceback
 import logging
-from typing import Optional, AsyncIterator, Dict, Any, List
+from typing import Optional, AsyncIterator, Dict, Any, List, Tuple
 from pathlib import Path
 import sys
 
@@ -27,6 +27,8 @@ from net_deepagent import (
 )
 from utils.session_manager import SessionManager
 from utils.file_handler import FileHandler
+from utils.session_persistence import SessionPersistence
+from a2a_capability.middleware import A2AHTTPMiddleware
 
 
 class AgentService:
@@ -49,12 +51,21 @@ class AgentService:
         if not self._initialized:
             logger.info("Initializing AgentService singleton")
             self.agent = None
-            self.session_manager = SessionManager()
             self.file_handler = FileHandler()
+            self.session_persistence = SessionPersistence()
+            self.session_manager = SessionManager(
+                persistence_handler=self.session_persistence,
+                auto_save=True
+            )
             self.mcp_server_url = "http://localhost:8000/mcp"
             self.default_main_model = "gpt-5-mini"
             self.default_subagent_model = "gpt-5-mini-minimal"
             self.default_design_model = "gpt-4.1"
+            
+            # Initialize A2A middleware
+            self.a2a_middleware = A2AHTTPMiddleware()
+            self.a2a_tools = []
+            
             AgentService._initialized = True
             logger.info("AgentService initialized successfully")
 
@@ -87,6 +98,31 @@ class AgentService:
         if design_model:
             self.default_design_model = design_model
 
+        # Register A2A agents from registry
+        logger.info("Registering A2A agents...")
+        try:
+            import a2a_capability
+            registry_path = Path(a2a_capability.__file__).parent / "agents_registry.json"
+        except ImportError:
+            registry_path = Path.cwd() / "a2a_capability" / "agents_registry.json"
+        
+        logger.info(f"Looking for A2A registry at: {registry_path}")
+        logger.info(f"Registry exists: {registry_path.exists()}")
+        
+        if registry_path.exists():
+            logger.info(f"Loading A2A registry from {registry_path}")
+            try:
+                await self.a2a_middleware.register_agents_from_file(str(registry_path))
+                self.a2a_tools = self.a2a_middleware.tools
+                logger.info(f"✅ Registered {len(self.a2a_tools)} A2A tools")
+                logger.info(f"✅ Remote agents registered: {list(self.a2a_middleware.remote_agents.keys())}")
+            except Exception as e:
+                logger.error(f"❌ Failed to register A2A agents: {e}", exc_info=True)
+                self.a2a_tools = []
+        else:
+            logger.warning(f"⚠️ A2A registry not found at {registry_path}")
+            self.a2a_tools = []
+
         # Create agent instance
         logger.info("Creating network agent...")
         try:
@@ -96,6 +132,7 @@ class AgentService:
                 main_model_name=self.default_main_model,
                 subagent_model_name=self.default_subagent_model,
                 design_model_name=self.default_design_model,
+                extra_tools=self.a2a_tools,
             )
             logger.info(f"Network agent created successfully! Agent type: {type(self.agent)}")
             logger.info(f"Agent object: {self.agent}")
@@ -477,6 +514,69 @@ class AgentService:
             "design_model": self.default_design_model,
         }
 
+    async def list_saved_sessions(self) -> List[Dict[str, Any]]:
+        """
+        List all saved sessions from disk.
+
+        Returns:
+            List of session metadata
+        """
+        return self.session_persistence.list_sessions()
+
+    async def load_saved_session(self, session_id: str) -> bool:
+        """
+        Load a saved session from disk.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if successful
+        """
+        success = self.session_manager.load_from_disk(session_id)
+        if success:
+            logger.info(f"Loaded session {session_id} from disk")
+        else:
+            logger.warning(f"Failed to load session {session_id} from disk")
+        return success
+
+    async def delete_saved_session(self, session_id: str) -> bool:
+        """
+        Delete a session from disk and memory.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if successful
+        """
+        return self.session_manager.delete_from_disk(session_id)
+
+    async def export_session(self, session_id: str, output_path: str) -> Tuple[bool, Optional[str]]:
+        """
+        Export session to a zip file.
+
+        Args:
+            session_id: Session identifier
+            output_path: Target path for zip file
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        return self.session_persistence.export_session(session_id, output_path)
+
+    async def import_session(self, archive_path: str) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        Import session from a zip archive.
+
+        Args:
+            archive_path: Path to zip file
+
+        Returns:
+            Tuple of (success, session_id, error_message)
+        """
+        return self.session_persistence.import_session(archive_path)
+
     def set_clarification_callback(self, callback: callable):
         """
         Set custom clarification callback.
@@ -486,3 +586,67 @@ class AgentService:
         """
         self._clarification_callback = callback
         set_user_clarification_callback(callback)
+
+    async def get_a2a_agents(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get registered A2A agents with their status.
+
+        Returns:
+            Dict mapping agent names to their info (url, online status, description, capabilities)
+        """
+        logger.info(f"get_a2a_agents called. Middleware has {len(self.a2a_middleware.remote_agents)} agents")
+        agents_info = {}
+        
+        for agent_name, client in self.a2a_middleware.remote_agents.items():
+            logger.info(f"Processing agent: {agent_name}, has agent_card: {client.agent_card is not None}")
+            agent_info = {
+                'online': client.agent_card is not None,
+                'url': client.base_url,
+            }
+            
+            if client.agent_card:
+                agent_info['description'] = client.agent_card.get('description', 'N/A')
+                agent_info['capabilities'] = client.agent_card.get('capabilities', [])
+                agent_info['version'] = client.agent_card.get('version', 'N/A')
+                logger.info(f"  Agent {agent_name} is ONLINE")
+            else:
+                logger.info(f"  Agent {agent_name} is OFFLINE (no agent_card)")
+            
+            agents_info[agent_name] = agent_info
+        
+        logger.info(f"Returning {len(agents_info)} agents")
+        return agents_info
+
+    async def refresh_a2a_agents(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Re-discover A2A agents from registry.
+
+        Returns:
+            Updated dict of agent info
+        """
+        logger.info("Refreshing A2A agents...")
+        
+        # Find registry path
+        try:
+            import a2a_capability
+            registry_path = Path(a2a_capability.__file__).parent / "agents_registry.json"
+        except ImportError:
+            registry_path = Path.cwd() / "a2a_capability" / "agents_registry.json"
+        
+        if registry_path.exists():
+            # Recreate middleware (don't cleanup old one to avoid event loop issues)
+            self.a2a_middleware = A2AHTTPMiddleware()
+            
+            # Re-register
+            try:
+                await self.a2a_middleware.register_agents_from_file(str(registry_path))
+                self.a2a_tools = self.a2a_middleware.tools
+                logger.info(f"✅ Refreshed {len(self.a2a_tools)} A2A tools")
+                logger.info(f"✅ Agents: {list(self.a2a_middleware.remote_agents.keys())}")
+            except Exception as e:
+                logger.error(f"❌ Failed to refresh A2A agents: {e}", exc_info=True)
+                self.a2a_tools = []
+        else:
+            logger.warning(f"⚠️ A2A registry not found at {registry_path}")
+        
+        return await self.get_a2a_agents()

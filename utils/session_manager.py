@@ -8,15 +8,24 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from collections import defaultdict
 import threading
+from .session_persistence import SessionPersistence
 
 
 class SessionManager:
     """Manages user sessions for the agent system."""
 
-    def __init__(self):
-        """Initialize SessionManager."""
+    def __init__(self, persistence_handler: Optional[SessionPersistence] = None, auto_save: bool = False):
+        """
+        Initialize SessionManager.
+        
+        Args:
+            persistence_handler: Optional persistence handler for disk operations
+            auto_save: Whether to automatically save to disk on changes
+        """
         self.sessions: Dict[str, Dict[str, Any]] = {}
         self.lock = threading.Lock()
+        self.persistence_handler = persistence_handler
+        self.auto_save = auto_save
 
     def create_session(self, session_id: Optional[str] = None) -> str:
         """
@@ -48,6 +57,9 @@ class SessionManager:
                     },
                     'metadata': {}
                 }
+
+        if self.auto_save:
+            self.save_to_disk(session_id)
 
         return session_id
 
@@ -115,6 +127,9 @@ class SessionManager:
             if session_id in self.sessions:
                 self.sessions[session_id]['last_activity'] = datetime.now().isoformat()
 
+        if self.auto_save:
+            self.save_to_disk(session_id)
+
     def get_messages(self, session_id: str, limit: Optional[int] = None) -> List[Dict]:
         """
         Get message history for session.
@@ -172,6 +187,9 @@ class SessionManager:
         with self.lock:
             self.sessions[session_id]['clarification_queue'].append(clarification)
 
+        if self.auto_save:
+            self.save_to_disk(session_id)
+
     def get_pending_clarifications(self, session_id: str) -> List[Dict]:
         """
         Get pending clarification requests.
@@ -208,6 +226,9 @@ class SessionManager:
                         clarification['answered_at'] = datetime.now().isoformat()
                         break
 
+        if self.auto_save:
+            self.save_to_disk(session_id)
+
     def get_clarification_response(self, session_id: str) -> Optional[str]:
         """
         Get next clarification response from queue.
@@ -241,6 +262,9 @@ class SessionManager:
 
         with self.lock:
             self.sessions[session_id]['artifacts'].append(artifact)
+
+        if self.auto_save:
+            self.save_to_disk(session_id)
 
     def get_artifacts(self, session_id: str) -> List[Dict]:
         """
@@ -281,6 +305,9 @@ class SessionManager:
 
         with self.lock:
             self.sessions[session_id]['stream_logs'].append(log_entry)
+
+        if self.auto_save:
+            self.save_to_disk(session_id)
 
     def get_stream_logs(self, session_id: str, limit: Optional[int] = None) -> List[Dict]:
         """
@@ -325,6 +352,9 @@ class SessionManager:
         with self.lock:
             self.sessions[session_id]['errors'].append(error)
 
+        if self.auto_save:
+            self.save_to_disk(session_id)
+
     def get_errors(self, session_id: str) -> List[Dict]:
         """
         Get errors for session.
@@ -358,6 +388,9 @@ class SessionManager:
             if file_type in ['document', 'diagram']:
                 self.sessions[session_id]['uploaded_files'][f'{file_type}s'].append(file_info)
 
+        if self.auto_save:
+            self.save_to_disk(session_id)
+
     def get_uploaded_files(self, session_id: str) -> Dict[str, List]:
         """
         Get uploaded files for session.
@@ -389,6 +422,9 @@ class SessionManager:
 
         with self.lock:
             self.sessions[session_id]['metadata'][key] = value
+
+        if self.auto_save:
+            self.save_to_disk(session_id)
 
     def get_metadata(self, session_id: str, key: str) -> Optional[Any]:
         """
@@ -436,3 +472,95 @@ class SessionManager:
             Number of sessions
         """
         return len(self.sessions)
+    # Persistence Operations
+
+    def enable_persistence(self, persistence_handler: SessionPersistence, auto_save: bool = True):
+        """
+        Enable session persistence.
+
+        Args:
+            persistence_handler: SessionPersistence instance
+            auto_save: Whether to enable auto-save
+        """
+        self.persistence_handler = persistence_handler
+        self.auto_save = auto_save
+
+    def save_to_disk(self, session_id: str, metadata: Optional[Dict] = None) -> bool:
+        """
+        Save session to disk.
+
+        Args:
+            session_id: Session identifier
+            metadata: Optional metadata updates
+
+        Returns:
+            True if successful
+        """
+        if not self.persistence_handler:
+            return False
+
+        session_data = self.get_session(session_id)
+        if not session_data:
+            return False
+
+        success, error = self.persistence_handler.save_session(
+            session_id, session_data, metadata
+        )
+        return success
+
+    def load_from_disk(self, session_id: str) -> bool:
+        """
+        Load session from disk into memory.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if successful
+        """
+        if not self.persistence_handler:
+            return False
+
+        success, session_data, error = self.persistence_handler.load_session(session_id)
+        if success and session_data:
+            with self.lock:
+                self.sessions[session_id] = session_data
+            return True
+        return False
+
+    def delete_from_disk(self, session_id: str) -> bool:
+        """
+        Delete session from disk and memory.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            True if successful
+        """
+        # Delete from disk first
+        disk_success = True
+        if self.persistence_handler:
+            disk_success, error = self.persistence_handler.delete_session(session_id)
+
+        # Delete from memory
+        self.clear_session(session_id)
+        
+        return disk_success
+
+    def update_session_metadata(self, session_id: str, metadata_updates: Dict[str, Any]) -> bool:
+        """
+        Update session metadata on disk.
+
+        Args:
+            session_id: Session identifier
+            metadata_updates: Fields to update
+
+        Returns:
+            True if successful
+        """
+        if not self.persistence_handler:
+            return False
+            
+        success, error = self.persistence_handler.update_metadata(session_id, metadata_updates)
+        return success
