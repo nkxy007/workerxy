@@ -53,7 +53,7 @@ thinking_model_mini = ChatOpenAI(model="gpt-5-mini", api_key=creds.OPENAI_KEY)
 thinking_model = ChatOpenAI(model="gpt-5.1", api_key=creds.OPENAI_KEY)
 thinking_model_response = ChatOpenAI(model="gpt-5", api_key=creds.OPENAI_KEY, use_responses_api=True)
 action_minimal_thinking_model = ChatOpenAI(model="gpt-5-mini", api_key=creds.OPENAI_KEY, reasoning={"effort": "minimal"})
-multi_purpose_model = ChatOpenAI(model="gpt-4.1", api_key=creds.OPENAI_KEY)
+multi_purpose_model = ChatOpenAI(model="gpt-5.1", api_key=creds.OPENAI_KEY)
 coding_model = ChatOpenAI(model="gpt-5.1-codex", api_key=creds.OPENAI_KEY)
 bias_removal_model = ChatAnthropic(model="claude-sonnet-4-5-20250929", api_key=creds.ANTHROPIC_KEY)
 googla_light_model = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", api_key=creds.GEMINI_KEY)
@@ -214,7 +214,7 @@ AVAILABLE_MODELS = {
     "gpt-5.1": thinking_model,
     "gpt-5-response": thinking_model_response,
     "gpt-5-mini-minimal": action_minimal_thinking_model,
-    "gpt-4.1": multi_purpose_model,
+    "gpt-5.1": multi_purpose_model,
     "gpt-5.1-codex": coding_model,
     "claude-4.5-sonnet": bias_removal_model,
     "gemini-3-flash": googla_light_model,
@@ -226,7 +226,7 @@ async def create_network_agent(
     mcp_server_url: str = "http://localhost:8000/mcp",
     main_model_name: str = "gpt-5.1",
     subagent_model_name: str = "gpt-5-mini-minimal",
-    design_model_name: str = "gpt-4.1",
+    design_model_name: str = "gpt-5.1",
     custom_system_prompt: Optional[str] = None,
     extra_tools: List[Any] = [],
     tool_wrapper: Optional[Callable[[List[Any]], List[Any]]] = None,
@@ -238,7 +238,7 @@ async def create_network_agent(
         mcp_server_url: URL for the MCP server
         main_model_name: Model to use for main agent (default: gpt-5-mini)
         subagent_model_name: Model to use for subagents (default: gpt-5-mini-minimal)
-        design_model_name: Model to use for design subagent (default: gpt-4.1)
+        design_model_name: Model to use for design subagent (default: gpt-5.1)
         custom_system_prompt: Optional custom system prompt for main agent
         extra_tools: Optional list of additional tools to make available to the agent
 
@@ -409,7 +409,7 @@ async def main():
         session = TruSession()
         session.reset_database()
         # Goal-Plan-Act evaluation provider
-        gpa_eval_provider = TrulensOpenAI(model_engine="gpt-4.1",
+        gpa_eval_provider = TrulensOpenAI(model_engine="gpt-5.1",
                                           api_key=creds.OPENAI_KEY)
         
         # Goal-Plan-Act: Logical consistency of trace

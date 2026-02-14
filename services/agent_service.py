@@ -60,7 +60,7 @@ class AgentService:
             self.mcp_server_url = "http://localhost:8000/mcp"
             self.default_main_model = "gpt-5-mini"
             self.default_subagent_model = "gpt-5-mini-minimal"
-            self.default_design_model = "gpt-4.1"
+            self.default_design_model = "gpt-5.1"
             
             # Initialize A2A middleware
             self.a2a_middleware = A2AHTTPMiddleware()

@@ -35,7 +35,7 @@ def main():
     parser.add_argument("--agent", default="agent", help="Agent name")
     parser.add_argument("--model", default="gpt-5-mini", help="Main model")
     parser.add_argument("--subagent-model", default="gpt-5-mini-minimal", help="Subagent model")
-    parser.add_argument("--design-model", default="gpt-4.1", help="Design model")
+    parser.add_argument("--design-model", default="gpt-5.1", help="Design model")
     parser.add_argument("--auto-approve", action="store_true", help="Auto-approve tool usage")
     parser.add_argument("--mcp-server", default="http://localhost:8000/mcp", help="MCP server URL")
     
@@ -467,7 +467,7 @@ class AgentConfig:
             "agent_name": self.agent_name,
             "main_model": "gpt-5-mini",
             "subagent_model": "gpt-5-mini-minimal",
-            "design_model": "gpt-4.1",
+            "design_model": "gpt-5.1",
             "mcp_server": "http://localhost:8000/mcp",
             "auto_approve": False
         }

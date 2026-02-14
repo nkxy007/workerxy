@@ -42,7 +42,7 @@ class AgentConfig:
             "agent_name": self.agent_name,
             "main_model": "gpt-5-mini",
             "subagent_model": "gpt-5-mini-minimal",
-            "design_model": "gpt-4.1",
+            "design_model": "gpt-5.1",
             "mcp_server": "http://localhost:8000/mcp",
             "auto_approve": False
         }
