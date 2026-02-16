@@ -18,6 +18,7 @@ dependencies = [
     "typing-extensions",
     "deepagents",
     "langchain-mcp-adapters",
+    "google-generativeai",
     "trulens-core",
     "trustcall",
     "mcp",

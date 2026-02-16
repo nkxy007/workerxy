@@ -323,7 +323,17 @@ async def create_network_agent(
         "model": subagent_model,
     }
 
-    subagents = [LAN_subagent, knowledge_acquisition_subagent, network_design_subagent, cloud_computing_subagent]
+    # Integrate the new design interpreter as a compiled subagent
+    from graphs.design_interpretor import get_design_interpretor_subagent
+    design_interpretor_subagent = get_design_interpretor_subagent(model_name=design_model_name, api_key=creds.OPENAI_KEY)
+
+    subagents = [
+        LAN_subagent, 
+        knowledge_acquisition_subagent, 
+        network_design_subagent, 
+        cloud_computing_subagent,
+        design_interpretor_subagent
+    ]
 
     ## create deep agent
     # TODO: add PII middleware to mask sensitive info like IPs, MACs, etc.
