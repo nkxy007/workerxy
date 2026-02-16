@@ -6,6 +6,8 @@ from net_deepagent_cli.config import AgentConfig
 from net_deepagent_cli.ui import TerminalUI
 from net_deepagent_cli.agent import create_cli_agent
 from net_deepagent_cli.loop import interactive_loop
+from warnings import filterwarnings
+filterwarnings("ignore")
 
 async def run_cli():
     """Main CLI entry point logic"""
