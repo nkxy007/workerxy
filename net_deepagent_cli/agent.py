@@ -204,13 +204,20 @@ async def create_cli_agent(
     
     # Initialize middleware
     memory_middleware = AgentMemoryMiddleware(agent_name)
-    skills_middleware = SkillsMiddleware(agent_name)
+    skills_prompt_middleware = SkillsMiddleware(agent_name)  # Renaming local variable for clarity
     
+    # Import our new LEARNING middleware
+    from custom_middleware.skills_middleware import SkillLearningMiddleware
+    skill_learning_middleware = SkillLearningMiddleware(str(skills_prompt_middleware.skills_dir))
+
     # Wrap agent with middleware
     wrapped_agent = WrappedAgent(base_agent, [
         memory_middleware,
-        skills_middleware
+        skills_prompt_middleware
     ], resources=[a2a_middleware])
+    
+    # Attach learning middleware to the agent instance so loop.py can access it
+    wrapped_agent.skill_learning_middleware = skill_learning_middleware
     
     return wrapped_agent
 

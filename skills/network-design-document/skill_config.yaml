@@ -1,0 +1,133 @@
+skill:
+  name: network-design-document
+  auto_update_enabled: true
+  update_policy: auto-with-approval  # 'auto-with-approval', 'auto-silent', or 'manual-only'
+  
+update_triggers:
+  # What types of information trigger updates (skill-specific)
+  enabled:
+    - network_devices
+    - ip_addressing
+    - vlans
+    - monitoring_tools
+    - security_policies
+    - routing_protocols
+    - vpn_configuration
+    - wireless_infrastructure
+    - troubleshooting_procedures
+  
+  # Minimum confidence score to propose update (0-100)
+  confidence_threshold: 75
+  
+  # When to prompt user
+  prompt_timing: task-completion  # 'immediate', 'task-completion', or 'batch-daily'
+  
+auto_approve:
+  # Fully automatic updates without user approval
+  enabled: false  # Set to true for zero-touch updates
+  allowed_types:
+    - formatting
+    - typo_fixes
+    
+backup:
+  enabled: true
+  max_backups: 10
+  backup_dir: .skill_backups/
+  
+changelog:
+  enabled: true
+  max_entries: 50
+  include_timestamps: true
+  include_task_references: true
+
+# Extraction patterns - keywords that indicate relevant information
+extraction_patterns:
+  network_devices:
+    keywords:
+      - router
+      - switch
+      - firewall
+      - load balancer
+      - core-rtr
+      - dist-sw
+      - edge-fw
+    fields:
+      - hostname
+      - ip_address
+      - model
+      - role
+      - location
+      
+  ip_addressing:
+    keywords:
+      - subnet
+      - ip address
+      - network
+      - CIDR
+      - "/24"
+      - "/23"
+      - "10."
+      - "172."
+      - "192.168"
+    fields:
+      - subnet
+      - purpose
+      - vlan_id
+      - gateway
+      
+  vlans:
+    keywords:
+      - VLAN
+      - vlan
+      - trunk
+      - access port
+    fields:
+      - vlan_id
+      - name
+      - subnet
+      - purpose
+      
+  monitoring_tools:
+    keywords:
+      - monitoring
+      - dashboard
+      - NMS
+      - Splunk
+      - SolarWinds
+      - NetFlow
+      - SNMP
+      - syslog
+    fields:
+      - tool_name
+      - url
+      - server_ip
+      - purpose
+      
+  security_policies:
+    keywords:
+      - firewall rule
+      - ACL
+      - security zone
+      - DMZ
+      - trust
+      - untrust
+    fields:
+      - zone_name
+      - policy_name
+      - source
+      - destination
+      - action
+      
+  routing_protocols:
+    keywords:
+      - OSPF
+      - BGP
+      - EIGRP
+      - RIP
+      - static route
+      - routing
+    fields:
+      - protocol
+      - area
+      - AS_number
+      - peers

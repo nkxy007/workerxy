@@ -54,6 +54,12 @@ async def interactive_loop(agent, args, ui: TerminalUI):
             
             # Stream agent response
             await stream_agent_response(agent, messages, ui, args.auto_approve)
+            
+            # Check for skill updates (if middleware is attached)
+            if hasattr(agent, 'skill_learning_middleware'):
+                from net_deepagent_cli.automata_skills_ui import handle_skill_updates
+                await handle_skill_updates(agent.skill_learning_middleware, ui)
+                
     except Exception as e:
         ui.console.print(f"[red]Error in interactive loop: {e}[/red]")
     finally:
@@ -69,7 +75,7 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
     try:
         # We use a Live display for the assistant's growing message
         with ui.show_progress("Agent is thinking...") as progress:
-            task = progress.add_task("Processing request...", total=None)
+            task = progress.add_task("Processing request...", total=100)
             
             # Since we're using deepagents which wraps a langgraph, 
             # we'll use astream with the messages
@@ -140,6 +146,22 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                         # Update the messages history for the loop
                         messages.clear()
                         messages.extend(all_messages)
+                        
+                        # Pass new messages to skill learning middleware
+                        if hasattr(agent, 'skill_learning_middleware'):
+                            for msg in new_msgs:
+                                # Convert LangChain message to simple dict for processing
+                                content = msg.content if msg.content else ""
+                                if isinstance(msg, AIMessage):
+                                    role = "assistant"
+                                elif isinstance(msg, ToolMessage):
+                                    role = "tool"
+                                    # For tool messages, we might want to include tool name if available
+                                    # But process_message handles raw text anyway
+                                else:
+                                    role = "user"
+                                
+                                agent.skill_learning_middleware.process_message({'role': role, 'content': content})
 
     except Exception as e:
         ui.print_message(f"An error occurred: {str(e)}", role="error")
