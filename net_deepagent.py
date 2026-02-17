@@ -58,6 +58,7 @@ coding_model = ChatOpenAI(model="gpt-5.1-codex", api_key=creds.OPENAI_KEY)
 bias_removal_model = ChatAnthropic(model="claude-sonnet-4-5-20250929", api_key=creds.ANTHROPIC_KEY)
 googla_light_model = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", api_key=creds.GEMINI_KEY)
 googla_heavy_model = ChatGoogleGenerativeAI(model="gemini-3-pro", api_key=creds.GEMINI_KEY)
+gui_navigator_model = ChatOpenAI(model="gpt-4o", api_key=creds.OPENAI_KEY)
 
 
 # Global callback for user clarification (can be overridden by UI)
@@ -154,7 +155,7 @@ async def navigate_the_gui(url:str, question: str, browse_instruction:str="") ->
     try:
         agent = Agent(
             task=full_question,
-            llm=ChatOpenAI(model="gpt-4o"),
+            llm=gui_navigator_model,
             browser=browser,
         )
         
@@ -330,7 +331,7 @@ async def create_network_agent(
     subagents = [
         LAN_subagent, 
         knowledge_acquisition_subagent, 
-        network_design_subagent, 
+        #network_design_subagent, 
         cloud_computing_subagent,
         design_interpretor_subagent
     ]
