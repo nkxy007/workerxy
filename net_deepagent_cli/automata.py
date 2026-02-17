@@ -7,6 +7,7 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
+from prompt_toolkit.completion import WordCompleter
 from langchain_core.messages import HumanMessage
 
 # Configure logging
@@ -265,6 +266,8 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
         return True
         
     cmd = parts[0].lower()
+    if cmd.startswith("/"):
+        cmd = cmd[1:]
     
     # Handle 'help'
     if cmd == "help":
@@ -438,11 +441,37 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
 async def handle_automata_ui(ui, manager: AutomataManager):
     """Interactive loop for Automata management"""
     ui.console.print("\n[bold magenta]=== Automata Mode ===[/bold magenta]")
-    ui.console.print("Manage scheduled tasks. Type [bold]help[/bold] for commands.")
+    # Define commands with descriptions for autocompletion
+    base_meta = {
+        "help": "Show automata commands",
+        "list": "List all scheduled tasks",
+        "add": "Add a new background task",
+        "remove": "Remove a task by ID",
+        "resume": "Resume a stale task",
+        "logs": "List execution logs for a task",
+        "view": "View a specific log file",
+        "back": "Return to main agent prompt"
+    }
+    
+    # Support both slash and no-slash for UX
+    automata_meta = {}
+    for cmd, desc in base_meta.items():
+        automata_meta[cmd] = desc
+        automata_meta["/" + cmd] = desc
+        
+    completer = WordCompleter(
+        list(automata_meta.keys()),
+        meta_dict=automata_meta,
+        ignore_case=True,
+        match_middle=True
+    )
     
     while True:
         try:
-            user_input = await ui.session.prompt_async("automata> ")
+            user_input = await ui.session.prompt_async(
+                "automata> ",
+                completer=completer
+            )
             user_input = user_input.strip()
             
             if not user_input:

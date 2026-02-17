@@ -6,6 +6,7 @@ from rich.syntax import Syntax
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.completion import WordCompleter
 from pathlib import Path
 import difflib
 
@@ -23,13 +24,35 @@ class TerminalUI:
             history=FileHistory(str(self.history_file))
         )
         
+        # Define commands with descriptions for autocompletion
+        self.command_meta = {
+            "/help": "Show available commands",
+            "/clear": "Clear conversation history",
+            "/save": "Save current context to session",
+            "/resume": "Resume a saved session",
+            "/sessions": "List all saved sessions",
+            "/tokens": "Show token usage",
+            "/context": "Analyze current context",
+            "/skills": "Manage and list skills",
+            "/agents": "Show available A2A agents",
+            "/automata": "Manage background tasks",
+            "/memory": "Show current agent memory",
+            "/exit": "Exit the CLI"
+        }
+        self.completer = WordCompleter(
+            list(self.command_meta.keys()),
+            meta_dict=self.command_meta,
+            ignore_case=True,
+            match_middle=True
+        )
+        
         # Token tracking
         self.total_tokens = 0
         
     def print_banner(self):
         """Display startup banner with CoworkerX Networking word art"""
         # https://patorjk.com/software/taag/#p=display&f=Isometric1&t=WorkerXY%0ANetworking&x=none&v=4&h=4&w=80&we=false
-        art = """
+        art = r"""
    ______                                __             _  __
   / ____/___ _      ______  ________  / /_____  _____| |/ /
  / /   / __ \ | /| / / __ \/ ___/ _ \/ //_/ _ \/ ___/|   / 
@@ -84,7 +107,8 @@ class TerminalUI:
         try:
             user_input = await self.session.prompt_async(
                 "> ",
-                multiline=False
+                multiline=False,
+                completer=self.completer
             )
             return user_input.strip()
         except (KeyboardInterrupt, EOFError):
