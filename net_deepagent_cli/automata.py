@@ -9,6 +9,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from prompt_toolkit.completion import WordCompleter
 from langchain_core.messages import HumanMessage
+from net_deepagent_cli.ui import FirstWordCompleter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -459,12 +460,12 @@ async def handle_automata_ui(ui, manager: AutomataManager):
         automata_meta[cmd] = desc
         automata_meta["/" + cmd] = desc
         
-    completer = WordCompleter(
+    completer = FirstWordCompleter(WordCompleter(
         list(automata_meta.keys()),
         meta_dict=automata_meta,
         ignore_case=True,
         match_middle=True
-    )
+    ))
     
     while True:
         try:

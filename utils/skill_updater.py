@@ -42,7 +42,7 @@ class SkillUpdateDetector:
         if not self.skills_dir.exists():
             logger.warning(f"Skills directory not found: {self.skills_dir}")
             return skills
-        
+        logger.info(f"Skills directory: {self.skills_dir}")
         for skill_path in self.skills_dir.iterdir():
             if not skill_path.is_dir():
                 continue

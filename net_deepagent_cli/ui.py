@@ -6,9 +6,28 @@ from rich.syntax import Syntax
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import WordCompleter, Completer, Completion, CompleteEvent
+from prompt_toolkit.document import Document
 from pathlib import Path
 import difflib
+from typing import Optional, Iterable
+
+class FirstWordCompleter(Completer):
+    """
+    Completer that only suggests completions for the first word of the input.
+    Use this to prevent suggestions from popping up when typing arguments.
+    """
+    def __init__(self, completer: Completer):
+        self.completer = completer
+
+    def get_completions(
+        self, document: Document, complete_event: CompleteEvent
+    ) -> Iterable[Completion]:
+        text = document.text_before_cursor.lstrip()
+        # If there's a space, we're typing past the first word
+        if " " in text:
+            return
+        yield from self.completer.get_completions(document, complete_event)
 
 class TerminalUI:
     """Rich terminal interface for agent interaction"""
@@ -39,12 +58,12 @@ class TerminalUI:
             "/memory": "Show current agent memory",
             "/exit": "Exit the CLI"
         }
-        self.completer = WordCompleter(
+        self.completer = FirstWordCompleter(WordCompleter(
             list(self.command_meta.keys()),
             meta_dict=self.command_meta,
             ignore_case=True,
             match_middle=True
-        )
+        ))
         
         # Token tracking
         self.total_tokens = 0
