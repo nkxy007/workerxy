@@ -1,6 +1,6 @@
 ---
 name: eve-ng-emulator
-description: Automate EVE-NG network emulation lab creation, management, and topology deployment using evengsdk Python library and CLI. Use when you need to: (1) Create or manage EVE-NG virtual network labs programmatically, (2) Deploy network topologies from YAML definitions, (3) Configure virtual network devices with templates or files, (4) Build automated test environments for network validation, (5) Manage nodes, networks, and links in EVE-NG labs, (6) Integrate network lab provisioning into CI/CD pipelines
+description: Automate EVE-NG network emulation lab creation, management, and topology deployment using evengsdk Python library and CLI. Use when you need to (1) Create or manage EVE-NG virtual network labs programmatically, (2) Deploy network topologies from YAML definitions, (3) Configure virtual network devices with templates or files, (4) Build automated test environments for network validation, (5) Manage nodes, networks, and links in EVE-NG labs, (6) Integrate network lab provisioning into CI/CD pipelines
 license: Apache-2.0
 metadata:
   author: eve-ng-skill
