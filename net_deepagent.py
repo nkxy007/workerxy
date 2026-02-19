@@ -222,6 +222,14 @@ AVAILABLE_MODELS = {
     "gemini-3-pro": googla_heavy_model,
 }
 
+from langchain.agents.middleware import before_model, after_model, AgentState
+from langgraph.runtime import Runtime
+
+@before_model
+def log_before_calling_model(state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
+    #print(f"Model returned: {state['messages'][-1].content}")
+    print("⚙ Calling intelligence model ......")
+    return None
 
 async def create_network_agent(
     mcp_server_url: str = "http://localhost:8000/mcp",
@@ -350,6 +358,7 @@ async def create_network_agent(
             model=main_model,
             backend=FilesystemBackend(),
             store=InMemoryStore(),
+            middleware=[log_before_calling_model],
         )
         logger.info(f"Deep agent created successfully! Type: {type(net_deep_agent)}")
         logger.debug(f"Agent has astream: {hasattr(net_deep_agent, 'astream')}")
