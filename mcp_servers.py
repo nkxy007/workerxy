@@ -547,8 +547,9 @@ async def linux_server_ssh_tool(management_ip: str, command: List[str], intentio
 @mcp.tool()
 async def execute_shell_command(command: str, intention: str, timeout: int = 60) -> str:
     """
-    Execute a shell command on the host machine.
-    Use this for network diagnostics (ping, traceroute, dig, curl, etc.) or other CLI tasks.
+    Execute a shell or bash command on the host machine.
+    Use this for network diagnostics (ping, traceroute, dig, curl, tshark, netstatetc.) or other CLI tasks.
+    sometime when tools are missing you may install them using apt-get or yum or dnf etc.
     
     Args:
         command (str): The shell command to execute.
@@ -1081,7 +1082,7 @@ async def analyze_drawio_diagram(diagram_xml: str, intention: str, original_requ
 @mcp.tool()
 async def archive_current_conversation(messages: List[Dict[str, str]], intention: str, metadata: Optional[Dict] = None) -> str:
     """
-    Save the current chat history to the long-term archive.
+    Save the current chat history to the long-term archive. Not used for skills update
     
     Args:
         messages (List[Dict]): List of message objects with 'role' and 'content'.
