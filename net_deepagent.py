@@ -209,6 +209,42 @@ def get_network_skills(skills_dir: Optional[str] = None) -> List[str]:
     logger.info(f"Found {len(network_skills)} network-related skills")
     return network_skills
 
+
+def filter_tools_by_category(tools: List[BaseTool], category: str) -> List[BaseTool]:
+    """
+    Filters a list of tools based on their name matching specific category keywords or prefixes.
+    
+    Args:
+        tools: List of tools to filter
+        category: The category to filter for ('cloud', 'lan', 'design', 'datacenter', 'isp')
+        
+    Returns:
+        Filtered list of tools
+    """
+    filtered = []
+    category = category.lower()
+    
+    for tool in tools:
+        name = tool.name.lower()
+        
+        if category == 'cloud':
+            if any(kw in name for kw in ['aws', 'azure', 'gcp', 'cloud']):
+                filtered.append(tool)
+        elif category == 'lan':
+            if name.startswith('net_'):
+                filtered.append(tool)
+        elif category == 'design':
+            if any(kw in name for kw in ['diagram', 'design']):
+                filtered.append(tool)
+        elif category == 'datacenter':
+            if name.startswith('datacentre_'):
+                filtered.append(tool)
+        elif category == 'isp':
+            if name.startswith('isp_'):
+                filtered.append(tool)
+                
+    return filtered
+
 # Dictionary of available models for selection
 AVAILABLE_MODELS = {
     "gpt-5-mini": thinking_model_mini,
@@ -281,8 +317,13 @@ async def create_network_agent(
     except Exception as e:
         logger.error(f"Failed to get tools from MCP: {e}", exc_info=True)
         raise
-    design_tools = [tool for tool in tools if tool.name in ["read_network_diagram", "read_design_document"]]
-    cloud_tools = [tool for tool in tools if tool.name in ["aws_tool", "azure_tool", "gcp_tool", "ssh_tool"]]
+
+    # Dynamic tool filtering
+    design_tools = filter_tools_by_category(tools, 'design')
+    cloud_tools = filter_tools_by_category(tools, 'cloud')
+    lan_tools = filter_tools_by_category(tools, 'lan')
+    
+    logger.info(f"Filtered tools: {len(design_tools)} design, {len(cloud_tools)} cloud, {len(lan_tools)} LAN")
 
     # Add extra tools if provided (e.g. A2A tools)
     if extra_tools:
@@ -311,7 +352,7 @@ async def create_network_agent(
         "name": "LAN_subagent",
         "description": "Agent specialized in the LAN network activities such as routing and switching related tasks.",
         "system_prompt": LAN_subagent_template,
-        "tools": tools + [search_internet, user_clarification_and_action_tool],
+        "tools": lan_tools + [search_internet, user_clarification_and_action_tool],
         "model": subagent_model,
         "skills": get_network_skills(),
     }
