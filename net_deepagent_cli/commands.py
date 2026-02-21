@@ -18,22 +18,19 @@ async def handle_command(command: str, ui, messages):
     sessions_dir = config_manager.sessions_dir
 
     if cmd == "/help":
-        ui.console.print("""
-[bold]Available Commands:[/bold]
-  [bold cyan]/clear[/bold cyan]      - Clear conversation history
-  [bold cyan]/save [name][/bold cyan] - Save current context to a session file
-  [bold cyan]/resume [name][/bold cyan] - Resume a saved session
-  [bold cyan]/sessions[/bold cyan]   - List all saved sessions
-  [bold cyan]/tokens[/bold cyan]     - Show token usage for the entire session
-  [bold cyan]/context[/bold cyan]    - Analyze current context (messages and system prompt)
-  [bold cyan]/skills[/bold cyan]     - List available skills
-  [bold cyan]/skills add <path>[/bold cyan]    - Extract and add skills from a document
-  [bold cyan]/agents[/bold cyan]     - Show available A2A agents
-  [bold cyan]/automata[/bold cyan]   - Manage scheduled background tasks
-  [bold cyan]/memory[/bold cyan]     - Show current agent memory
-  [bold cyan]/exit[/bold cyan]       - Exit the CLI
-  [bold cyan]/help[/bold cyan]       - Show this help message
-        """)
+        table = Table(title="Available Commands", border_style="blue")
+        table.add_column("Command", style="cyan", no_wrap=True)
+        table.add_column("Description", style="white")
+        table.add_column("Subcommands", style="dim green")
+        
+        from net_deepagent_cli.ui import TerminalUI
+        for command, info in TerminalUI.COMMAND_STRUCTURE.items():
+            subs = info.get("subs", {})
+            subs_str = ", ".join(subs.keys()) if subs else "-"
+            table.add_row(command, info["desc"], subs_str)
+            
+        ui.console.print(table)
+        ui.console.print("[dim]Tip: Type a command followed by a space to see subcommand suggestions.[/dim]")
     
     elif cmd == "/clear":
         messages.clear()

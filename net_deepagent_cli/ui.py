@@ -12,25 +12,92 @@ from pathlib import Path
 import difflib
 from typing import Optional, Iterable
 
-class FirstWordCompleter(Completer):
+class HierarchicalCompleter(Completer):
     """
-    Completer that only suggests completions for the first word of the input.
-    Use this to prevent suggestions from popping up when typing arguments.
+    Completer that suggests top-level /commands first, 
+    and then suggests subcommands for specific base commands.
     """
-    def __init__(self, completer: Completer):
-        self.completer = completer
+    def __init__(self, structure: dict):
+        self.structure = structure
+        self.top_level_completer = WordCompleter(
+            list(self.structure.keys()),
+            meta_dict={k: v.get("desc", "") for k, v in self.structure.items()},
+            ignore_case=True,
+            match_middle=True
+        )
 
     def get_completions(
         self, document: Document, complete_event: CompleteEvent
     ) -> Iterable[Completion]:
         text = document.text_before_cursor.lstrip()
-        # If there's a space, we're typing past the first word
-        if " " in text:
+        parts = text.split()
+        
+        # If no words yet or currently typing the first word (no space after it)
+        if len(parts) == 0 or (len(parts) == 1 and not text.endswith(" ")):
+            yield from self.top_level_completer.get_completions(document, complete_event)
             return
-        yield from self.completer.get_completions(document, complete_event)
+
+        # If we have a first word and it's a known command with subcommands
+        base_cmd = parts[0].lower()
+        if base_cmd in self.structure:
+            subs = self.structure[base_cmd].get("subs", {})
+            if subs:
+                # Suggest subcommands if we are typing the second word
+                if len(parts) == 1 and text.endswith(" "):
+                    # Just started typing second word
+                    sub_completer = WordCompleter(
+                        list(subs.keys()),
+                        meta_dict=subs,
+                        ignore_case=True,
+                        match_middle=True
+                    )
+                    yield from sub_completer.get_completions(document, complete_event)
+                elif len(parts) == 2 and not text.endswith(" "):
+                    # In the middle of typing second word
+                    sub_completer = WordCompleter(
+                        list(subs.keys()),
+                        meta_dict=subs,
+                        ignore_case=True,
+                        match_middle=True
+                    )
+                    yield from sub_completer.get_completions(document, complete_event)
 
 class TerminalUI:
     """Rich terminal interface for agent interaction"""
+    
+    # Define a shared command structure for help and completion
+    COMMAND_STRUCTURE = {
+        "/help": {"desc": "Show available commands"},
+        "/clear": {"desc": "Clear conversation history"},
+        "/save": {"desc": "Save current context to session"},
+        "/resume": {"desc": "Resume a saved session"},
+        "/sessions": {"desc": "List all saved sessions"},
+        "/tokens": {"desc": "Show token usage"},
+        "/context": {"desc": "Analyze current context"},
+        "/skills": {
+            "desc": "Manage and list skills",
+            "subs": {
+                "list": "List available skills",
+                "add": "Extract and add skills from a document",
+                "extract": "Alias for add"
+            }
+        },
+        "/agents": {"desc": "Show available A2A agents"},
+        "/automata": {
+            "desc": "Manage background tasks",
+            "subs": {
+                "list": "List all scheduled tasks",
+                "add": "Add a new background task",
+                "remove": "Remove a task by ID",
+                "resume": "Resume a stale task",
+                "logs": "List execution logs for a task",
+                "view": "View a specific log file",
+                "help": "Show automata commands"
+            }
+        },
+        "/memory": {"desc": "Show current agent memory"},
+        "/exit": {"desc": "Exit the CLI"}
+    }
     
     def __init__(self, agent_name: str):
         self.console = Console(force_terminal=True, force_interactive=False)
@@ -44,26 +111,8 @@ class TerminalUI:
         )
         
         # Define commands with descriptions for autocompletion
-        self.command_meta = {
-            "/help": "Show available commands",
-            "/clear": "Clear conversation history",
-            "/save": "Save current context to session",
-            "/resume": "Resume a saved session",
-            "/sessions": "List all saved sessions",
-            "/tokens": "Show token usage",
-            "/context": "Analyze current context",
-            "/skills": "Manage and list skills",
-            "/agents": "Show available A2A agents",
-            "/automata": "Manage background tasks",
-            "/memory": "Show current agent memory",
-            "/exit": "Exit the CLI"
-        }
-        self.completer = FirstWordCompleter(WordCompleter(
-            list(self.command_meta.keys()),
-            meta_dict=self.command_meta,
-            ignore_case=True,
-            match_middle=True
-        ))
+        self.command_meta = {k: v["desc"] for k, v in self.COMMAND_STRUCTURE.items()}
+        self.completer = HierarchicalCompleter(self.COMMAND_STRUCTURE)
         
         # Token tracking
         self.total_tokens = 0

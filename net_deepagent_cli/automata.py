@@ -9,7 +9,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from prompt_toolkit.completion import WordCompleter
 from langchain_core.messages import HumanMessage
-from net_deepagent_cli.ui import FirstWordCompleter
+from net_deepagent_cli.ui import HierarchicalCompleter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -442,30 +442,23 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
 async def handle_automata_ui(ui, manager: AutomataManager):
     """Interactive loop for Automata management"""
     ui.console.print("\n[bold magenta]=== Automata Mode ===[/bold magenta]")
-    # Define commands with descriptions for autocompletion
-    base_meta = {
-        "help": "Show automata commands",
-        "list": "List all scheduled tasks",
-        "add": "Add a new background task",
-        "remove": "Remove a task by ID",
-        "resume": "Resume a stale task",
-        "logs": "List execution logs for a task",
-        "view": "View a specific log file",
-        "back": "Return to main agent prompt"
+    # Define structure for HierarchicalCompleter
+    automata_structure = {
+        "help": {"desc": "Show automata commands"},
+        "list": {"desc": "List all scheduled tasks"},
+        "add": {"desc": "Add a new background task"},
+        "remove": {"desc": "Remove a task by ID"},
+        "resume": {"desc": "Resume a stale task"},
+        "logs": {"desc": "List execution logs for a task"},
+        "view": {"desc": "View a specific log file"},
+        "back": {"desc": "Return to main agent prompt"}
     }
     
-    # Support both slash and no-slash for UX
-    automata_meta = {}
-    for cmd, desc in base_meta.items():
-        automata_meta[cmd] = desc
-        automata_meta["/" + cmd] = desc
+    # Also support slash commands within automata mode
+    for cmd in list(automata_structure.keys()):
+        automata_structure["/" + cmd] = automata_structure[cmd]
         
-    completer = FirstWordCompleter(WordCompleter(
-        list(automata_meta.keys()),
-        meta_dict=automata_meta,
-        ignore_case=True,
-        match_middle=True
-    ))
+    completer = HierarchicalCompleter(automata_structure)
     
     while True:
         try:
