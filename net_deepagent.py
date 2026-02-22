@@ -323,7 +323,14 @@ async def create_network_agent(
     cloud_tools = filter_tools_by_category(tools, 'cloud')
     lan_tools = filter_tools_by_category(tools, 'lan')
     
+    # Filter out specialized tools from the main agent
+    main_agent_tools = [
+        t for t in tools 
+        if not any(t.name.lower().startswith(p) for p in ['net_', 'isp_', 'datacentre_'])
+    ]
+    
     logger.info(f"Filtered tools: {len(design_tools)} design, {len(cloud_tools)} cloud, {len(lan_tools)} LAN")
+    logger.info(f"Main agent tools: {len(main_agent_tools)} (specialized tools excluded)")
 
     # Add extra tools if provided (e.g. A2A tools)
     if extra_tools:
@@ -350,7 +357,7 @@ async def create_network_agent(
 
     LAN_subagent = {
         "name": "LAN_subagent",
-        "description": "Agent specialized in the LAN network activities such as routing and switching related tasks.",
+        "description": "Agent specialized in the LAN network activities such as routing and switching related tasks. It has access to necessary tools and credentials needed for access.",
         "system_prompt": LAN_subagent_template,
         "tools": lan_tools + [search_internet, user_clarification_and_action_tool],
         "model": subagent_model,
@@ -393,7 +400,7 @@ async def create_network_agent(
     logger.info("Creating deep agent with create_deep_agent()...")
     try:
         net_deep_agent = create_deep_agent(
-            tools=tools,
+            tools=main_agent_tools,
             system_prompt=system_prompt,
             subagents=subagents,
             model=main_model,
