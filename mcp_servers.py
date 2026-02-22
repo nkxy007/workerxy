@@ -84,6 +84,24 @@ class DeviceSShSession:
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(self.management_ip, username=self.username, password=self.password, timeout=5)
             stdin, stdout, stderr = ssh.exec_command(command)
+            ssh.send("terminal length 0\n")
+            time.sleep(0.5)
+            output = stdout.read(15000).decode()
+            ssh.close()
+            return output
+        except Exception as e:
+            return f"Error executing command: {e}"
+    
+    def execute_privileged_command(self, command: str) -> str:
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(self.management_ip, username=self.username, password=self.password, timeout=5)
+            ssh.send("terminal length 0\n")
+            time.sleep(0.5)
+            ssh.send("enable\n")
+            time.sleep(0.5)
+            stdin, stdout, stderr = ssh.exec_command(command)
             output = stdout.read(15000).decode()
             ssh.close()
             return output
@@ -113,7 +131,7 @@ async def get_site_info(site_name: str, intention: str) -> str:
     return f"Site {site_name} not found"
 
 @mcp.tool()
-async def get_devices_management_ip(site_name: str, device_type: str, intention: str) -> str:
+async def net_get_devices_management_ip(site_name: str, device_type: str, intention: str) -> str:
     """Get management IP of a network device from a site, uses infor from CMDB, IPAM and NMS to get the info
     args:
         site_name (str): name of the site stripped of anything like office, building, floor etc.
@@ -143,7 +161,7 @@ async def get_devices_management_ip(site_name: str, device_type: str, intention:
     return "Device management IP cannot be found."
 
 @mcp.tool()
-async def find_network_interfaces(device_management_ip: str, intention: str) -> str:
+async def net_find_network_interfaces(device_management_ip: str, intention: str) -> str:
     """connect to the device management IP and Find network interfaces
     args:
         device_management_ip (str): management IP of the device
@@ -153,25 +171,30 @@ async def find_network_interfaces(device_management_ip: str, intention: str) -> 
     log_tool_call_to_csv("find_network_interfaces", intention, device_management_ip=device_management_ip)
     logger.info(f"Finding network interfaces for device: {device_management_ip}")
     device = DeviceSShSession(device_management_ip)
-    interfaces = device.execute_command("show ip interfaces brief | exclude unassigned")
-    return interfaces
+    interfaces_with_ip = device.execute_command("show ip interfaces brief | exclude unassigned")
+    interface_physical = device.execute_command("show interface status")
+    return interfaces_with_ip + "\n" + interface_physical
+
+#@mcp.tool()
+#async def net_ping_device_from_gateway(device_ip: str, target_ip: str, intention: str, count: int = 5) -> str:
+#    """Ping a device from a switch or router where the device is connected to.
+#    Mainly used in environments with VPN or device is behind NAT.
+#    This is used if the device IP address we want to reach is on different subnet than the current machinewe are on.
+#    Run shell tool to know our current machine IP.
+#    # NOTE: not implemented at the moment as it requires more scrutiny on how it works
+#    args:
+#        device_ip (str): IP of the device
+#        target_ip (str): target IP to ping
+#        intention (str): llm intention to call this tool
+#        count (int): number of pings (default: 5)
+#    """
+#    logger.info(f"Intention: {intention}")
+#    log_tool_call_to_csv("ping_device_from_gateway", intention, device_ip=device_ip, target_ip=target_ip, count=count)
+#    logger.info(f"Pinging {target_ip} from {device_ip} (count={count})")
+#    return f"Pinged {target_ip} {count} times failed."
 
 @mcp.tool()
-async def ping_device_from_gateway(device_ip: str, target_ip: str, intention: str, count: int = 5) -> str:
-    """Ping a device from a switch
-    args:
-        device_ip (str): IP of the device
-        target_ip (str): target IP to ping
-        intention (str): llm intention to call this tool
-        count (int): number of pings (default: 5)
-    """
-    logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("ping_device_from_gateway", intention, device_ip=device_ip, target_ip=target_ip, count=count)
-    logger.info(f"Pinging {target_ip} from {device_ip} (count={count})")
-    return f"Pinged {target_ip} {count} times failed."
-
-@mcp.tool()
-async def get_network_device_arp_table(device_management_ip: str, intention: str) -> List[str]:
+async def net_get_network_device_arp_table(device_management_ip: str, intention: str) -> List[str]:
     """Get ARP table from a device
     args:
         device_management_ip (str): management IP of the device
@@ -185,7 +208,7 @@ async def get_network_device_arp_table(device_management_ip: str, intention: str
     return [line for line in arp_table.splitlines("\n") if line.strip()]
 
 @mcp.tool()
-async def get_switch_mac_address_table(device_management_ip: str, intention: str) -> List[str]:
+async def net_get_switch_mac_address_table(device_management_ip: str, intention: str) -> List[str]:
     """Get MAC address table from a device
     args:
         device_management_ip (str): management IP of the device
@@ -199,7 +222,7 @@ async def get_switch_mac_address_table(device_management_ip: str, intention: str
     return [line for line in mac_table.splitlines("\n") if line.strip()]
 
 @mcp.tool()
-async def get_l2_forwarding_information(device_management_ip: str, intention: str) -> str:
+async def net_get_l2_forwarding_information(device_management_ip: str, intention: str) -> str:
     """Get trunking status and spanning tree information from the switch
     args:
         device_management_ip (str): management IP of the switch
@@ -219,7 +242,7 @@ async def get_l2_forwarding_information(device_management_ip: str, intention: st
     
 
 @mcp.tool()
-async def get_nat_table(router_management_ip: str, intention: str) -> List[str]:
+async def net_get_nat_table(router_management_ip: str, intention: str) -> List[str]:
     """Get NAT table from a router
     args:
         router_management_ip (str): management IP of the router
@@ -233,7 +256,7 @@ async def get_nat_table(router_management_ip: str, intention: str) -> List[str]:
     return [line for line in nat_table.splitlines("\n") if line.strip()]
 
 @mcp.tool()
-async def get_routing_table(router_management_ip: str, intention: str) -> str:
+async def net_get_routing_table(router_management_ip: str, intention: str) -> str:
     """Get routing table from a router
     args:
         router_management_ip (str): management IP of the router
@@ -247,7 +270,7 @@ async def get_routing_table(router_management_ip: str, intention: str) -> str:
     return f"routing table for router {router_management_ip}:\n{routing_table.splitlines("\n")}"
 
 @mcp.tool()
-async def capture_network_traffic(device_management_ip: str, interface: str, duration_seconds: int, intention: str) -> str:
+async def net_capture_network_traffic(device_management_ip: str, interface: str, duration_seconds: int, intention: str) -> str:
     """Capture network traffic on a given interface for a specified duration
     args:
         device_management_ip (str): management IP of the device
@@ -289,7 +312,7 @@ async def capture_network_traffic(device_management_ip: str, interface: str, dur
     return f"Captured traffic on {interface} for {duration_seconds} seconds. is {captured_network_traffic}"
 
 @mcp.tool()
-async def get_device_logs(device_management_ip: str, log_type: str, time_range: str, intention: str, filter_regex: str = "") -> List[str]:
+async def net_get_device_logs(device_management_ip: str, log_type: str, time_range: str, intention: str, filter_regex: str = "") -> List[str]:
     """Get device logs of a specific type within a time range
     args:
         device_management_ip (str): management IP of the device
@@ -322,12 +345,13 @@ async def get_device_logs(device_management_ip: str, log_type: str, time_range: 
     return device_logs[:10]  # return first 10 logs for brevity
 
 @mcp.tool()
-async def run_commands_on_device(device_management_ip: str, commands: List[str], intention: str) -> str:
+async def net_run_commands_on_device(device_management_ip: str, commands: List[str], intention: str, privileged: bool = False) -> str:
     """Run a command on a network device via SSH
     args:
         device_management_ip (str): management IP of the device
         commands (List[str]): list of commands to execute on the device
         intention (str): llm intention to call this tool
+        privileged (bool): whether to run the command in privileged mode
     returns:
         str: output of the command execution
     """
@@ -336,9 +360,14 @@ async def run_commands_on_device(device_management_ip: str, commands: List[str],
     logger.info(f"Running commands on {device_management_ip}: {commands}")
     device = DeviceSShSession(device_management_ip)
     output = ""
-    for command in commands:
-        _output = device.execute_command(command)
-        output += f"Command: {command}\nOutput: {_output}\n"
+    if privileged:
+        for command in commands:
+            _output = device.execute_privileged_command(command)
+            output += f"Command: {command}\nOutput: {_output}\n"
+    else:
+        for command in commands:
+            _output = device.execute_command(command)
+            output += f"Command: {command}\nOutput: {_output}\n"
     return output
 
 @mcp.tool()
