@@ -29,6 +29,7 @@ import csv
 from datetime import datetime
 from tools_helpers.retriever_archiver import ArchiverRetriever
 import creds
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -83,10 +84,27 @@ class DeviceSShSession:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(self.management_ip, username=self.username, password=self.password, timeout=5)
-            stdin, stdout, stderr = ssh.exec_command(command)
-            ssh.send("terminal length 0\n")
-            time.sleep(0.5)
-            output = stdout.read(15000).decode()
+            if not "\n" in command:
+                command += " \n"
+            if not "?" in command:
+                ssh.exec_command("terminal length 0\n")
+                stdin, stdout, stderr = ssh.exec_command(command)
+                time.sleep(0.5)
+                output = stdout.read(15000).decode()
+            else:
+                shell = ssh.invoke_shell()
+                time.sleep(1)
+
+                # Clear initial banner
+                if shell.recv_ready():
+                    print(shell.recv(65535).decode())
+                # Send command with ?
+                shell.send(command)
+                time.sleep(1)
+
+                output = ""
+                while shell.recv_ready():
+                    output += shell.recv(65535).decode()
             ssh.close()
             return output
         except Exception as e:
@@ -97,12 +115,32 @@ class DeviceSShSession:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(self.management_ip, username=self.username, password=self.password, timeout=5)
-            ssh.send("terminal length 0\n")
-            time.sleep(0.5)
-            ssh.send("enable\n")
-            time.sleep(0.5)
-            stdin, stdout, stderr = ssh.exec_command(command)
-            output = stdout.read(15000).decode()
+            if not "\n" in command:
+                command += " \n"
+            if not "?" in command:
+                ssh.exec_command("terminal length 0\n")
+                time.sleep(0.5)
+                ssh.exec_command("enable\n")
+                time.sleep(0.5)
+                stdin, stdout, stderr = ssh.exec_command(command)
+                output = stdout.read(15000).decode()
+            else:
+                shell = ssh.invoke_shell()
+                time.sleep(1)
+
+                # Clear initial banner
+                if shell.recv_ready():
+                    print(shell.recv(65535).decode())
+                # Send command with ?
+                shell.send("enable\n")
+                time.sleep(0.5)
+                shell.send(command)
+                time.sleep(1)
+
+                output = ""
+                while shell.recv_ready():
+                    output += shell.recv(65535).decode()
+            
             ssh.close()
             return output
         except Exception as e:
