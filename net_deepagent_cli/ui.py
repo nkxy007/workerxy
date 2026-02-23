@@ -105,6 +105,13 @@ class TerminalUI:
             }
         },
         "/memory": {"desc": "Show current agent memory"},
+        "/session": {
+            "desc": "Session management shortcuts",
+            "subs": {
+                "new": "Start a new session (prompts to save current first)",
+                "delete": "Delete a saved session by name: /session delete <name>",
+            }
+        },
         "/exit": {"desc": "Exit the CLI"}
     }
     

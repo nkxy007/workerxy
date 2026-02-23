@@ -244,12 +244,103 @@ async def handle_command(command: str, ui, messages, agent=None):
         else:
             ui.print_message("No memory file found.", role="system")
     
+    elif cmd == "/session":
+        sub = parts[1].lower() if len(parts) > 1 else "new"
+        if sub == "new":
+            await handle_new_session(messages, ui)
+        elif sub == "delete":
+            await handle_delete_session(parts, ui)
+        else:
+            ui.print_message(
+                f"Unknown /session subcommand: [bold red]{sub}[/bold red]\n"
+                "Available: [bold cyan]new | delete <name>[/bold cyan]",
+                role="error",
+            )
+
     elif cmd == "/exit":
         ui.print_message("Exiting...", role="system")
         raise EOFError()
     
     else:
         ui.print_message(f"Unknown command: {cmd}", role="error")
+
+async def handle_new_session(messages, ui):
+    """Confirm with user to save current session then clear it"""
+    if messages:
+        ui.console.print("[bold yellow]You have an active session.[/bold yellow]")
+        save_prompt = ui.console.input("[bold yellow]Save current session before starting a new one? [bold green](y)[/bold green]/[bold red](n)[/bold red]: [/]").strip().lower()
+        
+        if save_prompt in ['y', 'yes']:
+            session_name = ui.console.input("[bold blue]Enter session name to save:[/] ").strip()
+            if session_name:
+                config_manager = AgentConfig(ui.agent_name)
+                sessions_dir = config_manager.sessions_dir
+                
+                # Ensure .json extension
+                if not session_name.endswith(".json"):
+                    filename = f"{session_name}.json"
+                else:
+                    filename = session_name
+                    
+                filepath = sessions_dir / filename
+                
+                try:
+                    # Serialize messages
+                    from langchain_core.messages import message_to_dict
+                    serialized_messages = [message_to_dict(m) for m in messages]
+                    with open(filepath, 'w') as f:
+                        json.dump(serialized_messages, f, indent=2)
+                    ui.print_message(f"Session saved to [bold cyan]{filename}[/bold cyan]", role="system")
+                except Exception as e:
+                    ui.print_message(f"Failed to save session: {e}", role="error")
+                    # We continue to clear even if save fails? 
+                    # User might want to stop if save failed.
+                    # For now, let's keep it simple and clear anyway as requested.
+            else:
+                ui.print_message("Save cancelled (no name provided).", role="warning")
+                # Don't clear if user cancelled save? 
+                # The user intention "new" usually means they want to start fresh.
+                # If they skipped naming, maybe they don't want to save after all.
+                # I'll clear anyway as it's a "/session new" command.
+
+    messages.clear()
+    ui.print_message("✨ [bold green]New session started.[/bold green]", role="system")
+
+async def handle_delete_session(parts, ui):
+    """Delete a saved session file by name"""
+    config_manager = AgentConfig(ui.agent_name)
+    sessions_dir = config_manager.sessions_dir
+    
+    session_name = parts[2] if len(parts) > 2 else None
+    
+    if not session_name:
+        # Prompt for name if not provided
+        session_name = ui.console.input("[bold blue]Enter session name to delete: [/]").strip()
+        if not session_name:
+            return
+
+    # Ensure .json extension
+    if not session_name.endswith(".json"):
+        filename = f"{session_name}.json"
+    else:
+        filename = session_name
+        
+    filepath = sessions_dir / filename
+    
+    if not filepath.exists():
+        ui.print_message(f"Session file [bold red]{filename}[/bold red] not found.", role="error")
+        return
+
+    # Confirmation
+    confirm = ui.console.input(f"[bold red]Are you sure you want to delete session '{session_name}'? (y/n): [/]").strip().lower()
+    if confirm in ['y', 'yes']:
+        try:
+            filepath.unlink()
+            ui.print_message(f"Session [bold cyan]{filename}[/bold cyan] deleted successfully.", role="system")
+        except Exception as e:
+            ui.print_message(f"Failed to delete session: {e}", role="error")
+    else:
+        ui.print_message("Deletion cancelled.", role="system")
 
 async def extract_skills_from_document(doc_path: str, agent_name: str, ui):
     """

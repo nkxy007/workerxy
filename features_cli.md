@@ -62,6 +62,8 @@ Dynamically attach external Agent-to-Agent (A2A) specialist agents at runtime.
 | Save conversation to file | `/save <name>` |
 | Resume saved session | `/resume <name>` |
 | List all saved sessions | `/sessions` |
+| Start a new session | `/session new` |
+| Delete a saved session | `/session delete <name>` |
 | Persistent prompt history | Stored at `~/.net-deepagent/<name>/history` |
 
 ---
