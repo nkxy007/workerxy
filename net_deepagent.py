@@ -332,14 +332,22 @@ async def create_network_agent(
     logger.info(f"Filtered tools: {len(design_tools)} design, {len(cloud_tools)} cloud, {len(lan_tools)} LAN")
     logger.info(f"Main agent tools: {len(main_agent_tools)} (specialized tools excluded)")
 
-    # Add extra tools if provided (e.g. A2A tools)
+    # Add extra tools if provided (e.g. A2A communicate_with_* tools).
+    # These must be added to BOTH main_agent_tools (so the main LLM can see them)
+    # AND the full tools list (so any tool wrapper is applied to them too).
     if extra_tools:
         tools.extend(extra_tools)
+        main_agent_tools.extend(extra_tools)
+        logger.info(f"Added {len(extra_tools)} extra tool(s) to main agent: {[t.name for t in extra_tools]}")
 
-    # Allow caller to wrap/modify tools (e.g. for security)
+    # Allow caller to wrap/modify tools (e.g. for security).
+    # Applied to the full list; main_agent_tools is rebuilt from the wrapped set.
     if tool_wrapper:
         logger.info("Applying tool wrapper...")
         tools = tool_wrapper(tools)
+        # Rebuild main_agent_tools from the wrapped list so wrappers apply to A2A tools too
+        wrapped_names = {t.name for t in tools}
+        main_agent_tools = [t for t in tools if t.name in {m.name for m in main_agent_tools}]
 
     # Get models
     main_model = AVAILABLE_MODELS.get(main_model_name, thinking_model_mini)

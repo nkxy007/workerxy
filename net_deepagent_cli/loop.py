@@ -44,7 +44,7 @@ async def interactive_loop(agent, args, ui: TerminalUI):
                          continue
 
                 try:
-                    await handle_command(user_input, ui, messages)
+                    await handle_command(user_input, ui, messages, agent=agent)
                 except EOFError:
                     break
                 continue

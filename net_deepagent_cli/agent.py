@@ -102,6 +102,13 @@ class WrappedAgent:
         self.base_agent = base_agent
         self.middlewares = middlewares
         self.resources = resources
+        # Expose A2AHTTPMiddleware by name so commands.py/agents_ui.py can reach it at runtime
+        self.a2a_middleware = None
+        from a2a_capability.middleware import A2AHTTPMiddleware
+        for r in resources:
+            if isinstance(r, A2AHTTPMiddleware):
+                self.a2a_middleware = r
+                break
         
     async def astream(self, input_data: Dict[str, Any], **kwargs):
         # Apply middlewares before calling the agent

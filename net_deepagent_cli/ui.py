@@ -82,7 +82,16 @@ class TerminalUI:
                 "extract": "Alias for add"
             }
         },
-        "/agents": {"desc": "Show available A2A agents"},
+        "/agents": {
+            "desc": "Manage A2A agents",
+            "subs": {
+                "list":   "List all registered agents and their session status",
+                "add":    "Persist + load an agent: /agents add <name> <url>",
+                "remove": "Remove from registry and unload: /agents remove <name>",
+                "unload": "Unload from session only: /agents unload <name>",
+                "load":   "Reload all registry agents into session",
+            }
+        },
         "/automata": {
             "desc": "Manage background tasks",
             "subs": {

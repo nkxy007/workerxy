@@ -4,12 +4,18 @@ from rich.table import Table
 from pathlib import Path
 from net_deepagent_cli.agent import SkillsMiddleware
 from net_deepagent_cli.config import AgentConfig
-from a2a_capability.middleware import A2AHTTPMiddleware
 from langchain_core.messages import message_to_dict, messages_from_dict
+from net_deepagent_cli.agents_ui import (
+    handle_agents_list,
+    handle_agents_add,
+    handle_agents_remove,
+    handle_agents_unload,
+    handle_agents_load,
+)
 import json
 import datetime
 
-async def handle_command(command: str, ui, messages):
+async def handle_command(command: str, ui, messages, agent=None):
     """Handle special slash commands"""
     parts = command.split()
     cmd = parts[0].lower()
@@ -211,50 +217,24 @@ async def handle_command(command: str, ui, messages):
                 ui.console.print(f"    [dim]Path: {skill['path']}[/dim]")
     
     elif cmd == "/agents":
-        ui.print_message("Discovering A2A agents...", role="system")
-        
-        # Locate registry
-        try:
-             import a2a_capability
-             registry_path = Path(a2a_capability.__file__).parent / "agents_registry.json"
-        except ImportError:
-             registry_path = Path.cwd() / "a2a_capability" / "agents_registry.json"
-             
-        if not registry_path.exists():
-            ui.print_message(f"Registry not found at {registry_path}", role="error")
-            return
+        sub = parts[1].lower() if len(parts) > 1 else "list"
 
-        mw = A2AHTTPMiddleware()
-        # This will try to connect to all agents
-        await mw.register_agents_from_file(str(registry_path))
-        
-        # Load full registry to show status of all configured agents
-        try:
-            with open(registry_path) as f:
-                full_registry = json.load(f)
-        except Exception as e:
-            ui.print_message(f"Error reading registry file: {e}", role="error")
-            full_registry = {}
-
-        if not full_registry:
-            ui.print_message("No agents configured in registry.", role="system")
+        if sub == "list":
+            await handle_agents_list(parts, ui, agent)
+        elif sub == "add":
+            await handle_agents_add(parts, ui, agent)
+        elif sub == "remove":
+            await handle_agents_remove(parts, ui, agent)
+        elif sub == "unload":
+            await handle_agents_unload(parts, ui, agent)
+        elif sub == "load":
+            await handle_agents_load(parts, ui, agent)
         else:
-            ui.console.print("[bold]A2A Agent Status:[/bold]")
-            for name, url in full_registry.items():
-                is_online = name in mw.remote_agents
-                status = "[bold green]Online[/bold green]" if is_online else "[bold red]Offline/Unreachable[/bold red]"
-                
-                details = ""
-                if is_online:
-                    client = mw.remote_agents[name]
-                    if client.agent_card:
-                        desc = client.agent_card.get('description', 'No description')
-                        caps = ", ".join(client.agent_card.get('capabilities', []))
-                        details = f"\n    [dim]Description:[/dim] {desc}\n    [dim]Capabilities:[/dim] {caps}"
-                
-                ui.console.print(f"  • [bold cyan]{name}[/bold cyan] ({url}) - {status}{details}")
-        
-        await mw.cleanup()
+            ui.print_message(
+                f"Unknown /agents subcommand: [bold red]{sub}[/bold red]\n"
+                "Available: [bold cyan]list | add <name> <url> | remove <name> | unload <name> | load[/bold cyan]",
+                role="error",
+            )
 
     elif cmd == "/memory":
         # Show agent memory
