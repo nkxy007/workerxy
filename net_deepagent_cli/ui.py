@@ -110,6 +110,7 @@ class TerminalUI:
             "subs": {
                 "new": "Start a new session (prompts to save current first)",
                 "delete": "Delete a saved session by name: /session delete <name>",
+                "threshold": "Adjust topic drift sensitivity (0.0-1.0): /session threshold <value>",
             }
         },
         "/exit": {"desc": "Exit the CLI"}
@@ -198,6 +199,14 @@ class TerminalUI:
         except (KeyboardInterrupt, EOFError):
             return None
     
+    def prompt_new_session_drift(self) -> bool:
+        """
+        Displays a notice that drift was detected and asks if user wants a new session.
+        """
+        self.console.print("\n[bold yellow]⚡ This question seems off-topic compared to the current session history.[/bold yellow]")
+        answer = self.console.input("[bold cyan]Would you like to start a new session? (y/n): [/]").strip().lower()
+        return answer in ['y', 'yes']
+
     def print_message(self, message: str, role: str = "assistant"):
         """Print a message with formatting"""
         if role == "assistant":

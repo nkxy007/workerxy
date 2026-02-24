@@ -19,6 +19,7 @@ async def run_cli():
     parser.add_argument("--design-model", default="gpt-5.1", help="Design model to use")
     parser.add_argument("--mcp-server", default="http://localhost:8000/mcp", help="MCP server URL")
     parser.add_argument("--auto-approve", action="store_true", help="Auto-approve all tool calls")
+    parser.add_argument("--automatic-context-detection", action="store_true", help="Enable automatic detection of topic drift")
     
     args = parser.parse_args()
     

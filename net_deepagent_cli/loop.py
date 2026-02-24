@@ -4,6 +4,7 @@ from net_deepagent_cli.ui import TerminalUI
 from net_deepagent_cli.commands import handle_command
 from net_deepagent_cli.automata import AutomataManager, handle_automata_ui
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from net_deepagent_cli.drift import TopicDriftDetector
 
 async def interactive_loop(agent, args, ui: TerminalUI):
     """Main interactive loop"""
@@ -17,6 +18,14 @@ async def interactive_loop(agent, args, ui: TerminalUI):
     
     # Session state - store as LangChain messages
     messages: List[Any] = []
+    
+    # Initialize Drift Detector if flag is set
+    drift_detector = TopicDriftDetector() if getattr(args, 'automatic_context_detection', False) else None
+    if hasattr(agent, 'base_agent'):
+        agent.drift_detector = drift_detector
+    else:
+        # In case it's not wrapped for some reason
+        agent.drift_detector = drift_detector
     
     try:
         while True:
@@ -50,6 +59,20 @@ async def interactive_loop(agent, args, ui: TerminalUI):
                 continue
         
             # Add user message
+            # Check for topic drift if enabled
+            if drift_detector and messages:
+                drift_info = await drift_detector.check_drift(messages, user_input)
+                # Log detailed info as requested
+                import logging
+                logger = logging.getLogger("net_deepagent_cli")
+                logger.info(f"Topic Drift Check: Similarity={drift_info['similarity']:.2f}, "
+                            f"Current Topic='{drift_info['current_topic']}', "
+                            f"New Input='{drift_info['new_topic']}'")
+                
+                if drift_info["drift"]:
+                    if ui.prompt_new_session_drift():
+                        await handle_command("/session new", ui, messages, agent=agent)
+            
             messages.append(HumanMessage(content=user_input))
             
             # Stream agent response

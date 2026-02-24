@@ -62,8 +62,10 @@ Dynamically attach external Agent-to-Agent (A2A) specialist agents at runtime.
 | Save conversation to file | `/save <name>` |
 | Resume saved session | `/resume <name>` |
 | List all saved sessions | `/sessions` |
-| Start a new session | `/session new` |
-| Delete a saved session | `/session delete <name>` |
+| Start a new session | `/session new` — Prompt to save current session then clear it fresh |
+| Delete a saved session | `/session delete <name>` — Delete a saved session file |
+| Adjust drift sensitivity | `/session threshold <val>` — Set topic drift threshold (0.0-1.0) |
+| Automatic context detection | `--automatic-context-detection` (startup flag) |
 | Persistent prompt history | Stored at `~/.net-deepagent/<name>/history` |
 
 ---
@@ -117,3 +119,9 @@ The agent connects to an MCP server on startup and dynamically loads all registe
 | Partial match suggestions | Typing `/ag` suggests `/agents` |
 | Sub-command hints | After `/agents ` tab shows `list`, `add`, `remove`, `unload`, `load` |
 | Prompt history | Up/down arrows cycle through previous inputs |
+
+---
+
+### ⚡ Topic-Drift Detection (Experimental)
+
+When started with `--automatic-context-detection`, the agent monitors your questions. If it detects a significant shift in topic (e.g., from BGP troubleshooting to AWS lambda functions), it will suggest starting a new session to keep the context clean.

@@ -1,3 +1,4 @@
+from typing import List
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
@@ -250,10 +251,12 @@ async def handle_command(command: str, ui, messages, agent=None):
             await handle_new_session(messages, ui)
         elif sub == "delete":
             await handle_delete_session(parts, ui)
+        elif sub == "threshold":
+            await handle_session_threshold(parts, ui, agent)
         else:
             ui.print_message(
                 f"Unknown /session subcommand: [bold red]{sub}[/bold red]\n"
-                "Available: [bold cyan]new | delete <name>[/bold cyan]",
+                "Available: [bold cyan]new | delete | threshold <value>[/bold cyan]",
                 role="error",
             )
 
@@ -341,6 +344,35 @@ async def handle_delete_session(parts, ui):
             ui.print_message(f"Failed to delete session: {e}", role="error")
     else:
         ui.print_message("Deletion cancelled.", role="system")
+
+async def handle_session_threshold(parts: List[str], ui, agent):
+    """Adjust the topic drift detection threshold"""
+    if not hasattr(agent, 'drift_detector') or agent.drift_detector is None:
+        ui.print_message(
+            "Topic drift detection is not enabled. Start with [bold]--automatic-context-detection[/bold] to use this command.",
+            role="warning"
+        )
+        return
+
+    new_val = parts[2] if len(parts) > 2 else None
+    
+    if new_val is None:
+        # Just show current value
+        current = agent.drift_detector.threshold
+        ui.print_message(f"Current drift threshold: [bold cyan]{current}[/bold cyan]", role="system")
+        ui.print_message("To change it, use: [bold]/session threshold <0.0-1.0>[/bold]", role="system")
+        return
+
+    try:
+        threshold = float(new_val)
+        if not (0.0 <= threshold <= 1.0):
+            raise ValueError("Threshold must be between 0.0 and 1.0")
+        
+        agent.drift_detector.threshold = threshold
+        ui.print_message(f"✨ Topic drift threshold updated to: [bold green]{threshold}[/bold green]", role="system")
+        
+    except ValueError as e:
+        ui.print_message(f"Invalid threshold value: [bold red]{new_val}[/bold red]. {str(e)}", role="error")
 
 async def extract_skills_from_document(doc_path: str, agent_name: str, ui):
     """
