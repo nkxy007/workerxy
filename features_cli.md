@@ -64,8 +64,10 @@ Dynamically attach external Agent-to-Agent (A2A) specialist agents at runtime.
 | List all saved sessions | `/sessions` |
 | Start a new session | `/session new` — Prompt to save current session then clear it fresh |
 | Delete a saved session | `/session delete <name>` — Delete a saved session file |
-| Adjust drift sensitivity | `/session threshold <val>` — Set topic drift threshold (0.0-1.0) |
+| Adjust drift sensitivity | `/session threshold <val>` | Adjust topic drift sensitivity (0.0-1.0) |
+| `/session window <days>` | Adjust past interaction lookback window |
 | Automatic context detection | `--automatic-context-detection` (startup flag) |
+| Association window | `--association-window <days>` (startup flag) |
 | Persistent prompt history | Stored at `~/.net-deepagent/<name>/history` |
 
 ---
@@ -122,6 +124,12 @@ The agent connects to an MCP server on startup and dynamically loads all registe
 
 ---
 
-### ⚡ Topic-Drift Detection (Experimental)
+### ⚡ Topic-Drift Detection & Interaction Association
 
-When started with `--automatic-context-detection`, the agent monitors your questions. If it detects a significant shift in topic (e.g., from BGP troubleshooting to AWS lambda functions), it will suggest starting a new session to keep the context clean.
+When started with `--automatic-context-detection`, the agent monitors your questions for two things:
+
+1.  **Topic Drift**: If it detects a significant shift in topic (e.g., from BGP troubleshooting to AWS lambda functions), it suggests starting a new session.
+2.  **Interaction Association**: If you refer to past work (e.g., "remember that BGP issue from yesterday?"), it searches your recent sessions (default 5-day window) and offers to resume the relevant one automatically.
+
+- **Sensitivity**: Adjust drift sensitivity via `/session threshold <0.0-1.0>`.
+- **Lookback**: Adjust association window via `/session window <days>`.

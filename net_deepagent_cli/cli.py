@@ -19,7 +19,8 @@ async def run_cli():
     parser.add_argument("--design-model", default="gpt-5.1", help="Design model to use")
     parser.add_argument("--mcp-server", default="http://localhost:8000/mcp", help="MCP server URL")
     parser.add_argument("--auto-approve", action="store_true", help="Auto-approve all tool calls")
-    parser.add_argument("--automatic-context-detection", action="store_true", help="Enable automatic detection of topic drift")
+    parser.add_argument("--automatic-context-detection", action="store_true", help="Proactively detect topic drift")
+    parser.add_argument("--association-window", type=int, default=5, help="Lookback window for past session association in days")
     
     args = parser.parse_args()
     

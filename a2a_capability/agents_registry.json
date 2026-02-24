@@ -1,4 +1,5 @@
 {
     "dns_deepagent": "http://localhost:8003",
-    "dhcp_deepagent": "http://localhost:8004"
+    "dhcp_deepagent": "http://localhost:8004",
+    "hardware_support": "http://localhost:8005"
 }

@@ -38,7 +38,7 @@ async def test_a2a_integration():
     logger.info(f"loaded tools: {a2a_tools}")
 
     # 4. Create Simple Agent with A2A Tools
-    main_model = ChatOpenAI(model="gpt-4o-mini", api_key=creds.OPENAI_KEY)
+    main_model = ChatOpenAI(model="gpt-4.1-mini", api_key=creds.OPENAI_KEY)
 
     agent = create_deep_agent(
         tools=a2a_tools,

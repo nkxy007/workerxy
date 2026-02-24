@@ -72,51 +72,7 @@ async def handle_command(command: str, ui, messages, agent=None):
             ui.print_message(f"Failed to save session: {e}", role="error")
 
     elif cmd == "/resume":
-        session_name = parts[1] if len(parts) > 1 else None
-        
-        if not session_name:
-            # List available sessions
-            available = list(sessions_dir.glob("*.json"))
-            if not available:
-                ui.print_message("No saved sessions found.", role="system")
-                return
-                
-            ui.console.print("[bold blue]Available Sessions:[/bold blue]")
-            for i, p in enumerate(available):
-                ui.console.print(f"  {i+1}. [cyan]{p.stem}[/cyan]")
-                
-            choice = ui.console.input("[bold blue]Pick a session number or name (or Enter to cancel):[/] ")
-            if not choice:
-                return
-                
-            if choice.isdigit() and 1 <= int(choice) <= len(available):
-                filepath = available[int(choice)-1]
-            else:
-                if not choice.endswith(".json"):
-                    filepath = sessions_dir / f"{choice}.json"
-                else:
-                    filepath = sessions_dir / choice
-        else:
-            if not session_name.endswith(".json"):
-                filepath = sessions_dir / f"{session_name}.json"
-            else:
-                filepath = sessions_dir / session_name
-
-        if not filepath.exists():
-            ui.print_message(f"Session file [bold red]{filepath.name}[/bold red] not found.", role="error")
-            return
-            
-        try:
-            with open(filepath, 'r') as f:
-                data = json.load(f)
-                restored_messages = messages_from_dict(data)
-                
-            messages.clear()
-            messages.extend(restored_messages)
-            ui.print_message(f"Resumed session from [bold cyan]{filepath.name}[/bold cyan] ([bold green]{len(messages)}[/bold green] messages restored)", role="system")
-            ui.print_message("You can continue the conversation now.", role="system")
-        except Exception as e:
-            ui.print_message(f"Failed to resume session: {e}", role="error")
+        await handle_resume_session(parts, ui, messages)
 
     elif cmd == "/sessions":
         available = list(sessions_dir.glob("*.json"))
@@ -253,10 +209,14 @@ async def handle_command(command: str, ui, messages, agent=None):
             await handle_delete_session(parts, ui)
         elif sub == "threshold":
             await handle_session_threshold(parts, ui, agent)
+        elif sub == "window":
+            await handle_session_window(parts, ui, agent)
+        elif sub == "resume":
+            await handle_resume_session(parts, ui, messages, offset=1)
         else:
             ui.print_message(
                 f"Unknown /session subcommand: [bold red]{sub}[/bold red]\n"
-                "Available: [bold cyan]new | delete | threshold <value>[/bold cyan]",
+                "Available: [bold cyan]new | delete | resume | threshold <value> | window <days>[/bold cyan]",
                 role="error",
             )
 
@@ -373,6 +333,91 @@ async def handle_session_threshold(parts: List[str], ui, agent):
         
     except ValueError as e:
         ui.print_message(f"Invalid threshold value: [bold red]{new_val}[/bold red]. {str(e)}", role="error")
+
+async def handle_session_window(parts: List[str], ui, agent):
+    """Adjust the past interaction lookback window"""
+    if not hasattr(agent, 'association_engine') or agent.association_engine is None:
+        ui.print_message(
+            "Interaction association is not enabled. Start with [bold]--automatic-context-detection[/bold] to use this command.",
+            role="warning"
+        )
+        return
+
+    new_val = parts[2] if len(parts) > 2 else None
+    
+    if new_val is None:
+        current = agent.association_engine.lookback_days
+        ui.print_message(f"Current association lookback window: [bold cyan]{current}[/bold cyan] days", role="system")
+        ui.print_message("To change it, use: [bold]/session window <days>[/bold]", role="system")
+        return
+
+    try:
+        days = int(new_val)
+        if days < 1:
+            raise ValueError("Window must be at least 1 day.")
+        
+        agent.association_engine.lookback_days = days
+        # We might want to rebuild cache if window expanded, but for now simple update
+        ui.print_message(f"✨ Association window updated to: [bold green]{days}[/bold green] days", role="system")
+        ui.print_message("Note: Large windows may slightly increase scan time on next startup.", role="dim")
+        
+    except ValueError as e:
+        ui.print_message(f"Invalid window value: [bold red]{new_val}[/bold red]. {str(e)}", role="error")
+
+async def handle_resume_session(parts: List[str], ui, messages, offset=0):
+    """Resume a saved session file by name or number"""
+    config_manager = AgentConfig(ui.agent_name)
+    sessions_dir = config_manager.sessions_dir
+    
+    # offset=0 for /resume <name>
+    # offset=1 for /session resume <name>
+    name_idx = 1 + offset
+    session_name = parts[name_idx] if len(parts) > name_idx else None
+    
+    if not session_name:
+        # List available sessions
+        available = list(sessions_dir.glob("*.json"))
+        if not available:
+            ui.print_message("No saved sessions found.", role="system")
+            return
+            
+        ui.console.print("[bold blue]Available Sessions:[/bold blue]")
+        for i, p in enumerate(available):
+            ui.console.print(f"  {i+1}. [cyan]{p.stem}[/cyan]")
+            
+        choice = ui.console.input("[bold blue]Pick a session number or name (or Enter to cancel):[/] ")
+        if not choice:
+            return
+            
+        if choice.isdigit() and 1 <= int(choice) <= len(available):
+            filepath = available[int(choice)-1]
+        else:
+            if not choice.endswith(".json"):
+                filepath = sessions_dir / f"{choice}.json"
+            else:
+                filepath = sessions_dir / choice
+    else:
+        if not session_name.endswith(".json"):
+            filepath = sessions_dir / f"{session_name}.json"
+        else:
+            filepath = sessions_dir / session_name
+
+    if not filepath.exists():
+        ui.print_message(f"Session file [bold red]{filepath.name}[/bold red] not found.", role="error")
+        return
+        
+    try:
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+            from langchain_core.messages import messages_from_dict
+            restored_messages = messages_from_dict(data)
+            
+        messages.clear()
+        messages.extend(restored_messages)
+        ui.print_message(f"Resumed session from [bold cyan]{filepath.name}[/bold cyan] ([bold green]{len(messages)}[/bold green] messages restored)", role="system")
+        ui.print_message("You can continue the conversation now.", role="system")
+    except Exception as e:
+        ui.print_message(f"Failed to resume session: {e}", role="error")
 
 async def extract_skills_from_document(doc_path: str, agent_name: str, ui):
     """

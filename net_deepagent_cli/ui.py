@@ -110,7 +110,9 @@ class TerminalUI:
             "subs": {
                 "new": "Start a new session (prompts to save current first)",
                 "delete": "Delete a saved session by name: /session delete <name>",
+                "resume": "Resume a saved session by name: /session resume <name>",
                 "threshold": "Adjust topic drift sensitivity (0.0-1.0): /session threshold <value>",
+                "window": "Adjust lookback window in days: /session window <days>",
             }
         },
         "/exit": {"desc": "Exit the CLI"}
@@ -205,6 +207,14 @@ class TerminalUI:
         """
         self.console.print("\n[bold yellow]⚡ This question seems off-topic compared to the current session history.[/bold yellow]")
         answer = self.console.input("[bold cyan]Would you like to start a new session? (y/n): [/]").strip().lower()
+        return answer in ['y', 'yes']
+
+    def prompt_resume_session(self, session_name: str, time_hint: str) -> bool:
+        """
+        Asks if the user wants to resume a found past session.
+        """
+        self.console.print(f"\n[bold green]💡 I found a related discussion from {time_hint}: \"{session_name}\"[/bold green]")
+        answer = self.console.input("[bold cyan]Would you like to resume this session? (y/n): [/]").strip().lower()
         return answer in ['y', 'yes']
 
     def print_message(self, message: str, role: str = "assistant"):

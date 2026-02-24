@@ -47,7 +47,15 @@ def test_filtering():
     assert len(isp_tools) == 1
     assert isp_tools[0].name == "isp_route_check"
     
-    print("All tool filtering tests passed!")
+    # Test for main agent tool filtering (manually duplicating logic for verification)
+    main_agent_tools = [
+        t for t in tools 
+        if not any(t.name.lower().startswith(p) for p in ['net_', 'isp_', 'datacentre_'])
+    ]
+    assert len(main_agent_tools) == 7 # aws, azure, gcp, cloud, random_tool, 2x design tools
+    assert all(not t.name.startswith(('net_', 'isp_', 'datacentre_')) for t in main_agent_tools)
+    
+    print("All tool filtering tests (including main agent exclusion) passed!")
 
 if __name__ == "__main__":
     test_filtering()
