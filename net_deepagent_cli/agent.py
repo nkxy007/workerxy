@@ -2,7 +2,7 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 import yaml
 import asyncio
-from net_deepagent import create_network_agent
+from net_deepagent import create_network_agent, AVAILABLE_MODELS, thinking_model_mini
 
 class AgentMemoryMiddleware:
     """Load and inject agent memory from ~/.net-deepagent/<agent_name>/agent.md"""
@@ -98,10 +98,11 @@ class SkillsMiddleware:
 class WrappedAgent:
     """Wrapper for the agent to apply middleware and handle streaming"""
     
-    def __init__(self, base_agent, middlewares: List[Any], resources: List[Any] = []):
+    def __init__(self, base_agent, middlewares: List[Any], resources: List[Any] = [], llm: Any = None):
         self.base_agent = base_agent
         self.middlewares = middlewares
         self.resources = resources
+        self.llm = llm # Expose LLM for association engine
         # Expose A2AHTTPMiddleware by name so commands.py/agents_ui.py can reach it at runtime
         self.a2a_middleware = None
         from a2a_capability.middleware import A2AHTTPMiddleware
@@ -217,11 +218,14 @@ async def create_cli_agent(
     from custom_middleware.skills_middleware import SkillLearningMiddleware
     skill_learning_middleware = SkillLearningMiddleware(str(skills_prompt_middleware.skills_dir))
 
+    # Determine the model instance for the association engine
+    main_model = AVAILABLE_MODELS.get(main_model_name, thinking_model_mini)
+
     # Wrap agent with middleware
     wrapped_agent = WrappedAgent(base_agent, [
         memory_middleware,
         skills_prompt_middleware
-    ], resources=[a2a_middleware])
+    ], resources=[a2a_middleware], llm=main_model)
     
     # Attach learning middleware to the agent instance so loop.py can access it
     wrapped_agent.skill_learning_middleware = skill_learning_middleware

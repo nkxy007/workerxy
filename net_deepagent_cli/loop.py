@@ -1,15 +1,20 @@
 import asyncio
+import logging
 from typing import List, Dict, Any
 from net_deepagent_cli.ui import TerminalUI
 from net_deepagent_cli.commands import handle_command
 from net_deepagent_cli.automata import AutomataManager, handle_automata_ui
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from net_deepagent_cli.drift import TopicDriftDetector
+from net_deepagent_cli.association import InteractionAssociationEngine
+
+logger = logging.getLogger("net_deepagent_cli")
 
 async def interactive_loop(agent, args, ui: TerminalUI):
     """Main interactive loop"""
     ui.print_banner()
     
+    # Start background tasks
     # Initialize Automata Manager
     # We assume 'agent_name' is available in ui or args?
     # ui.agent_name is available.
@@ -21,11 +26,20 @@ async def interactive_loop(agent, args, ui: TerminalUI):
     
     # Initialize Drift Detector if flag is set
     drift_detector = TopicDriftDetector() if getattr(args, 'automatic_context_detection', False) else None
+    
+    # Initialize Association Engine (Lookback)
+    lookback_window = getattr(args, 'association_window', 5)
+    association_engine = InteractionAssociationEngine(ui.agent_name, lookback_days=lookback_window)
+    # Build cache in background-ish way but we want it ready
+    await association_engine.build_initial_cache()
+    
     if hasattr(agent, 'base_agent'):
         agent.drift_detector = drift_detector
+        agent.association_engine = association_engine
     else:
         # In case it's not wrapped for some reason
         agent.drift_detector = drift_detector
+        agent.association_engine = association_engine
     
     try:
         while True:
@@ -57,14 +71,48 @@ async def interactive_loop(agent, args, ui: TerminalUI):
                 except EOFError:
                     break
                 continue
-        
-            # Add user message
-            # Check for topic drift if enabled
+            # 1. Check for Past Reference (Association Researcher)
+            context_to_inject = None
+            if getattr(args, 'automatic_context_detection', False) and association_engine:
+                ref_info = await association_engine.detect_reference(user_input, agent)
+                if ref_info.get("is_past_reference"):
+                    match = ref_info.get("match")
+                    context_to_inject = ref_info.get("context_summary")
+                    
+                    if match and match.get("is_strong_match"):
+                        if ui.prompt_resume_session(match["name"], match["time_hint"]):
+                            await handle_command(f"/session resume {match['name']}", ui, messages, agent=agent)
+                            continue # Skip current turn as we resumed
+                    else:
+                        # Clarification logic - Wait for input
+                        best_info = f" (Closest match: [bold]{match['name']}[/bold] score {match['score']:.2f})" if match else ""
+                        ui.print_message(
+                            f"I detected a reference to a past discussion, but I couldn't find a strong matching session.{best_info} "
+                            "Could you specify more details or press Enter to skip search?",
+                            role="assistant"
+                        )
+                        
+                        # BLOCKING WAIT for details
+                        details = await ui.get_user_input()
+                        if details:
+                            # Try one more time with added details
+                            new_query = f"{user_input} - {details}"
+                            ref_info = await association_engine.detect_reference(new_query, agent)
+                            match = ref_info.get("match")
+                            context_to_inject = ref_info.get("context_summary")
+                            
+                            if match and match.get("is_strong_match"):
+                                if ui.prompt_resume_session(match["name"], match["time_hint"]):
+                                    await handle_command(f"/session resume {match['name']}", ui, messages, agent=agent)
+                                    continue
+                            elif match:
+                                ui.print_message(f"Still no perfect match (Best: {match['name']} @ {match['score']:.2f}). Proceeding with current session.", role="system")
+                        # If no details or still no match, we just fall through to the normal agent call
+            
+            # 2. Check for Topic Drift
             if drift_detector and messages:
                 drift_info = await drift_detector.check_drift(messages, user_input)
                 # Log detailed info as requested
-                import logging
-                logger = logging.getLogger("net_deepagent_cli")
                 logger.info(f"Topic Drift Check: Similarity={drift_info['similarity']:.2f}, "
                             f"Current Topic='{drift_info['current_topic']}', "
                             f"New Input='{drift_info['new_topic']}'")
@@ -73,6 +121,13 @@ async def interactive_loop(agent, args, ui: TerminalUI):
                     if ui.prompt_new_session_drift():
                         await handle_command("/session new", ui, messages, agent=agent)
             
+            # Add context if researcher found some technical facts
+            if context_to_inject:
+                from langchain_core.messages import SystemMessage
+                injection = f"[SYSTEM RECALL]: Relevant facts from past sessions:\n{context_to_inject}\nUse this to answer the user's question about past topics."
+                messages.append(SystemMessage(content=injection))
+                logger.info("Context summary injected into main conversation.")
+
             messages.append(HumanMessage(content=user_input))
             
             # Stream agent response
