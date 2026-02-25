@@ -23,7 +23,7 @@ async def handle_skill_updates(middleware, ui: TerminalUI):
     ui.print_message(summary, role="system")
     
     # helper for asking
-    response = await ui.get_user_input("Apply these updates? [Y]es / [N]o / [R]eview details: ")
+    response = await ui.prompt_simple("Apply these updates? [Y]es / [N]o / [R]eview details: ")
     
     if not response:
         return
@@ -48,7 +48,7 @@ async def handle_skill_updates(middleware, ui: TerminalUI):
             for i, p in enumerate(proposals, 1):
                 ui.print_message(f"{i}. {p['reason']} ({p['confidence']}%)", role="system")
                 
-            sub_choice = await ui.get_user_input(f"Apply updates for {skill_name}? [Y]es / [N]o: ")
+            sub_choice = await ui.prompt_simple(f"Apply updates for {skill_name}? [Y]es / [N]o: ")
             if sub_choice and sub_choice.lower().startswith('y'):
                 result = middleware.apply_updates(skill_name)
                 ui.print_message(format_apply_result(result), role="system")

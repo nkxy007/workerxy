@@ -50,7 +50,7 @@ async def handle_command(command: str, ui, messages, agent=None):
             
         session_name = parts[1] if len(parts) > 1 else None
         if not session_name:
-            session_name = ui.console.input("[bold blue]Enter session name to save:[/] ")
+            session_name = await ui.prompt_simple("[bold blue]Enter session name to save:[/] ")
             if not session_name:
                 return
         
@@ -231,10 +231,8 @@ async def handle_new_session(messages, ui):
     """Confirm with user to save current session then clear it"""
     if messages:
         ui.console.print("[bold yellow]You have an active session.[/bold yellow]")
-        save_prompt = ui.console.input("[bold yellow]Save current session before starting a new one? [bold green](y)[/bold green]/[bold red](n)[/bold red]: [/]").strip().lower()
-        
-        if save_prompt in ['y', 'yes']:
-            session_name = ui.console.input("[bold blue]Enter session name to save:[/] ").strip()
+        if await ui.confirm("[bold yellow]Save current session before starting a new one?[/bold yellow]"):
+            session_name = (await ui.prompt_simple("[bold blue]Enter session name to save:[/] ")).strip()
             if session_name:
                 config_manager = AgentConfig(ui.agent_name)
                 sessions_dir = config_manager.sessions_dir
@@ -278,7 +276,7 @@ async def handle_delete_session(parts, ui):
     
     if not session_name:
         # Prompt for name if not provided
-        session_name = ui.console.input("[bold blue]Enter session name to delete: [/]").strip()
+        session_name = (await ui.prompt_simple("[bold blue]Enter session name to delete: [/]")).strip()
         if not session_name:
             return
 
@@ -295,8 +293,7 @@ async def handle_delete_session(parts, ui):
         return
 
     # Confirmation
-    confirm = ui.console.input(f"[bold red]Are you sure you want to delete session '{session_name}'? (y/n): [/]").strip().lower()
-    if confirm in ['y', 'yes']:
+    if await ui.confirm(f"[bold red]Are you sure you want to delete session '{session_name}'?[/bold red]"):
         try:
             filepath.unlink()
             ui.print_message(f"Session [bold cyan]{filename}[/bold cyan] deleted successfully.", role="system")
@@ -385,7 +382,7 @@ async def handle_resume_session(parts: List[str], ui, messages, offset=0):
         for i, p in enumerate(available):
             ui.console.print(f"  {i+1}. [cyan]{p.stem}[/cyan]")
             
-        choice = ui.console.input("[bold blue]Pick a session number or name (or Enter to cancel):[/] ")
+        choice = await ui.prompt_simple("[bold blue]Pick a session number or name (or Enter to cancel):[/] ")
         if not choice:
             return
             

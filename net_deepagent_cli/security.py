@@ -14,7 +14,8 @@ class SecurityManager:
         self.session_allowlist: List[str] = [] # List of specific commands allowed for this session
         self.ui_callback = ui_callback
         
-    def check_approval(self, tool_name: str, args: Dict[str, Any]) -> bool:
+
+    async def check_approval(self, tool_name: str, args: Dict[str, Any]) -> bool:
         """
         Check if a tool execution is approved.
         Returns True if approved, False if denied.
@@ -34,7 +35,7 @@ class SecurityManager:
             return False
             
         # 4. Request user approval
-        choice = self.ui_callback(tool_name, args)
+        choice = await self.ui_callback(tool_name, args)
         
         if choice == "allow_once":
             return True
@@ -70,10 +71,11 @@ class SensitiveToolWrapper(BaseTool):
         if args:
             tool_args["args"] = args
             
-        if self.security_manager.check_approval(self.name, tool_args):
-            return self.original_tool._run(*args, **kwargs)
-        else:
-            return "Error: Tool execution denied by user."
+        # Note: In a pure async CLI, this sync path might be reached if not careful.
+        # But we mostly use _arun.
+        # For now, this will fail if it tries to await an async callback from sync code.
+        # We'll keep it simple for now since we primarily use async.
+        return "Error: Sync tool execution not supported when async approval is required."
             
     async def _arun(self, *args, **kwargs) -> Any:
         """Asynchronous execution"""
@@ -81,15 +83,8 @@ class SensitiveToolWrapper(BaseTool):
         if args:
             tool_args["args"] = args
             
-        # Note: check_approval is synchronous because it uses input(), 
-        # but in a real async UI it might need to be awaited.
-        # For CLI input(), we might need to run it in an executor if it blocks the loop.
-        # However, for simple CLI usage, blocking here is often acceptable as we *want* to pause.
-        
-        # We'll use asyncio.to_thread to run the blocking UI/check_approval in a separate thread.
-        # This prevents blocking the main event loop and avoids "asyncio.run() cannot be called from a running event loop"
-        # errors if the UI library tries to manage its own loop (e.g. prompt_toolkit/InquirerPy).
-        approved = await asyncio.to_thread(self.security_manager.check_approval, self.name, tool_args)
+        # Use await directly since check_approval is now async
+        approved = await self.security_manager.check_approval(self.name, tool_args)
         
         if approved:
             # Use ainvoke instead of _arun to ensure config and other parameters are handled correctly

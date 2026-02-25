@@ -80,7 +80,7 @@ async def interactive_loop(agent, args, ui: TerminalUI):
                     context_to_inject = ref_info.get("context_summary")
                     
                     if match and match.get("is_strong_match"):
-                        if ui.prompt_resume_session(match["name"], match["time_hint"]):
+                        if await ui.prompt_resume_session(match["name"], match["time_hint"]):
                             await handle_command(f"/session resume {match['name']}", ui, messages, agent=agent)
                             continue # Skip current turn as we resumed
                     else:
@@ -102,7 +102,7 @@ async def interactive_loop(agent, args, ui: TerminalUI):
                             context_to_inject = ref_info.get("context_summary")
                             
                             if match and match.get("is_strong_match"):
-                                if ui.prompt_resume_session(match["name"], match["time_hint"]):
+                                if await ui.prompt_resume_session(match["name"], match["time_hint"]):
                                     await handle_command(f"/session resume {match['name']}", ui, messages, agent=agent)
                                     continue
                             elif match:
@@ -118,7 +118,7 @@ async def interactive_loop(agent, args, ui: TerminalUI):
                             f"New Input='{drift_info['new_topic']}'")
                 
                 if drift_info["drift"]:
-                    if ui.prompt_new_session_drift():
+                    if await ui.prompt_new_session_drift():
                         await handle_command("/session new", ui, messages, agent=agent)
             
             # Add context if researcher found some technical facts
@@ -197,7 +197,7 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                                         
                                         # Human-in-the-loop approval
                                         if not auto_approve and requires_approval(tool_call["name"]):
-                                            approval = ui.request_approval(
+                                            approval = await ui.request_approval(
                                                 tool_call["name"], 
                                                 str(tool_call["args"])
                                             )

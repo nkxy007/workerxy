@@ -10,7 +10,7 @@ from prompt_toolkit.completion import WordCompleter, Completer, Completion, Comp
 from prompt_toolkit.document import Document
 from pathlib import Path
 import difflib
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Any
 
 class HierarchicalCompleter(Completer):
     """
@@ -128,6 +128,8 @@ class TerminalUI:
         self.session = PromptSession(
             history=FileHistory(str(self.history_file))
         )
+        # Secondary session for simple prompts to avoid history/completion leak
+        self._simple_session = PromptSession()
         
         # Define commands with descriptions for autocompletion
         self.command_meta = {k: v["desc"] for k, v in self.COMMAND_STRUCTURE.items()}
@@ -189,7 +191,7 @@ class TerminalUI:
         import sys
         sys.stdout.flush()
     
-    async def get_user_input(self):
+    async def get_user_input(self) -> Optional[str]:
         """Get user input with history"""
         try:
             user_input = await self.session.prompt_async(
@@ -200,22 +202,38 @@ class TerminalUI:
             return user_input.strip()
         except (KeyboardInterrupt, EOFError):
             return None
+
+    async def prompt_simple(self, prompt_text: str, default: str = "") -> str:
+        """
+        Robust async prompt for simple text input using prompt_toolkit.
+        Handles special keys correctly and avoids event loop conflicts.
+        Isolates from main completion/history.
+        """
+        try:
+            return await self._simple_session.prompt_async(prompt_text, default=default)
+        except (KeyboardInterrupt, EOFError):
+            return ""
+
+    async def confirm(self, prompt_text: str) -> bool:
+        """
+        Robust async helper for y/n questions.
+        """
+        ans = (await self.prompt_simple(f"{prompt_text} (y/n): ")).lower()
+        return ans in ['y', 'yes']
     
-    def prompt_new_session_drift(self) -> bool:
+    async def prompt_new_session_drift(self) -> bool:
         """
         Displays a notice that drift was detected and asks if user wants a new session.
         """
         self.console.print("\n[bold yellow]⚡ This question seems off-topic compared to the current session history.[/bold yellow]")
-        answer = self.console.input("[bold cyan]Would you like to start a new session? (y/n): [/]").strip().lower()
-        return answer in ['y', 'yes']
+        return await self.confirm("[bold cyan]Would you like to start a new session?[/bold cyan]")
 
-    def prompt_resume_session(self, session_name: str, time_hint: str) -> bool:
+    async def prompt_resume_session(self, session_name: str, time_hint: str) -> bool:
         """
         Asks if the user wants to resume a found past session.
         """
         self.console.print(f"\n[bold green]💡 I found a related discussion from {time_hint}: \"{session_name}\"[/bold green]")
-        answer = self.console.input("[bold cyan]Would you like to resume this session? (y/n): [/]").strip().lower()
-        return answer in ['y', 'yes']
+        return await self.confirm("[bold cyan]Would you like to resume this session?[/bold cyan]")
 
     def print_message(self, message: str, role: str = "assistant"):
         """Print a message with formatting"""
@@ -258,7 +276,7 @@ class TerminalUI:
             syntax = Syntax(diff_text, "diff", theme="monokai")
             self.console.print(Panel(syntax, title=f"Diff: {filename}", border_style="yellow"))
     
-    def request_approval(self, action: str, details: str) -> str:
+    async def request_approval(self, action: str, details: str) -> str:
         """Request human approval for action"""
         panel = Panel(
             f"[bold]Action:[/bold] {action}\n\n[dim]{details}[/dim]\n\n"
@@ -268,7 +286,7 @@ class TerminalUI:
         )
         self.console.print(panel)
         
-        choice = self.console.input("[bold]Choice [1-3]: [/bold]").strip()
+        choice = (await self.prompt_simple("[bold]Choice [1-3]: [/bold]")).strip()
         
         if choice == "1":
             return "approve"
@@ -277,7 +295,7 @@ class TerminalUI:
         else:
             return "reject"
 
-    def request_tool_approval(self, tool_name: str, args: dict) -> str:
+    async def request_tool_approval(self, tool_name: str, args: dict) -> str:
         """
         Request approval for sensitive tool execution using interactive menu.
         Returns: 'allow_once', 'allow_all', or 'deny'
@@ -303,14 +321,13 @@ class TerminalUI:
             Choice(value="deny", name="Deny"),
         ]
         
-        # Use InquirerPy for interactive selection
-        # Note: We use .execute() to run it synchronously
-        result = inquirer.select(
+        # Use InquirerPy's async execution
+        result = await inquirer.select(
             message="Select action:",
             choices=choices,
             default="deny",
             qmark="?",
-        ).execute()
+        ).execute_async()
         
         return result
     
