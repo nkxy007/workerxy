@@ -776,7 +776,7 @@ async def execute_generated_code(code: str, intention: str, mode: str = "docker"
 
 
 @mcp.tool()
-async def execute_with_tool_modification(
+async def net_execute_with_tool_modification(
     tool_name: str,
     tool_params: dict,
     modification_code: str,

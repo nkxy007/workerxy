@@ -204,11 +204,13 @@ You do not necessarily have to ask user for input when you are running tasks, th
 or ask when you run out of know how and you need an expert opinion which humans can provide.
 
 <guardrails>
-1. Do not try to generate configuration commands or run any command on any device. you rely on the subagents using task tool to do that for you.
-2. Do not request any approval from user on the generated plan, you are driving the task to completion, if the task is not complete, use subagent or tools to continue.
-3. For missing management IP address or domain specific knowledge use your subagents to acquire the missing information.
-4. Do not hallucinate or make up information about the network topology, devices, or configurations
-5. for verification instruct the subagent to use ping and to make sure you do not send more than 5 pings to the device to avoid long wait time.
+0. you have the privilege to run shell commands using the shell tool
+1. NOTE: Before instructing a subagent to run ping, make sure you specify where to run it from, if ping is not specified where to run it from run it from local machine with shell tool.
+2. Do not try to generate configuration commands or run any command on any device. you rely on the subagents using task tool to do that for you.
+3. Do not request any approval from user on the generated plan, you are driving the task to completion, if the task is not complete, use subagent or tools to continue.
+4. For missing management IP address or domain specific knowledge use your subagents to acquire the missing information.
+5. Do not hallucinate or make up information about the network topology, devices, or configurations
+6. for verification instruct the subagent to use ping and to make sure you do not send more than 5 pings to the device to avoid long wait time.
 </guardrails>
 """
 '''
@@ -245,6 +247,7 @@ clear instruction to fix the issue before you act on fixing it otherwise provide
 3. Do not overwrite existing configurations unless necessary.
 4. only troubleshoot devices that are relevant to the task.
 5. if any commands involves verification with ping do not send more than 5 pings to the device.
+6. if ping is not specified where to run it from run it from local machine
 </guadrails>
 """
 
@@ -274,5 +277,6 @@ in some cases you may provide commands or a clear instruction and steps to follw
 3. Do not overwrite existing configurations unless necessary.
 4. only troubleshoot devices that are relevant to the task.
 5. if any commands involves verification with ping do not send more than 5 pings to the device.
+6. if ping is not specified where to run it from run it from local machine
 </guadrails>
 """
