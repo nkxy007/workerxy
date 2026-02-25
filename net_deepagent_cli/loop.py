@@ -229,7 +229,7 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                         if hasattr(agent, 'skill_learning_middleware'):
                             for msg in new_msgs:
                                 # Convert LangChain message to simple dict for processing
-                                content = msg.content if msg.content else ""
+                                content = ui.normalize_content(msg.content) if msg.content else ""
                                 if isinstance(msg, AIMessage):
                                     role = "assistant"
                                 elif isinstance(msg, ToolMessage):

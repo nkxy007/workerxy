@@ -235,20 +235,41 @@ class TerminalUI:
         self.console.print(f"\n[bold green]💡 I found a related discussion from {time_hint}: \"{session_name}\"[/bold green]")
         return await self.confirm("[bold cyan]Would you like to resume this session?[/bold cyan]")
 
-    def print_message(self, message: str, role: str = "assistant"):
-        """Print a message with formatting"""
+    def normalize_content(self, message: Any) -> str:
+        """
+        Normalizes message content (string or list of blocks) to a single string.
+        Useful for models using response API or Anthropic content blocks.
+        """
+        if isinstance(message, str):
+            return message
+        elif isinstance(message, list):
+            text_content = ""
+            for block in message:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text_content += block.get("text", "")
+                elif isinstance(block, str):
+                    text_content += block
+            return text_content
+        else:
+            return str(message)
+
+    def print_message(self, message: Any, role: str = "assistant"):
+        """Print a message with formatting. Handles both string and complex content blocks."""
+        text_content = self.normalize_content(message)
+
         if role == "assistant":
             # Render markdown for assistant messages
             try:
-                self.console.print(Markdown(message))
-            except:
-                self.console.print(message)
+                if text_content.strip():
+                    self.console.print(Markdown(text_content))
+            except Exception:
+                self.console.print(text_content)
         elif role == "system":
-            self.console.print(f"[bold blue]System:[/bold blue] {message}")
+            self.console.print(f"[bold blue]System:[/bold blue] {text_content}")
         elif role == "error":
-            self.console.print(f"[bold red]Error:[/bold red] {message}")
+            self.console.print(f"[bold red]Error:[/bold red] {text_content}")
         else:
-            self.console.print(f"[bold green]User:[/bold green] {message}")
+            self.console.print(f"[bold green]User:[/bold green] {text_content}")
         
         import sys
         sys.stdout.flush()
