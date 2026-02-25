@@ -1,7 +1,7 @@
 import numpy as np
 from typing import List, Any
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
-from tools_helpers.retriever_archiver.core import Embedder
+from utils.llm_provider import LLMFactory
 
 class TopicDriftDetector:
     """
@@ -12,7 +12,7 @@ class TopicDriftDetector:
         self.threshold = threshold
         self.decay_factor = decay_factor
         try:
-            self.embedder = Embedder()
+            self.embedder = LLMFactory.get_embeddings()
         except Exception:
             # Fallback or disabled if OpenAI key is missing
             self.embedder = None
@@ -44,7 +44,7 @@ class TopicDriftDetector:
             return default_result
 
         try:
-            history_embs = self.embedder.embed_batch(human_msgs)
+            history_embs = self.embedder.embed_documents(human_msgs)
         except Exception:
             return default_result
 

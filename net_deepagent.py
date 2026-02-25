@@ -20,9 +20,8 @@ logger = logging.getLogger(__name__)
 from langgraph.graph import START, END, StateGraph, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.memory import InMemoryStore
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
 from langchain_core.tools import BaseTool
+from utils.llm_provider import LLMFactory
 import traceback
 from time import sleep
 from deepagents import create_deep_agent
@@ -37,7 +36,6 @@ from trulens.core import Feedback, TruSession, Select
 from trulens.core.feedback.selector import Selector
 from trulens.providers.openai import OpenAI as TrulensOpenAI
 from trulens.apps.langgraph import TruGraph
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents.middleware import PIIMiddleware
 from custom_middleware.netpii_middlewares import PIIPseudonymizationMiddleware
 
@@ -49,16 +47,16 @@ os.environ["ANTHROPIC_API_KEY"] = creds.ANTHROPIC_KEY
 
 
 # models
-thinking_model_mini = ChatOpenAI(model="gpt-5-mini", api_key=creds.OPENAI_KEY)
-thinking_model = ChatOpenAI(model="gpt-5.1", api_key=creds.OPENAI_KEY)
-thinking_model_response = ChatOpenAI(model="gpt-5", api_key=creds.OPENAI_KEY, use_responses_api=True)
-action_minimal_thinking_model = ChatOpenAI(model="gpt-5-mini", api_key=creds.OPENAI_KEY, reasoning={"effort": "minimal"})
-multi_purpose_model = ChatOpenAI(model="gpt-5.1", api_key=creds.OPENAI_KEY)
-coding_model = ChatOpenAI(model="gpt-5.1-codex", api_key=creds.OPENAI_KEY)
-bias_removal_model = ChatAnthropic(model="claude-sonnet-4-5-20250929", api_key=creds.ANTHROPIC_KEY)
-googla_light_model = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", api_key=creds.GEMINI_KEY)
-googla_heavy_model = ChatGoogleGenerativeAI(model="gemini-3-pro", api_key=creds.GEMINI_KEY)
-gui_navigator_model = ChatOpenAI(model="gpt-4o", api_key=creds.OPENAI_KEY)
+thinking_model_mini = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=creds.OPENAI_KEY)
+thinking_model = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True)
+thinking_model_response = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True)
+action_minimal_thinking_model = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=creds.OPENAI_KEY, reasoning={"effort": "minimal"}, use_responses_api=True)
+multi_purpose_model = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True)
+coding_model = LLMFactory.get_llm(model_name="gpt-5.1-codex", api_key=creds.OPENAI_KEY)
+bias_removal_model = LLMFactory.get_llm(model_name="claude-sonnet-4-5-20250929", api_key=creds.ANTHROPIC_KEY)
+googla_light_model = LLMFactory.get_llm(model_name="gemini-3-flash-preview", api_key=creds.GEMINI_KEY)
+googla_heavy_model = LLMFactory.get_llm(model_name="gemini-3-pro", api_key=creds.GEMINI_KEY)
+gui_navigator_model = LLMFactory.get_llm(model_name="gpt-4o", api_key=creds.OPENAI_KEY)
 
 
 # Global callback for user clarification (can be overridden by UI)

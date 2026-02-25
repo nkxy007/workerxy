@@ -6,18 +6,18 @@ from typing import List, Optional, Dict, Any
 from pathlib import Path
 from langchain_core.messages import HumanMessage, BaseMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
-from tools_helpers.retriever_archiver.core import Embedder
+from utils.llm_provider import LLMFactory
 import numpy as np
 
 logger = logging.getLogger("net_deepagent_cli")
 
 class InteractionAssociationEngine:
-    def __init__(self, agent_name: str, lookback_days: int = 5, model: str = "gpt-5.1-mini"):
+    def __init__(self, agent_name: str, lookback_days: int = 5, model: str = "gpt-5-mini"):
         self.agent_name = agent_name
         self.lookback_days = lookback_days
         self.model = model
         try:
-            self.embedder = Embedder()
+            self.embedder = LLMFactory.get_embeddings()
         except Exception:
             self.embedder = None
             
@@ -155,8 +155,8 @@ class InteractionAssociationEngine:
              llm = getattr(agent.base_agent, 'llm', None)
              
         if not llm:
-            logger.warning("No LLM found for association researcher.")
-            return {"is_past_reference": False, "context_summary": None, "match": None}
+            logger.warning("No LLM found for association researcher. Falling back to LLMFactory.")
+            llm = LLMFactory.get_llm(self.model)
 
         # Use the provided LLM but bind tools
         researcher_llm = llm.bind_tools([search_past_interactions])
