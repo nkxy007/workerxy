@@ -148,6 +148,20 @@ class AutomataManager:
             self.save_tasks()
             return True
         return False
+
+    def stop_task(self, task_id: str):
+        """Stop/Disable a task without removing it"""
+        if task_id in self.tasks:
+            try:
+                self.scheduler.remove_job(task_id)
+            except Exception:
+                pass # Job might not exist if already disabled
+            self.tasks[task_id]["enabled"] = False
+            self.tasks[task_id]["stale"] = False
+            self.tasks[task_id]["last_status"] = "Stopped"
+            self.save_tasks()
+            return True
+        return False
         
     def resume_task(self, task_id: str):
         """Resume a stale/disabled task"""
@@ -278,7 +292,8 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
             "  [green]add <prompt> every <N> <unit>[/green]   Add a task (e.g., 'add check ping every 5 minutes')\n"
             "  [green]<prompt> every <N> <unit>[/green]       Implicit add (e.g., 'check ping every 10min')\n"
             "  [green]remove <id>[/green]                  Remove a task by ID\n"
-            "  [green]resume <id>[/green]                  Resume a stale task\n"
+            "  [green]stop <id>[/green]                    Stop a task without removing it\n"
+            "  [green]resume <id>[/green]                  Resume a stopped/stale task\n"
             "  [green]logs <id>[/green]                    List logs for a task\n"
             "  [green]view <filename>[/green]              View a specific log file\n"
             "  [green]back[/green]                        Return to main menu\n"
@@ -376,6 +391,18 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
             ui.console.print(f"[red]Task {task_id} not found.[/red]")
         return True
 
+    # Handle 'stop'
+    if cmd == "stop":
+        if len(parts) < 2:
+            ui.console.print("[red]Usage: stop <id>[/red]")
+            return True
+        task_id = parts[1]
+        if manager.stop_task(task_id):
+            ui.console.print(f"[green]Task {task_id} stopped.[/green]")
+        else:
+            ui.console.print(f"[red]Task {task_id} not found.[/red]")
+        return True
+
     # Handle 'remove'
     if cmd == "remove":
         if len(parts) < 2:
@@ -448,7 +475,8 @@ async def handle_automata_ui(ui, manager: AutomataManager):
         "list": {"desc": "List all scheduled tasks"},
         "add": {"desc": "Add a new background task"},
         "remove": {"desc": "Remove a task by ID"},
-        "resume": {"desc": "Resume a stale task"},
+        "stop": {"desc": "Stop a task by ID"},
+        "resume": {"desc": "Resume a stopped/stale task"},
         "logs": {"desc": "List execution logs for a task"},
         "view": {"desc": "View a specific log file"},
         "back": {"desc": "Return to main agent prompt"}
