@@ -29,4 +29,8 @@ dependencies = [
     "python-docx",
     "tqdm",
     "rich",
+    "langchain-chroma>=1.1.0",
+    "langchain-community",
+    "langchain-text-splitters",
+    "pypdf",
 ]
