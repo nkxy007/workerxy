@@ -48,7 +48,11 @@ os.environ["ANTHROPIC_API_KEY"] = creds.ANTHROPIC_KEY
 
 # models
 thinking_model_mini = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=creds.OPENAI_KEY)
-thinking_model = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True)
+thinking_model = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True, reasoning={"effort": "low"})
+thinking_model_medium = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True, reasoning={"effort": "medium"})
+thinking_model_high = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True, reasoning={"effort": "high"})
+thinking_model_medium_mini = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=creds.OPENAI_KEY, use_responses_api=True, reasoning={"effort": "medium"})
+thinking_model_high_mini = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=creds.OPENAI_KEY, use_responses_api=True, reasoning={"effort": "high"})
 thinking_model_response = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True)
 action_minimal_thinking_model = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=creds.OPENAI_KEY, reasoning={"effort": "minimal"}, use_responses_api=True)
 multi_purpose_model = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True)
@@ -78,7 +82,7 @@ def set_user_clarification_callback(callback: Optional[Callable[[str, str], str]
 @tool
 def search_internet(query: str) -> str:
     """Search the internet for a given query and return summarized results.
-    This tool is used if the model doesnt have a confidence over 75% on the immediate response to the query.
+    This tool is used if the model doesn't have a confidence over 90% on the immediate response to the query.
     Args:
         query (str): The search query.
     Returns:
@@ -249,11 +253,15 @@ AVAILABLE_MODELS = {
     "gpt-5.1": thinking_model,
     "gpt-5-response": thinking_model_response,
     "gpt-5-mini-minimal": action_minimal_thinking_model,
-    "gpt-5.1": multi_purpose_model,
+    "gpt-5.1-no-thinking": multi_purpose_model,
     "gpt-5.1-codex": coding_model,
     "claude-4.5-sonnet": bias_removal_model,
     "gemini-3-flash": googla_light_model,
     "gemini-3-pro": googla_heavy_model,
+    "gpt-5.1-medium": thinking_model_medium,
+    "gpt-5.1-high": thinking_model_high,
+    "gpt-5-medium-mini": thinking_model_medium_mini,
+    "gpt-5-high-mini": thinking_model_high_mini,
 }
 
 from langchain.agents.middleware import before_model, after_model, AgentState
@@ -354,9 +362,9 @@ async def create_network_agent(
 
     ## Create Subagents
     knowledge_acquisition_subagent = {
-        "name": "knowledge_acquisition_subagent",
-        "description": "Agent specialized in acquiring additional knowledge from various sources such as internet, search and documentation, detailed design, diagrams, etc. The acquired knowledge can be on topology details, network additional knowledge, devices specific details. This knowledge acquisition is necessary where the model confidence is low on the information provided by the user or if more clarification is needed from the user.",
-        "system_prompt": "You are a knowledge acquisition expert agent. You help acquiring knowledge from various sources such as detailed design if present, network diagrams, internet, search and documentation, etc. You get invoked only if there is a need to enhance the information given by the user or if clarification to what the user is asking can be acquired from the documents or from the user, in some cases where you have no knowledge you can run a tool to ask user for clarification. your goal is to acquire more knowledge and share with the main agent to help the main agent accomplish its task.",
+        "name": "recent_knowledge_acquisition_subagent",
+        "description": "Subagent specialized in acquiring additional knowledge from various sources such as internet, to get most recent information. This subagent can be used where the model confidence level is below 90%. The acquired knowledge can be on networking modern design, devices commands, devices data sheets, etc. This knowledge acquisition is necessary where the model confidence is low on the information provided by the user or if more clarification is needed from the user.",
+        "system_prompt": "You are a knowledge acquisition expert agent. You help acquiring knowledge from various sources such as internet, expert user input, search and online documentation, etc. You get invoked only if there is a need to enhance the information given by the user or if clarification to what the user is asking can be acquired from the documents or from the user, in some cases where you have no knowledge you can run a tool to ask user for clarification. your goal is to acquire more knowledge and share with the main agent to help the main agent accomplish its task.",
         "tools": [search_internet, user_clarification_and_action_tool],
         "model": subagent_model,
     }
