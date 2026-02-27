@@ -1,21 +1,31 @@
+import os
 import numpy as np
-from typing import List, Any
+import logging
+from typing import List, Any, Optional
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from utils.llm_provider import LLMFactory
+
+logger = logging.getLogger("net_deepagent_cli")
 
 class TopicDriftDetector:
     """
     Detects if the current user input significantly deviates from the session history
-    using weighted embeddings.
+    using both weighted embeddings and AI-based relevance to the last assistant response.
     """
     def __init__(self, threshold: float = 0.65, decay_factor: float = 0.8):
         self.threshold = threshold
         self.decay_factor = decay_factor
+        
+        # Load model name from environment variable
+        self.model_name = os.getenv("DRIFT_LLM", "gpt-5-mini")
+        
         try:
             self.embedder = LLMFactory.get_embeddings()
-        except Exception:
-            # Fallback or disabled if OpenAI key is missing
+            self.llm = LLMFactory.get_llm(self.model_name)
+        except Exception as e:
+            logger.warning(f"Failed to initialize drift detector components: {e}")
             self.embedder = None
+            self.llm = None
 
     def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
         a = np.array(a)
@@ -24,9 +34,45 @@ class TopicDriftDetector:
             return 0.0
         return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
+    async def _get_ai_relevance(self, last_user_msg: Optional[str], last_ai_msg: Optional[str], new_input: str) -> float:
+        """Ask LLM to score relevance between 0.0 and 1.0"""
+        if not self.llm:
+            return 1.0 # Default to relevant if no LLM
+            
+        context = ""
+        if last_user_msg:
+            context += f"User previously said: \"{last_user_msg}\"\n"
+        if last_ai_msg:
+            context += f"Assistant previously responded: \"{last_ai_msg}\"\n"
+            
+        if not context:
+            return 1.0
+
+        prompt = (
+            f"Previous context:\n{context}\n"
+            f"User just asked: \"{new_input}\"\n"
+            "On a scale of 0.0 to 1.0, how relevant or related is the user's new question to the previous interaction? "
+            "Consider if it's a follow-up, clarification, or directly relates to the context just discussed.\n"
+            "Return ONLY a numeric score between 0.0 and 1.0."
+        )
+        try:
+            response = await self.llm.ainvoke(prompt)
+            content = response.content.strip()
+            # Extract number from response
+            import re
+            match = re.search(r"([0-9]*\.?[0-9]+)", content)
+            if match:
+                score = float(match.group(1))
+                return max(0.0, min(1.0, score))
+            return 0.5 # Default if parsing fails
+        except Exception as e:
+            logger.warning(f"AI relevance scoring failed: {e}")
+            return 1.0 # Default to relevant on error to be safe
+
     async def check_drift(self, history: List[BaseMessage], new_input: str) -> dict:
         """
         Returns a dict with drift details.
+        Calculates a hybrid similarity: 50% embedding-based and 50% AI-based.
         """
         default_result = {"drift": False, "similarity": 1.0, "current_topic": "Unknown", "new_topic": new_input}
         if not self.embedder or not history or not new_input:
@@ -62,15 +108,47 @@ class TopicDriftDetector:
             
         avg_history_emb = weighted_sum / total_weight
 
-        # 4. Compare
-        similarity = self._cosine_similarity(new_emb, avg_history_emb.tolist())
+        # 4. Calculate Embedding Similarity
+        emb_similarity = self._cosine_similarity(new_emb, avg_history_emb.tolist())
         
-        # 5. Extract "topic" (last few messages for current context)
+        # 5. Calculate AI Relevance (to last interaction if available)
+        last_ai_msg = None
+        last_user_msg = None
+        
+        # Find last AI message
+        for m in reversed(history):
+            if isinstance(m, AIMessage) and m.content:
+                if isinstance(m.content, list):
+                    last_ai_msg = "".join([c.get("text", "") for c in m.content if isinstance(c, dict) and c.get("type") == "text"])
+                else:
+                    last_ai_msg = str(m.content)
+                break
+        
+        # Find last Human message (the one before the new_input)
+        # In history, the most recent HumanMessage is usually the one that triggered the current agent run,
+        # but check_drift is called BEFORE adding the new_input to history usually?
+        # Let's check loop.py
+        
+        for m in reversed(history):
+            if isinstance(m, HumanMessage) and m.content:
+                last_user_msg = str(m.content)
+                break
+        
+        if last_ai_msg or last_user_msg:
+            ai_similarity = await self._get_ai_relevance(last_user_msg, last_ai_msg, new_input)
+            # Combine 50/50
+            final_similarity = (0.5 * emb_similarity) + (0.5 * ai_similarity)
+            logger.info(f"Drift Debug: Hybrid Similarity={final_similarity:.2f} (Emb={emb_similarity:.2f}, AI={ai_similarity:.2f})")
+        else:
+            final_similarity = float(emb_similarity)
+            logger.info(f"Drift Debug: Embedding Similarity={final_similarity:.2f} (No context msgs)")
+        
+        # 5. Extract "topic" (last human message for labeling)
         current_topic = human_msgs[-1] if human_msgs else "Unknown"
         
         return {
-            "drift": similarity < self.threshold,
-            "similarity": float(similarity),
+            "drift": final_similarity < self.threshold,
+            "similarity": float(final_similarity),
             "current_topic": current_topic,
             "new_topic": new_input
         }

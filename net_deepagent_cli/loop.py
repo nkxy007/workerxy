@@ -171,13 +171,16 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                         new_msgs = all_messages[last_message_count:]
                         for msg in new_msgs:
                             if isinstance(msg, AIMessage):
-                                # Update token counts if available in metadata
-                                if hasattr(msg, "response_metadata") and msg.response_metadata:
+                                # Update token counts from standardized usage_metadata or legacy response_metadata
+                                total = 0
+                                if hasattr(msg, "usage_metadata") and msg.usage_metadata:
+                                    total = msg.usage_metadata.get("total_tokens", 0)
+                                elif hasattr(msg, "response_metadata") and msg.response_metadata:
                                     usage = msg.response_metadata.get("token_usage", {})
-                                    if usage:
-                                        total = usage.get("total_tokens", 0)
-                                        if total:
-                                            ui.total_tokens += total
+                                    total = usage.get("total_tokens", 0)
+                                
+                                if total:
+                                    ui.total_tokens += total
 
                                 if msg.content:
                                     ui.print_message(msg.content, role="assistant")
