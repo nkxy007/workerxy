@@ -323,7 +323,8 @@ def parse_structured_data(state: InterpretorState):
             f"Design Interpretation Complete.\n"
             f"Summary: {result.summary}\n"
             f"Devices: {len(result.devices)}, Links: {len(result.links)}, "
-            f"Protocols: {len(result.protocols)}"
+            f"Protocols: {len(result.protocols)}\n"
+            f"entire design json: {json_str}\n"
         )
         return {"result": result, "messages": [AIMessage(content=summary_msg)]}
     except Exception as e:
