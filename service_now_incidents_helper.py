@@ -332,6 +332,92 @@ class ServiceNowIncident:
         # This works because the query builder joins with ^, so we just extend the first param.
         query_params = {'assignment_group': f'{real_group_id}^assigned_toISEMPTY'}
         return self.get_incidents(query_params=query_params)
+        
+    def create_incident(self, short_description, description=None, caller_id=None, urgency=None, impact=None, assignment_group=None):
+        """
+        Create a new incident in ServiceNow
+        
+        Args:
+            short_description: Brief summary of the issue
+            description: Detailed description of the issue
+            caller_id: Name or sys_id of the person reporting the incident
+            urgency: 1 (High), 2 (Medium), 3 (Low)
+            impact: 1 (High), 2 (Medium), 3 (Low)
+            assignment_group: Name or sys_id of the group to assign the incident to
+            
+        Returns:
+            dict: Response from ServiceNow API with created incident details
+        """
+        url = f"{self.instance_url}/api/now/table/incident"
+        
+        payload = {
+            'short_description': short_description
+        }
+        
+        if description:
+            payload['description'] = description
+        
+        if urgency:
+            payload['urgency'] = str(urgency)
+            
+        if impact:
+            payload['impact'] = str(impact)
+            
+        # Resolve caller_id if provided
+        if caller_id:
+            is_sys_id = len(caller_id) == 32 and all(c in '0123456789abcdef' for c in caller_id.lower())
+            if is_sys_id:
+                payload['caller_id'] = caller_id
+            else:
+                resolved_id = self.resolve_user_name(caller_id)
+                if resolved_id:
+                    payload['caller_id'] = resolved_id
+                else:
+                    return {
+                        'success': False,
+                        'error': f"Could not resolve caller name '{caller_id}' to a sys_id",
+                        'status_code': 400
+                    }
+                    
+        # Resolve assignment_group if provided
+        if assignment_group:
+            is_sys_id = len(assignment_group) == 32 and all(c in '0123456789abcdef' for c in assignment_group.lower())
+            if is_sys_id:
+                payload['assignment_group'] = assignment_group
+            else:
+                resolved_id = self.resolve_group_name(assignment_group)
+                if resolved_id:
+                    payload['assignment_group'] = resolved_id
+                else:
+                    return {
+                        'success': False,
+                        'error': f"Could not resolve assignment group '{assignment_group}' to a sys_id",
+                        'status_code': 400
+                    }
+        
+        try:
+            response = requests.post(
+                url,
+                headers=self.headers,
+                data=json.dumps(payload),
+                timeout=30
+            )
+            
+            response.raise_for_status()
+            
+            return {
+                'success': True,
+                'status_code': response.status_code,
+                'data': response.json()
+            }
+            
+        except requests.exceptions.RequestException as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'status_code': e.response.status_code if e.response else None
+            }
+
 
 
 # Example usage
@@ -414,6 +500,22 @@ def main():
             print(f"    Assigned to: {inc.get('assigned_to', 'Unassigned')}")
     else:
         print(f"❌ Failed to retrieve incidents: {result['error']}")
+    
+    # Example 4: Create a new incident (commented out by default)
+    # print("\n" + "=" * 70)
+    # print("4. Creating a new incident example...")
+    # new_inc = sn_client.create_incident(
+    #     short_description="Network connectivity issue in Building A",
+    #     description="Several users reporting they cannot access the local file server.",
+    #     caller_id="Fred Luddy",
+    #     urgency=2,
+    #     impact=2,
+    #     assignment_group="Network"
+    # )
+    # if new_inc['success']:
+    #     print(f"✅ Incident created: {new_inc['data']['result']['number']}")
+    # else:
+    #     print(f"❌ Failed to create incident: {new_inc['error']}")
     
     print("\n" + "=" * 70)
 

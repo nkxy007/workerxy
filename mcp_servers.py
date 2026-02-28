@@ -409,7 +409,7 @@ async def net_run_commands_on_device(device_management_ip: str, commands: List[s
     return output
 
 @mcp.tool()
-async def get_servicenow_incidents_by_priority(priority: int, intention: str) -> str:
+async def servicenow_get_incidents_by_priority(priority: int, intention: str) -> str:
     """Get active ServiceNow incidents by priority
     args:
         priority (int): priority of the incidents to retrieve (1=Critical, 2=High, 3=Moderate, 4=Low, 5=Planning)
@@ -438,7 +438,7 @@ async def get_servicenow_incidents_by_priority(priority: int, intention: str) ->
         return f"Error retrieving incidents: {result['error']}"
 
 @mcp.tool()
-async def get_servicenow_incidents_by_incident_id(incident_id: str, intention: str) -> str:
+async def servicenow_get_incidents_by_incident_id(incident_id: str, intention: str) -> str:
     """Get ServiceNow incident details by incident ID
     args:
         incident_id (str): incident number to retrieve
@@ -466,7 +466,7 @@ async def get_servicenow_incidents_by_incident_id(incident_id: str, intention: s
         return f"Error retrieving incident: {result['error']}"
     
 @mcp.tool()
-async def get_servicenow_incident_by_user(user: str, intention: str) -> str:
+async def servicenow_get_incidents_by_user(user: str, intention: str) -> str:
     """Get ServiceNow incidents assigned to a specific user
     args:
         user (str): a user like peter torch ...
@@ -495,7 +495,7 @@ async def get_servicenow_incident_by_user(user: str, intention: str) -> str:
         return f"Error retrieving incidents: {result['error']}"
 
 @mcp.tool()
-async def get_unassigned_incidents_for_group(group_name: str, intention: str) -> str:
+async def servicenow_get_unassigned_incidents_for_group(group_name: str, intention: str) -> str:
     """Get unassigned ServiceNow incidents for a specific group
     args:
         group_name (str): The name of the group (e.g., 'Software')
@@ -528,7 +528,45 @@ async def get_unassigned_incidents_for_group(group_name: str, intention: str) ->
         return f"Error retrieving unassigned incidents: {result.get('error', 'Unknown error')}"
 
 @mcp.tool()
-async def create_change_request(short_description: str, description: str, intention: str, priority: str = '4', risk: str = '3', impact: str = '3', ci_name: str = '') -> str:
+async def servicenow_create_incident(short_description: str, intention: str, description: str = '', caller_id: str = '', urgency: int = 3, impact: int = 3, assignment_group: str = '') -> str:
+    """Create a new  incident in ServiceNow
+    args:
+        short_description (str): Brief summary of the issue
+        intention (str): llm intention to call this tool
+        description (str): Detailed description (optional)
+        caller_id (str): Name or sys_id of the person reporting (optional)
+        urgency (int): 1 (Critical), 2 (High), 3 (Moderate), 4 (Low) (default: 3)
+        impact (int): 1 (High), 2 (Medium), 3 (Low) (default: 3)
+        assignment_group (str): Name or sys_id of the group to assign (optional)
+    returns:
+        str: summary of the created incident
+    """
+    SERVICENOW_INSTANCE = instance_url
+    ACCESS_TOKEN = snow_api_key
+    
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv("create_servicenow_incident", intention, short_description=short_description, caller_id=caller_id, urgency=urgency, impact=impact, assignment_group=assignment_group)
+    logger.info(f"Creating ServiceNow incident: {short_description}")
+    
+    sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
+    
+    result = sn_client.create_incident(
+        short_description=short_description,
+        description=description,
+        caller_id=caller_id,
+        urgency=urgency,
+        impact=impact,
+        assignment_group=assignment_group
+    )
+    
+    if result['success']:
+        incident_data = result['data']['result']
+        return f"✅ Incident Created Successfully!\nNumber: {incident_data.get('number')}\nShort Description: {incident_data.get('short_description')}\nPriority: {incident_data.get('priority')}\nSys ID: {incident_data.get('sys_id')}"
+    else:
+        return f"❌ Failed to create incident: {result.get('error', 'Unknown error')}"
+
+@mcp.tool()
+async def servicenow_create_change_request(short_description: str, description: str, intention: str, priority: str = '4', risk: str = '3', impact: str = '3', ci_name: str = '') -> str:
     """Create a ServiceNow change request
     args:
         short_description (str): Short summary of the change
