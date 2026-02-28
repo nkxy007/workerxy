@@ -146,6 +146,7 @@ def pseudonymize_text(
     text: str,
     pii_types: Sequence[str] | str = "all",
     placeholder_prefix: str = "pii",
+    existing_mapping: Optional[Dict[str, str]] = None,
 ) -> Tuple[str, Dict[str, str]]:
     """Replace PII in text with placeholders and return mapping.
 
@@ -156,8 +157,18 @@ def pseudonymize_text(
     else:
         types = [t for t in pii_types if t in PII_DETECTORS]
 
-    mapping: Dict[str, str] = {}
+    mapping = existing_mapping if existing_mapping is not None else {}
+    
+    # Invert mapping to check if a value is already masked
+    value_to_placeholder = {v: k for k, v in mapping.items()}
+    
+    # Re-calculate counters based on existing mapping
     counters: Dict[str, int] = {t: 0 for t in types}
+    for token in mapping:
+        parts = token.strip("<>").split(":")
+        if len(parts) >= 3 and parts[1] in counters:
+            idx = int(parts[2])
+            counters[parts[1]] = max(counters[parts[1]], idx)
 
     # Collect matches per type with spans to prevent overlapping mishandling
     matches: List[Tuple[int, int, str, str]] = []  # (start, end, type, value)
@@ -182,9 +193,15 @@ def pseudonymize_text(
             continue
         # Append gap
         out.append(text[last_idx:start])
-        counters[t] += 1
-        token = f"<<{placeholder_prefix}:{t}:{counters[t]}>>"
-        mapping[token] = val
+        
+        if val in value_to_placeholder:
+            token = value_to_placeholder[val]
+        else:
+            counters[t] += 1
+            token = f"<<{placeholder_prefix}:{t}:{counters[t]}>>"
+            mapping[token] = val
+            value_to_placeholder[val] = token
+            
         out.append(token)
         last_idx = end
 
@@ -329,41 +346,37 @@ class PIIPseudonymizationMiddleware(AgentMiddleware):
                                 )
                                 any_modified = True
 
-        # Mask last HumanMessage if enabled
+        # Mask HumanMessages if enabled
         if self.apply_to_input:
-            last_user_idx = None
-            last_user_msg = None
-            for i in range(len(messages) - 1, -1, -1):
-                if isinstance(messages[i], HumanMessage):
-                    last_user_idx = i
-                    last_user_msg = messages[i]
-                    break
-
-            if last_user_idx is not None and last_user_msg and getattr(last_user_msg, "content", None):
-                content = str(last_user_msg.content)
-                masked, mapping_new = pseudonymize_text(
-                    content,
-                    pii_types=self.pii_types,
-                    placeholder_prefix=self.placeholder_prefix,
-                )
-
-                if masked != content:
-                    # Debug logging
-                    print(f"\n[PIIPseudonymizationMiddleware DEBUG - before_model]")
-                    print(f"  Original content: {content}")
-                    print(f"  Masked content: {masked}")
-                    print(f"  New mapping: {mapping_new}")
-
-                    updated_user = HumanMessage(
-                        content=masked,
-                        id=getattr(last_user_msg, "id", None),
-                        name=getattr(last_user_msg, "name", None),
+            mapping_accumulated = state.get("_pii_pseudonym_map", {})
+            
+            for i in range(len(new_messages)):
+                msg = new_messages[i]
+                if isinstance(msg, HumanMessage) and getattr(msg, "content", None):
+                    content = str(msg.content)
+                    masked, mapping_accumulated = pseudonymize_text(
+                        content,
+                        pii_types=self.pii_types,
+                        placeholder_prefix=self.placeholder_prefix,
+                        existing_mapping=mapping_accumulated
                     )
-                    new_messages[last_user_idx] = updated_user
-                    any_modified = True
 
-                    # Return now with updated messages + map
-                    return {"messages": new_messages, "_pii_pseudonym_map": mapping_new}
+                    if masked != content:
+                        # Debug logging
+                        print(f"\n[PIIPseudonymizationMiddleware DEBUG - before_model]")
+                        print(f"  Index: {i}")
+                        print(f"  Original content: {content}")
+                        print(f"  Masked content: {masked}")
+                        
+                        new_messages[i] = HumanMessage(
+                            content=masked,
+                            id=getattr(msg, "id", None),
+                            name=getattr(msg, "name", None),
+                        )
+                        any_modified = True
+
+            if any_modified:
+                return {"messages": new_messages, "_pii_pseudonym_map": mapping_accumulated}
 
         if any_modified:
             return {"messages": new_messages}

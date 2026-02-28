@@ -35,7 +35,9 @@ class MiddlewareManager:
                 "description": "Masks sensitive network info like IPs and MAC addresses.",
                 "class_path": "custom_middleware.netpii_middlewares.PIIPseudonymizationMiddleware",
                 "enabled": False,
-                "params": {}
+                "params": {
+                    "pii_types": "all"
+                }
             },
             "security_guard": {
                 "name": "Security Guardrail",
@@ -163,36 +165,44 @@ class DynamicMiddlewareRegistry(AgentMiddleware):
         return schema
 
     def before_model(self, state, runtime):
+        all_updates = {}
         for instance in self._get_enabled_instances():
             if hasattr(instance, 'before_model'):
                 updates = instance.before_model(state, runtime)
                 if updates:
                     state.update(updates)
-        return None # hooks usually return updates dict or None
+                    all_updates.update(updates)
+        return all_updates if all_updates else None
 
     async def abefore_model(self, state, runtime):
+        all_updates = {}
         for instance in self._get_enabled_instances():
             if hasattr(instance, 'abefore_model'):
                 updates = await instance.abefore_model(state, runtime)
                 if updates:
                     state.update(updates)
-        return None
+                    all_updates.update(updates)
+        return all_updates if all_updates else None
 
     def after_model(self, state, runtime):
+        all_updates = {}
         for instance in self._get_enabled_instances():
             if hasattr(instance, 'after_model'):
                 updates = instance.after_model(state, runtime)
                 if updates:
                     state.update(updates)
-        return None
+                    all_updates.update(updates)
+        return all_updates if all_updates else None
 
     async def aafter_model(self, state, runtime):
+        all_updates = {}
         for instance in self._get_enabled_instances():
             if hasattr(instance, 'aafter_model'):
                 updates = await instance.aafter_model(state, runtime)
                 if updates:
                     state.update(updates)
-        return None
+                    all_updates.update(updates)
+        return all_updates if all_updates else None
 
     def wrap_model_call(self, request, handler):
         instances = [i for i in self._get_enabled_instances() if self._is_overridden(i, 'wrap_model_call')]

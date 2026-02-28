@@ -115,6 +115,7 @@ class TerminalUI:
                 "window": "Adjust lookback window in days: /session window <days>",
             }
         },
+        "/middlewares": {"desc": "Manage and toggle custom middlewares"},
         "/exit": {"desc": "Exit the CLI"}
     }
     

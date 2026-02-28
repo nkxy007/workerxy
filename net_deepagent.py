@@ -84,7 +84,7 @@ def search_internet(query: str, confidence: Optional[float] = None) -> str:
     """Search the internet for a given query and return summarized results.
     This tool is used if the model has a confidence level below 90% on the immediate response to the query.
     Args:
-        query (str): The search query.
+        query (str): A comprehensive search query like a sentence of what we are after and main keywords.
         confidence (Optional[float]): The confidence level encountered that triggers the use of this tool.
     Returns:
         str: search results.
@@ -285,6 +285,7 @@ async def create_network_agent(
     custom_system_prompt: Optional[str] = None,
     extra_tools: List[Any] = [],
     tool_wrapper: Optional[Callable[[List[Any]], List[Any]]] = None,
+    custom_middlewares: List[Any] = None,
 ):
     """
     Create and configure the network deep agent with subagents.
@@ -424,7 +425,7 @@ async def create_network_agent(
             model=main_model,
             backend=FilesystemBackend(),
             store=InMemoryStore(),
-            middleware=[log_before_calling_model],
+            middleware=[log_before_calling_model] + (custom_middlewares or []),
         )
         logger.info(f"Deep agent created successfully! Type: {type(net_deep_agent)}")
         logger.debug(f"Agent has astream: {hasattr(net_deep_agent, 'astream')}")
