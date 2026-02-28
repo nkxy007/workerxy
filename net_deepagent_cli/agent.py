@@ -200,6 +200,13 @@ async def create_cli_agent(
                 wrapped.append(tool)
         return wrapped
     
+    # Initialize and load custom middlewares based on manager configuration
+    from net_deepagent_cli.middleware_manager import DynamicMiddlewareRegistry
+    
+    # We use a single DynamicMiddlewareRegistry that manages all custom middlewares.
+    # This allows for hot-reloading configurations without restarting the agent.
+    custom_registry = DynamicMiddlewareRegistry(agent_name, main_model_name)
+    
     # Create base agent using the existing function from net_deepagent
     base_agent = await create_network_agent(
         mcp_server_url=mcp_server_url,
@@ -207,7 +214,8 @@ async def create_cli_agent(
         subagent_model_name=subagent_model_name,
         design_model_name=design_model_name,
         extra_tools=a2a_tools,
-        tool_wrapper=security_tool_wrapper
+        tool_wrapper=security_tool_wrapper,
+        custom_middlewares=[custom_registry]
     )
     
     # Initialize middleware

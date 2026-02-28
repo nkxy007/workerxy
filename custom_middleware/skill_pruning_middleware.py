@@ -166,22 +166,42 @@ class AdvancedContextMiddleware(AgentMiddleware):
 
     def wrap_model_call(self, request, handler):
         """Synchronous model call wrapper."""
-        # First apply context editing (skill pruning and tool removal)
-        # ContextEditingMiddleware.wrap_model_call expects a handler
+        initial_msg_count = len(request.messages)
         
         def context_edited_handler(req):
+            # Log if pruning happened in ContextEditingMiddleware step
+            current_count = len(req.messages)
+            if current_count < initial_msg_count:
+                logger.info(f"Context pruning active: removed {initial_msg_count - current_count} old messages.")
+            
             if self.summarizer:
-                return self.summarizer.wrap_model_call(req, handler)
+                # SummarizationMiddleware implements before_model, not wrap_model_call
+                state = {"messages": req.messages}
+                updates = self.summarizer.before_model(state, req.runtime)
+                if updates and "messages" in updates:
+                    logger.info("Context summarization active: condensing older conversation history.")
+                    req = req.override(messages=updates["messages"])
             return handler(req)
             
         return self.context_editor.wrap_model_call(request, context_edited_handler)
 
     async def awrap_model_call(self, request, handler):
         """Asynchronous model call wrapper."""
+        initial_msg_count = len(request.messages)
         
         async def context_edited_handler(req):
+            # Log if pruning happened in ContextEditingMiddleware step
+            current_count = len(req.messages)
+            if current_count < initial_msg_count:
+                logger.info(f"Context pruning active: removed {initial_msg_count - current_count} old messages.")
+            
             if self.summarizer:
-                return await self.summarizer.awrap_model_call(req, handler)
+                # SummarizationMiddleware implements abefore_model, not awrap_model_call
+                state = {"messages": req.messages}
+                updates = await self.summarizer.abefore_model(state, req.runtime)
+                if updates and "messages" in updates:
+                    logger.info("Context summarization active: condensing older conversation history.")
+                    req = req.override(messages=updates["messages"])
             return await handler(req)
             
         return await self.context_editor.awrap_model_call(request, context_edited_handler)

@@ -219,6 +219,9 @@ async def handle_command(command: str, ui, messages, agent=None):
                 "Available: [bold cyan]new | delete | resume | threshold <value> | window <days>[/bold cyan]",
                 role="error",
             )
+            
+    elif cmd == "/middlewares":
+        await handle_middlewares(ui)
 
     elif cmd == "/exit":
         ui.print_message("Exiting...", role="system")
@@ -430,3 +433,55 @@ async def extract_skills_from_document(doc_path: str, agent_name: str, ui):
     # 4. Write SKILL.md with frontmatter and instructions
     
     ui.print_message("Note: Skill extraction logic is currently a placeholder. RAG-based extraction will be implemented in the next phase.", role="system")
+
+async def handle_middlewares(ui):
+    """Interactive menu to toggle custom middlewares"""
+    from net_deepagent_cli.middleware_manager import MiddlewareManager
+    from InquirerPy import inquirer
+    from InquirerPy.base.control import Choice
+    
+    manager = MiddlewareManager(ui.agent_name)
+    all_middlewares = manager.list_all()
+    
+    if not all_middlewares:
+        ui.print_message("No custom middlewares registered.", role="warning")
+        return
+
+    # Create choices for the menu
+    choices = []
+    for key, config in all_middlewares.items():
+        status = "[ON]" if config["enabled"] else "[OFF]"
+        choices.append(Choice(
+            value=key,
+            name=f"{status} {config['name']} - {config['description']}"
+        ))
+    
+    choices.append(Choice(value="done", name="Done"))
+
+    while True:
+        choice = await inquirer.select(
+            message="Configure Custom Middlewares:",
+            choices=choices,
+            default="done",
+            qmark="⚙",
+        ).execute_async()
+
+        if choice == "done":
+            break
+        
+        # Toggle state
+        current_state = all_middlewares[choice]["enabled"]
+        new_state = not current_state
+        manager.toggle_middleware(choice, new_state)
+        
+        # Update local state for menu refresh
+        all_middlewares[choice]["enabled"] = new_state
+        
+        # Refresh choices
+        for c in choices:
+            if c.value == choice:
+                status = "[ON]" if new_state else "[OFF]"
+                c.name = f"{status} {all_middlewares[choice]['name']} - {all_middlewares[choice]['description']}"
+        
+        ui.print_message(f"Middleware '{all_middlewares[choice]['name']}' {'enabled' if new_state else 'disabled'}.", role="system")
+        ui.print_message("Note: Changes will take effect in the next session or upon agent reload.", role="dim")
