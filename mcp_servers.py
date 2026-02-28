@@ -159,7 +159,7 @@ async def get_site_info(site_name: str, intention: str) -> str:
         str: site information
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_site_info", intention, site_name=site_name)
+    log_tool_call_to_csv(get_site_info.__name__, intention, site_name=site_name)
     logger.info(f"Getting site info for site: {site_name}")
     with open("sites.json", "r") as f:
         data = json.load(f)
@@ -179,7 +179,7 @@ async def net_get_devices_management_ip(site_name: str, device_type: str, intent
         str: management IP address of the device
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_devices_management_ip", intention, site_name=site_name, device_type=device_type)
+    log_tool_call_to_csv(net_get_devices_management_ip.__name__, intention, site_name=site_name, device_type=device_type)
     logger.info(f"Getting management IP for device type {device_type} in site {site_name}")
     try:
         with open("sites.json", "r") as f:
@@ -206,7 +206,7 @@ async def net_find_network_interfaces(device_management_ip: str, intention: str)
         intention (str): llm intention to call this tool
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("find_network_interfaces", intention, device_management_ip=device_management_ip)
+    log_tool_call_to_csv(net_find_network_interfaces.__name__, intention, device_management_ip=device_management_ip)
     logger.info(f"Finding network interfaces for device: {device_management_ip}")
     device = DeviceSShSession(device_management_ip)
     interfaces_with_ip = device.execute_command("show ip interfaces brief | exclude unassigned")
@@ -239,7 +239,7 @@ async def net_get_network_device_arp_table(device_management_ip: str, intention:
         intention (str): llm intention to call this tool
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_network_device_arp_table", intention, device_management_ip=device_management_ip)
+    log_tool_call_to_csv(net_get_network_device_arp_table.__name__, intention, device_management_ip=device_management_ip)
     logger.info(f"Getting ARP table for device: {device_management_ip}")
     device = DeviceSShSession(device_management_ip)
     arp_table = device.execute_command("show ip arp")
@@ -253,7 +253,7 @@ async def net_get_switch_mac_address_table(device_management_ip: str, intention:
         intention (str): llm intention to call this tool
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_switch_mac_address_table", intention, device_management_ip=device_management_ip)
+    log_tool_call_to_csv(net_get_switch_mac_address_table.__name__, intention, device_management_ip=device_management_ip)
     logger.info(f"Getting MAC address table for device: {device_management_ip}")
     device = DeviceSShSession(device_management_ip)
     mac_table = device.execute_command("show mac address-table")
@@ -268,7 +268,7 @@ async def net_get_l2_forwarding_information(device_management_ip: str, intention
     """
     try:
         logger.info(f"Intention: {intention}")
-        log_tool_call_to_csv("get_l2_forwarding_information", intention, device_management_ip=device_management_ip)
+        log_tool_call_to_csv(net_get_l2_forwarding_information.__name__, intention, device_management_ip=device_management_ip)
         logger.info(f"Getting L2 forwarding info for device: {device_management_ip}")
         device = DeviceSShSession(device_management_ip)
         # retrieve trunking and spanning tree info via ssh command
@@ -287,7 +287,7 @@ async def net_get_nat_table(router_management_ip: str, intention: str) -> List[s
         intention (str): llm intention to call this tool
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_nat_table", intention, router_management_ip=router_management_ip)
+    log_tool_call_to_csv(net_get_nat_table.__name__, intention, router_management_ip=router_management_ip)
     logger.info(f"Getting NAT table for router: {router_management_ip}")
     device = DeviceSShSession(router_management_ip)
     nat_table = device.execute_command("show ip nat translations")
@@ -301,7 +301,7 @@ async def net_get_routing_table(router_management_ip: str, intention: str) -> st
         intention (str): llm intention to call this tool
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_routing_table", intention, router_management_ip=router_management_ip)
+    log_tool_call_to_csv(net_get_routing_table.__name__, intention, router_management_ip=router_management_ip)
     logger.info(f"Getting routing table for router: {router_management_ip}")
     device = DeviceSShSession(router_management_ip)
     routing_table = device.execute_command("show ip route")
@@ -319,7 +319,7 @@ async def net_capture_network_traffic(device_management_ip: str, interface: str,
     # returns a filtered pickup file
     captured_network_traffic = "No captured traffic"
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("capture_network_traffic", intention, device_management_ip=device_management_ip, interface=interface, duration_seconds=duration_seconds)
+    log_tool_call_to_csv(net_capture_network_traffic.__name__, intention, device_management_ip=device_management_ip, interface=interface, duration_seconds=duration_seconds)
     logger.info(f"Capturing network traffic on {device_management_ip} interface {interface} for {duration_seconds}s")
     device = DeviceSShSession(device_management_ip)
     if device_model := device.execute_command("show version | include Model number"):
@@ -360,7 +360,7 @@ async def net_get_device_logs(device_management_ip: str, log_type: str, time_ran
         filter_regex Optional[str]: optional regex or keyword to filter logs
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_device_logs", intention, device_management_ip=device_management_ip, log_type=log_type, time_range=time_range, filter_regex=filter_regex)
+    log_tool_call_to_csv(net_get_device_logs.__name__, intention, device_management_ip=device_management_ip, log_type=log_type, time_range=time_range, filter_regex=filter_regex)
     logger.info(f"Getting device logs for {device_management_ip} (type={log_type}, range={time_range})")
     device = DeviceSShSession(device_management_ip)
     # retrieve logs via ssh command
@@ -394,7 +394,7 @@ async def net_run_commands_on_device(device_management_ip: str, commands: List[s
         str: output of the command execution
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("run_commands_on_device", intention, device_management_ip=device_management_ip, commands=commands)
+    log_tool_call_to_csv(net_run_commands_on_device.__name__, intention, device_management_ip=device_management_ip, commands=commands)
     logger.info(f"Running commands on {device_management_ip}: {commands}")
     device = DeviceSShSession(device_management_ip)
     output = ""
@@ -422,7 +422,7 @@ async def servicenow_get_incidents_by_priority(priority: int, intention: str) ->
     
     # Create ServiceNow client
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_servicenow_incidents_by_priority", intention, priority=priority)
+    log_tool_call_to_csv(servicenow_get_incidents_by_priority.__name__, intention, priority=priority)
     logger.info(f"Getting active ServiceNow incidents with priority {priority}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
@@ -451,7 +451,7 @@ async def servicenow_get_incidents_by_incident_id(incident_id: str, intention: s
     
     # Create ServiceNow client
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_servicenow_incidents_by_incident_id", intention, incident_id=incident_id)
+    log_tool_call_to_csv(servicenow_get_incidents_by_incident_id.__name__, intention, incident_id=incident_id)
     logger.info(f"Getting ServiceNow incident details for ID: {incident_id}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     # get all incidents and filter incidents where 
@@ -479,7 +479,7 @@ async def servicenow_get_incidents_by_user(user: str, intention: str) -> str:
     
     # Create ServiceNow client
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_servicenow_incident_by_user", intention, user=user)
+    log_tool_call_to_csv(servicenow_get_incidents_by_user.__name__, intention, user=user)
     logger.info(f"Getting ServiceNow incidents for user: {user}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
@@ -508,7 +508,7 @@ async def servicenow_get_unassigned_incidents_for_group(group_name: str, intenti
     
     # Create ServiceNow client
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_unassigned_incidents_for_group", intention, group_name=group_name)
+    log_tool_call_to_csv(servicenow_get_unassigned_incidents_for_group.__name__, intention, group_name=group_name)
     logger.info(f"Getting unassigned incidents for group: {group_name}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
@@ -545,7 +545,7 @@ async def servicenow_create_incident(short_description: str, intention: str, des
     ACCESS_TOKEN = snow_api_key
     
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("create_servicenow_incident", intention, short_description=short_description, caller_id=caller_id, urgency=urgency, impact=impact, assignment_group=assignment_group)
+    log_tool_call_to_csv(servicenow_create_incident.__name__, intention, short_description=short_description, caller_id=caller_id, urgency=urgency, impact=impact, assignment_group=assignment_group)
     logger.info(f"Creating ServiceNow incident: {short_description}")
     
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
@@ -583,7 +583,7 @@ async def servicenow_create_change_request(short_description: str, description: 
     ACCESS_TOKEN = snow_api_key
     
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("create_change_request", intention, short_description=short_description, description=description, priority=priority, risk=risk, impact=impact, ci_name=ci_name)
+    log_tool_call_to_csv(servicenow_create_change_request.__name__, intention, short_description=short_description, description=description, priority=priority, risk=risk, impact=impact, ci_name=ci_name)
     logger.info(f"Creating change request: {short_description}")
     sn_client = ServiceNowChangeRequest(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
@@ -616,7 +616,7 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str,
         str: output of the command execution
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("cloud_ssh_tool", intention, management_ip=management_ip, cloud_provider=cloud_provider, username=username, command=command)
+    log_tool_call_to_csv(cloud_ssh_tool.__name__, intention, management_ip=management_ip, cloud_provider=cloud_provider, username=username, command=command)
     logger.info(f"Connecting to {cloud_provider} VM at {management_ip} as {username}")
     device = DeviceSShSession(management_ip, username, password)
     output = ""
@@ -639,7 +639,7 @@ async def linux_server_ssh_tool(management_ip: str, command: List[str], intentio
         str: output of the command execution
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("linux_server_ssh_tool", intention, management_ip=management_ip, command=command, username=username)
+    log_tool_call_to_csv(linux_server_ssh_tool.__name__, intention, management_ip=management_ip, command=command, username=username)
     logger.info(f"Connecting to Linux server at {management_ip} as {username}")
     device = DeviceSShSession(management_ip, username, password)
     output = ""
@@ -666,7 +666,7 @@ async def execute_shell_command(command: str, intention: str, timeout: int = 60)
         str: Combined stdout and stderr output.
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("execute_shell_command", intention, command=command, timeout=timeout)
+    log_tool_call_to_csv(execute_shell_command.__name__, intention, command=command, timeout=timeout)
     logger.info(f"Executing shell command: {command}")
     
     try:
@@ -722,7 +722,7 @@ async def execute_generated_code(code: str, intention: str, mode: str = "docker"
         str: The combined stdout/stderr output of the executed code, or error details.
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("execute_generated_code", intention, code=code, mode=mode, dependencies=dependencies)
+    log_tool_call_to_csv(execute_generated_code.__name__, intention, code=code, mode=mode, dependencies=dependencies)
     logger.info(f"Executing generated code. Mode: {mode}")
     
     # Clean up code string (remove markdown code blocks if present)
@@ -847,7 +847,7 @@ modified_output = json.dumps({"line_count": len(lines), "preview": lines[0]})
 '''
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("execute_with_tool_modification", intention, tool_name=tool_name, tool_params=tool_params, modification_code=modification_code)
+    log_tool_call_to_csv(net_execute_with_tool_modification.__name__, intention, tool_name=tool_name, tool_params=tool_params, modification_code=modification_code)
     logger.info(f"Executing tool '{tool_name}' with modification")
     
     try:
@@ -951,7 +951,7 @@ async def get_skill_all_related_tools(skill_name: str, intention: str) -> str:
     """
     # get all current MCP tools then filter them according to the skill_name given
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("get_skill_all_related_tools", intention, skill_name=skill_name)
+    log_tool_call_to_csv(get_skill_all_related_tools.__name__, intention, skill_name=skill_name)
     # all skill related tools start with <skill-name>_name-of-the-tool
     # example: linux_server_ssh_tool for linux server skill
     # TODO: test if LLM is able to call such tools when they were not passed to LLM as part of the tools list
@@ -989,7 +989,7 @@ async def visualize_drawio_diagram(
         str: base64 encoded png image of the diagram
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("visualize_drawio_diagram", intention, diagram_xml_code=diagram_xml_code, save_to_file=save_to_file, width=width, height=height, scale=scale, border=border)
+    log_tool_call_to_csv(visualize_drawio_diagram.__name__, intention, diagram_xml_code=diagram_xml_code, save_to_file=save_to_file, width=width, height=height, scale=scale, border=border)
     logger.info("Visualizing draw.io diagram via export API")
     
     export_url = "https://convert.diagrams.net/node/export"
@@ -1061,7 +1061,7 @@ async def analyze_drawio_diagram(diagram_xml: str, intention: str, original_requ
         str: A Markdown formatted audit report.
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("analyze_drawio_diagram", intention, diagram_xml=diagram_xml, original_request=original_request)
+    log_tool_call_to_csv(analyze_drawio_diagram.__name__, intention, diagram_xml=diagram_xml, original_request=original_request)
     logger.info("Analyzing draw.io diagram logic")
     try:
         # 1. Parse XML
@@ -1199,7 +1199,7 @@ async def archive_current_conversation(messages: List[Dict[str, str]], intention
         str: Outcome of the archival process.
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("archive_current_conversation", intention, num_messages=len(messages))
+    log_tool_call_to_csv(archive_current_conversation.__name__, intention, num_messages=len(messages))
     
     if not archiver:
         return "Error: Retriever Archiver is not initialized."
@@ -1225,7 +1225,7 @@ async def archive_local_document(file_path: str, intention: str, metadata: Optio
         str: Outcome of the ingestion process.
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("archive_local_document", intention, file_path=file_path)
+    log_tool_call_to_csv(archive_local_document.__name__, intention, file_path=file_path)
     
     if not archiver:
         return "Error: Retriever Archiver is not initialized."
@@ -1251,7 +1251,7 @@ async def query_agent_archives(query: str, intention: str) -> str:
         str: Augmented answer based on archived information.
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv("query_agent_archives", intention, query=query)
+    log_tool_call_to_csv(query_agent_archives.__name__, intention, query=query)
     
     if not archiver:
         return "Error: Retriever Archiver is not initialized."
