@@ -80,17 +80,21 @@ def set_user_clarification_callback(callback: Optional[Callable[[str, str], str]
 
 # local tools
 @tool
-def search_internet(query: str) -> str:
+def search_internet(query: str, confidence: Optional[float] = None) -> str:
     """Search the internet for a given query and return summarized results.
-    This tool is used if the model doesn't have a confidence over 90% on the immediate response to the query.
+    This tool is used if the model has a confidence level below 90% on the immediate response to the query.
     Args:
         query (str): The search query.
+        confidence (Optional[float]): The confidence level encountered that triggers the use of this tool.
     Returns:
         str: search results.
     """
     # Simulate an internet search
     print("="*20)
     print(f"Searching the internet for: {query}")
+    logger.info(f"Searching the internet for: {query}")
+    if confidence:
+        logger.info(f"Confidence level encountered that triggered the use of this tool: {confidence}")
     response = thinking_model.invoke(
         [HumanMessage(content=f"Search the internet for: {query}")],
         tools=[{"type":"web_search"}])
@@ -332,7 +336,7 @@ async def create_network_agent(
     # Filter out specialized tools from the main agent
     main_agent_tools = [
         t for t in tools 
-        if not any(t.name.lower().startswith(p) for p in ['net_', 'isp_', 'datacentre_'])
+        if not any(t.name.lower().startswith(p) for p in ['net_', 'isp_', 'datacentre_', 'cloud'])
     ]
     
     logger.info(f"Filtered tools: {len(design_tools)} design, {len(cloud_tools)} cloud, {len(lan_tools)} LAN")
@@ -363,7 +367,7 @@ async def create_network_agent(
     ## Create Subagents
     knowledge_acquisition_subagent = {
         "name": "recent_knowledge_acquisition_subagent",
-        "description": "Subagent specialized in acquiring additional knowledge from various sources such as internet, to get most recent information. This subagent can be used where the model confidence level is below 90%. The acquired knowledge can be on networking modern design, devices commands, devices data sheets, etc. This knowledge acquisition is necessary where the model confidence is low on the information provided by the user or if more clarification is needed from the user.",
+        "description": "Subagent specialized in acquiring additional knowledge from various sources such as internet, to get most recent information. This subagent can be used where the model confidence level is below 90%. The acquired knowledge can be on networking modern design, devices commands, devices data sheets, etc. This knowledge acquisition is necessary where the model confidence is low on the information provided by the user or if more clarification is needed from the user. Subagent may need what was the confidence level that triggered its call.",
         "system_prompt": "You are a knowledge acquisition expert agent. You help acquiring knowledge from various sources such as internet, expert user input, search and online documentation, etc. You get invoked only if there is a need to enhance the information given by the user or if clarification to what the user is asking can be acquired from the documents or from the user, in some cases where you have no knowledge you can run a tool to ask user for clarification. your goal is to acquire more knowledge and share with the main agent to help the main agent accomplish its task.",
         "tools": [search_internet, user_clarification_and_action_tool],
         "model": subagent_model,
