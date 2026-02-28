@@ -87,6 +87,14 @@ class MiddlewareManager:
             return True
         return False
 
+    def update_middleware_params(self, key: str, params: Dict[str, Any]):
+        """Update and persist middleware parameters."""
+        if key in self.available_middlewares:
+            self.available_middlewares[key]["params"].update(params)
+            self.save_config()
+            return True
+        return False
+
     def get_enabled_middlewares(self) -> List[Dict[str, Any]]:
         """Return a list of enabled middleware configurations."""
         return [cfg for cfg in self.available_middlewares.values() if cfg["enabled"]]

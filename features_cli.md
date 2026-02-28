@@ -90,6 +90,25 @@ Logs are persisted to `~/.net-deepagent/<name>/automata_results/`.
 
 ---
 
+## 🔌 Middleware Management (`/middlewares`)
+
+Hot-reloadable custom middlewares that process model inputs and outputs in real-time.
+
+| Command | Description |
+|---|---|
+| `/middlewares` | Open the interactive middleware configuration menu |
+
+**Available Middlewares:**
+- **Advanced Context Pruning** — Automatically prunes skills, old tool outputs, and summarizes context at 85% limit.
+- **NetPII Pseudonymization** — Masks sensitive network info like IPs, MAC addresses, and URLs. Supports per-type selection.
+- **Security Guardrail** — Basic security checks for model inputs/outputs (Rebuff).
+
+**Key Features:**
+- **Hot-Reloading**: Changes take effect on the very next message without restarting the CLI.
+- **Interactive Configuration**: Selectively enable PII types or tune context pruning parameters via sub-menus.
+
+---
+
 ## 📊 Context & Diagnostics
 
 | Feature | Command / Detail |

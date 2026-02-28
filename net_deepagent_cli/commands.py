@@ -435,30 +435,28 @@ async def extract_skills_from_document(doc_path: str, agent_name: str, ui):
     ui.print_message("Note: Skill extraction logic is currently a placeholder. RAG-based extraction will be implemented in the next phase.", role="system")
 
 async def handle_middlewares(ui):
-    """Interactive menu to toggle custom middlewares"""
+    """Interactive menu to toggle and configure custom middlewares"""
     from net_deepagent_cli.middleware_manager import MiddlewareManager
     from InquirerPy import inquirer
     from InquirerPy.base.control import Choice
     
     manager = MiddlewareManager(ui.agent_name)
-    all_middlewares = manager.list_all()
     
-    if not all_middlewares:
-        ui.print_message("No custom middlewares registered.", role="warning")
-        return
-
-    # Create choices for the menu
-    choices = []
-    for key, config in all_middlewares.items():
-        status = "[ON]" if config["enabled"] else "[OFF]"
-        choices.append(Choice(
-            value=key,
-            name=f"{status} {config['name']} - {config['description']}"
-        ))
-    
-    choices.append(Choice(value="done", name="Done"))
-
     while True:
+        all_middlewares = manager.list_all()
+        if not all_middlewares:
+            ui.print_message("No custom middlewares registered.", role="warning")
+            return
+
+        choices = []
+        for key, config in all_middlewares.items():
+            status = "[ON]" if config["enabled"] else "[OFF]"
+            choices.append(Choice(
+                value=key,
+                name=f"{status} {config['name']} - {config['description']}"
+            ))
+        choices.append(Choice(value="done", name="Done"))
+
         choice = await inquirer.select(
             message="Configure Custom Middlewares:",
             choices=choices,
@@ -469,19 +467,97 @@ async def handle_middlewares(ui):
         if choice == "done":
             break
         
-        # Toggle state
-        current_state = all_middlewares[choice]["enabled"]
-        new_state = not current_state
-        manager.toggle_middleware(choice, new_state)
+        # Sub-menu for the selected middleware
+        mw_cfg = all_middlewares[choice]
+        status_text = "[ON]" if mw_cfg["enabled"] else "[OFF]"
         
-        # Update local state for menu refresh
-        all_middlewares[choice]["enabled"] = new_state
+        sub_choices = [
+            Choice(value="toggle", name=f"{status_text} Toggle State"),
+            Choice(value="config", name="⚙ Configure Parameters"),
+            Choice(value="back", name="Back")
+        ]
         
-        # Refresh choices
-        for c in choices:
-            if c.value == choice:
-                status = "[ON]" if new_state else "[OFF]"
-                c.name = f"{status} {all_middlewares[choice]['name']} - {all_middlewares[choice]['description']}"
+        sub_choice = await inquirer.select(
+            message=f"Options for {mw_cfg['name']}:",
+            choices=sub_choices,
+            default="back"
+        ).execute_async()
         
-        ui.print_message(f"Middleware '{all_middlewares[choice]['name']}' {'enabled' if new_state else 'disabled'}.", role="system")
-        ui.print_message("Note: Changes will take effect in the next session or upon agent reload.", role="dim")
+        if sub_choice == "toggle":
+            new_state = not mw_cfg["enabled"]
+            manager.toggle_middleware(choice, new_state)
+            ui.print_message(f"Middleware '{mw_cfg['name']}' {'enabled' if new_state else 'disabled'}.", role="system")
+        elif sub_choice == "config":
+            if choice == "netpii":
+                await configure_netpii_params(ui, manager)
+            elif choice == "advanced_context":
+                await configure_context_params(ui, manager)
+            else:
+                ui.print_message(f"No additional configuration available for {mw_cfg['name']}.", role="dim")
+
+async def configure_netpii_params(ui, manager):
+    """Sub-menu for NetPII PII types selection."""
+    from InquirerPy import inquirer
+    from InquirerPy.base.control import Choice
+    from custom_middleware.netpii_middlewares import PII_DETECTORS
+    
+    ui.console.print("\n[bold cyan]--- NetPII Configuration ---[/bold cyan]")
+    
+    all_mw = manager.list_all()
+    current_params = all_mw.get("netpii", {}).get("params", {})
+    current_types = current_params.get("pii_types", "all")
+    
+    if current_types == "all":
+        current_types = list(PII_DETECTORS.keys())
+    elif isinstance(current_types, str):
+        current_types = [current_types]
+    
+    # Create Choice objects with enabled status for existing types
+    choices = [
+        Choice(value=t, name=f"{t} (Detector)", enabled=(t in current_types)) 
+        for t in PII_DETECTORS.keys()
+    ]
+        
+    selected_types = await inquirer.checkbox(
+        message="Select PII types to mask:",
+        choices=choices,
+        instruction="(Space to toggle, Enter to confirm)",
+        transformer=lambda result: f"{len(result)} types selected"
+    ).execute_async()
+    
+    if selected_types is not None:
+        if not selected_types:
+            ui.print_message("No types selected. NetPII will be effectively disabled for input masking.", role="warning")
+            manager.update_middleware_params("netpii", {"pii_types": []})
+        else:
+            manager.update_middleware_params("netpii", {"pii_types": selected_types})
+            ui.print_message(f"Successfully updated PII types: [bold green]{', '.join(selected_types)}[/bold green]", role="system")
+    else:
+        ui.print_message("Configuration cancelled.", role="system")
+
+async def configure_context_params(ui, manager):
+    """Interactive editor for Advanced Context parameters."""
+    from InquirerPy import inquirer
+    
+    all_mw = manager.list_all()
+    params = all_mw.get("advanced_context", {}).get("params", {}).copy()
+    
+    # We edit key parameters one by one for simplicity in this version
+    new_ratio = await inquirer.text(
+        message="Enter trigger ratio (0.1 to 0.9):",
+        default=str(params.get("trigger_ratio", 0.85)),
+        validate=lambda x: 0 < float(x) < 1.0 if x.replace('.', '', 1).isdigit() else False
+    ).execute_async()
+    
+    params["trigger_ratio"] = float(new_ratio)
+    
+    new_skills = await inquirer.text(
+        message="Number of skills to keep:",
+        default=str(params.get("keep_skills", 1)),
+        validate=lambda x: x.isdigit()
+    ).execute_async()
+    params["keep_skills"] = int(new_skills)
+
+    manager.update_middleware_params("advanced_context", params)
+    ui.print_message("Advanced Context parameters updated.", role="system")
+
