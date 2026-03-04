@@ -245,6 +245,8 @@ def filter_tools_by_category(tools: List[BaseTool], category: str) -> List[BaseT
         elif category == 'datacenter':
             if name.startswith('datacentre_'):
                 filtered.append(tool)
+            elif any(kw in name for kw in ['ssh', 'shell', '_code']):
+                filtered.append(tool)
         elif category == 'isp':
             if name.startswith('isp_'):
                 filtered.append(tool)
@@ -399,16 +401,25 @@ async def create_network_agent(
         "model": subagent_model,
     }
 
-    # Integrate the new design interpreter as a compiled subagent
+    # Integrate the design interpreter as a compiled subagent
     from graphs.design_interpretor import get_design_interpretor_subagent
     design_interpretor_subagent = get_design_interpretor_subagent(model_name=design_model_name, api_key=creds.OPENAI_KEY)
 
+    # Integrate network_operator as a compiled datacentre subagent
+    from graphs.network_operator.subagent_bridge import get_datacenter_subagent
+    datacenter_tools = filter_tools_by_category(tools, 'datacenter')
+    datacentre_subagent = get_datacenter_subagent(
+        tools=datacenter_tools + [search_internet, user_clarification_and_action_tool],
+    )
+    logger.info(f"datacentre_subagent built with {len(datacenter_tools)} datacenter tools")
+
     subagents = [
-        LAN_subagent, 
-        knowledge_acquisition_subagent, 
-        #network_design_subagent, 
+        LAN_subagent,
+        knowledge_acquisition_subagent,
+        #network_design_subagent,
         cloud_computing_subagent,
-        design_interpretor_subagent
+        design_interpretor_subagent,
+        datacentre_subagent,
     ]
 
     ## create deep agent
