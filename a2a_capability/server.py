@@ -21,7 +21,10 @@ from langchain_anthropic import ChatAnthropic
 import sys 
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
-import creds
+from utils.credentials_helper import get_credential, get_helper
+
+# Initialize credentials
+get_helper()
 
 # Configure logging for visibility
 logging.basicConfig(
@@ -119,11 +122,11 @@ class A2AServer:
             logger.info(f"Initializing A2AServer '{agent_name}' with new DeepAgent (model={model_name})")
             # Fallback to creating a simple one if not provided
             try:
-                 self.model = ChatOpenAI(model=model_name, api_key=creds.OPENAI_KEY)
+                 self.model = ChatOpenAI(model=model_name, api_key=get_credential("OPENAI_KEY"))
             except:
                  # Fallback for demo if credentials missing for OpenAI
                  logger.warning("Could not init OpenAI, trying Anthropic...")
-                 self.model = ChatAnthropic(model=claude_model_name, api_key=creds.ANTHROPIC_KEY)
+                 self.model = ChatAnthropic(model=claude_model_name, api_key=get_credential("ANTHROPIC_KEY"))
 
             self.agent = create_deep_agent(
                 model=self.model,

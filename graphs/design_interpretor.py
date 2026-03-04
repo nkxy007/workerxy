@@ -588,8 +588,8 @@ def get_design_interpretor_subagent(model_name: str = "openai", api_key: str = N
 
 if __name__ == "__main__":
     import asyncio
-    import creds
-    os.environ["OPENAI_API_KEY"] = creds.OPENAI_KEY
+    from utils.credentials_helper import get_credential, get_helper
+    get_helper()
 
     async def run_test():
         # Image branch test

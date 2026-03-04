@@ -1,17 +1,13 @@
 import pytest
 import os
-import creds
+from utils.credentials_helper import get_credential, get_helper
 from utils.llm_provider import LLMFactory
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 
-# Set environment variables for tests to allow client initialization
-os.environ["OPENAI_API_KEY"] = creds.OPENAI_KEY
-os.environ["ANTHROPIC_API_KEY"] = creds.ANTHROPIC_KEY
-os.environ["GOOGLE_API_KEY"] = creds.GEMINI_KEY
-os.environ["XAI_API_KEY"] = creds.GROK_KEY
-# Note: langchain_xai might be needed if testing xai specifically
+# Initialize credentials
+get_helper()
 
 def test_determine_provider():
     assert LLMFactory._determine_provider("gpt-4o") == "openai"

@@ -28,8 +28,11 @@ import xml.etree.ElementTree as ET
 import csv
 from datetime import datetime
 from tools_helpers.retriever_archiver import ArchiverRetriever
-import creds
+from utils.credentials_helper import get_helper
 import time
+
+# Initialize credentials
+get_helper()
 
 # Configure logging
 logging.basicConfig(
@@ -43,7 +46,6 @@ mcp = FastMCP("network_tools_server")
 
 # Initialize Retriever Archiver
 try:
-    os.environ["OPENAI_API_KEY"] = creds.OPENAI_KEY
     archiver = ArchiverRetriever()
     logger.info("Retriever Archiver initialized successfully")
 except Exception as e:

@@ -9,11 +9,8 @@ import shutil
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Load credentials
-try:
-    import creds
-    os.environ["OPENAI_API_KEY"] = creds.OPENAI_KEY
-except ImportError:
-    pass
+from utils.credentials_helper import get_helper
+get_helper()
 
 # Import the mcp server functions
 # We import from mcp_servers to test the tools as they are registered

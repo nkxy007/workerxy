@@ -12,9 +12,11 @@ from langgraph.store.memory import InMemoryStore
 
 # Import existing creating logic or similar components
 # We will reuse the structure of 'create_network_agent' but inject our middleware
-from net_deepagent import create_network_agent, AVAILABLE_MODELS
-from a2a_capability.middleware import A2AHTTPMiddleware
-import creds
+from utils.credentials_helper import get_credential, get_helper
+import os
+
+# Initialize credentials
+get_helper()
 
 # Configure logging for visibility
 logging.basicConfig(
@@ -92,7 +94,7 @@ async def main():
     all_tools = mcp_tools + a2a_tools
     
     # Models
-    main_model = ChatOpenAI(model="gpt-5.1-mini", api_key=creds.OPENAI_KEY) 
+    main_model = ChatOpenAI(model="gpt-5.1-mini", api_key=get_credential("OPENAI_KEY")) 
     
     # Create Deep Agent with A2A Middleware
     # We pass the middleware to create_deep_agent if it supports it, 

@@ -12,12 +12,12 @@ for d in [root_dir, graphs_dir]:
 
 from graphs.network_operator.agent import build_graph, run_investigation
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from utils.llm_provider import LLMFactory
-import creds
+from utils.credentials_helper import get_credential, get_helper
 
-# Set environment variables for models
-os.environ["ANTHROPIC_API_KEY"] = creds.ANTHROPIC_KEY
-os.environ["OPENAI_API_KEY"] = creds.OPENAI_KEY
+# Initialize credentials
+get_helper()
+
+# Credentials are automatically handled by CredentialsHelper
 
 async def main():
     # 1. Connect to MCP Server to get tools

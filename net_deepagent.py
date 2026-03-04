@@ -6,9 +6,12 @@ import logging
 #from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 from langchain_core.tools import tool
-import creds
+from utils.credentials_helper import get_credential, get_helper
 import os
 from pydantic import BaseModel, Field
+
+# Initialize credentials
+get_helper()
 
 # Configure logging
 logging.basicConfig(
@@ -40,27 +43,25 @@ from langchain.agents.middleware import PIIMiddleware
 from custom_middleware.netpii_middlewares import PIIPseudonymizationMiddleware
 
 
-## models keys
-os.environ["OPENAI_API_KEY"] = creds.OPENAI_KEY
-os.environ["ANTHROPIC_API_KEY"] = creds.ANTHROPIC_KEY
+
 
 
 
 # models
-thinking_model_mini = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=creds.OPENAI_KEY)
-thinking_model = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True, reasoning={"effort": "low"})
-thinking_model_medium = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True, reasoning={"effort": "medium"})
-thinking_model_high = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True, reasoning={"effort": "high"})
-thinking_model_medium_mini = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=creds.OPENAI_KEY, use_responses_api=True, reasoning={"effort": "medium"})
-thinking_model_high_mini = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=creds.OPENAI_KEY, use_responses_api=True, reasoning={"effort": "high"})
-thinking_model_response = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True)
-action_minimal_thinking_model = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=creds.OPENAI_KEY, reasoning={"effort": "minimal"}, use_responses_api=True)
-multi_purpose_model = LLMFactory.get_llm(model_name="gpt-5.1", api_key=creds.OPENAI_KEY, use_responses_api=True)
-coding_model = LLMFactory.get_llm(model_name="gpt-5.1-codex", api_key=creds.OPENAI_KEY)
-bias_removal_model = LLMFactory.get_llm(model_name="claude-sonnet-4-5-20250929", api_key=creds.ANTHROPIC_KEY)
-googla_light_model = LLMFactory.get_llm(model_name="gemini-3-flash-preview", api_key=creds.GEMINI_KEY)
-googla_heavy_model = LLMFactory.get_llm(model_name="gemini-3-pro", api_key=creds.GEMINI_KEY)
-gui_navigator_model = LLMFactory.get_llm(model_name="gpt-4o", api_key=creds.OPENAI_KEY)
+thinking_model_mini = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=get_credential("OPENAI_KEY"))
+thinking_model = LLMFactory.get_llm(model_name="gpt-5.1", api_key=get_credential("OPENAI_KEY"), use_responses_api=True, reasoning={"effort": "low"})
+thinking_model_medium = LLMFactory.get_llm(model_name="gpt-5.1", api_key=get_credential("OPENAI_KEY"), use_responses_api=True, reasoning={"effort": "medium"})
+thinking_model_high = LLMFactory.get_llm(model_name="gpt-5.1", api_key=get_credential("OPENAI_KEY"), use_responses_api=True, reasoning={"effort": "high"})
+thinking_model_medium_mini = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=get_credential("OPENAI_KEY"), use_responses_api=True, reasoning={"effort": "medium"})
+thinking_model_high_mini = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=get_credential("OPENAI_KEY"), use_responses_api=True, reasoning={"effort": "high"})
+thinking_model_response = LLMFactory.get_llm(model_name="gpt-5.1", api_key=get_credential("OPENAI_KEY"), use_responses_api=True)
+action_minimal_thinking_model = LLMFactory.get_llm(model_name="gpt-5-mini", api_key=get_credential("OPENAI_KEY"), reasoning={"effort": "minimal"}, use_responses_api=True)
+multi_purpose_model = LLMFactory.get_llm(model_name="gpt-5.1", api_key=get_credential("OPENAI_KEY"), use_responses_api=True)
+coding_model = LLMFactory.get_llm(model_name="gpt-5.1-codex", api_key=get_credential("OPENAI_KEY"))
+bias_removal_model = LLMFactory.get_llm(model_name="claude-sonnet-4-5-20250929", api_key=get_credential("ANTHROPIC_KEY"))
+googla_light_model = LLMFactory.get_llm(model_name="gemini-3-flash-preview", api_key=get_credential("GEMINI_KEY"))
+googla_heavy_model = LLMFactory.get_llm(model_name="gemini-3-pro", api_key=get_credential("GEMINI_KEY"))
+gui_navigator_model = LLMFactory.get_llm(model_name="gpt-4o", api_key=get_credential("OPENAI_KEY"))
 
 
 # Global callback for user clarification (can be overridden by UI)
@@ -403,7 +404,7 @@ async def create_network_agent(
 
     # Integrate the design interpreter as a compiled subagent
     from graphs.design_interpretor import get_design_interpretor_subagent
-    design_interpretor_subagent = get_design_interpretor_subagent(model_name=design_model_name, api_key=creds.OPENAI_KEY)
+    design_interpretor_subagent = get_design_interpretor_subagent(model_name=design_model_name, api_key=get_credential("OPENAI_KEY"))
 
     # Integrate network_operator as a compiled datacentre subagent
     from graphs.network_operator.subagent_bridge import get_datacenter_subagent
@@ -508,7 +509,7 @@ async def main():
         session.reset_database()
         # Goal-Plan-Act evaluation provider
         gpa_eval_provider = TrulensOpenAI(model_engine="gpt-5.1",
-                                          api_key=creds.OPENAI_KEY)
+                                          api_key=get_credential("OPENAI_KEY"))
         
         # Goal-Plan-Act: Logical consistency of trace
         f_logical_consistency = Feedback(

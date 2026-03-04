@@ -10,18 +10,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from graphs.design_interpretor import design_interpretor_graph, FullDesign, DesignDocumentInfo
 
 
+from utils.credentials_helper import get_credential, get_helper
+
 def _load_api_key():
-    """Load the OpenAI API key from environment or creds.py."""
-    if os.environ.get("OPENAI_API_KEY"):
+    """Load the OpenAI API key using CredentialsHelper."""
+    get_helper()
+    if get_credential("OPENAI_KEY"):
         return True
-    try:
-        import creds
-        os.environ["OPENAI_API_KEY"] = creds.OPENAI_KEY
-        print("Loaded API key from creds.py")
-        return True
-    except ImportError:
-        print("Could not import creds.py and OPENAI_API_KEY not set.")
-        return False
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -33,7 +29,7 @@ async def test_design_interpretor_image_branch():
     """Verify the image branch routes correctly and returns a FullDesign result."""
     print("\n=== Image Branch Test ===")
 
-    sample_image = "/home/toffe/workspace/agentic/small_network_diagram.png"
+    sample_image = "/home/toffe/workspace/agentic/test_docs/small_network_diagram.png"
     if not os.path.exists(sample_image):
         pytest.skip(f"Sample image not found: {sample_image}")
 
@@ -77,8 +73,7 @@ async def test_design_interpretor_document_branch():
 
     # Look for any PDF in common workspace paths
     candidate_paths = [
-        "/home/toffe/workspace/agentic/utopia_sm_network_design.pdf",
-        "/home/toffe/workspace/agentic/sample_design.pdf",
+        "/home/toffe/workspace/agentic/test_docs/Network_Design_Document_Small_Enterprise_Site.pdf",
     ]
     sample_doc = next((p for p in candidate_paths if os.path.exists(p)), None)
 

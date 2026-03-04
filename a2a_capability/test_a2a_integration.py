@@ -11,7 +11,10 @@ from langchain_openai import ChatOpenAI
 from langgraph.store.memory import InMemoryStore
 from deepagents import create_deep_agent
 from a2a_capability.middleware import A2AHTTPMiddleware
-import creds
+from utils.credentials_helper import get_credential, get_helper
+
+# Initialize credentials
+get_helper()
 
 # Configure logging
 logging.basicConfig(
@@ -38,7 +41,7 @@ async def test_a2a_integration():
     logger.info(f"loaded tools: {a2a_tools}")
 
     # 4. Create Simple Agent with A2A Tools
-    main_model = ChatOpenAI(model="gpt-4.1-mini", api_key=creds.OPENAI_KEY)
+    main_model = ChatOpenAI(model="gpt-4.1-mini", api_key=get_credential("OPENAI_KEY"))
 
     agent = create_deep_agent(
         tools=a2a_tools,

@@ -53,8 +53,8 @@ async def test_agent_integration(mock_mcp):
 
 if __name__ == "__main__":
     # Ensure API keys are present for the models
-    import creds
-    os.environ["OPENAI_API_KEY"] = creds.OPENAI_KEY
-    os.environ["ANTHROPIC_API_KEY"] = creds.ANTHROPIC_KEY
+    # Ensure API keys are present for the models
+    from utils.credentials_helper import get_credential, get_helper
+    get_helper()
     
     asyncio.run(test_agent_integration())

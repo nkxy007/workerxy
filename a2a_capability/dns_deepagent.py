@@ -52,12 +52,15 @@ def main():
     # Create the agent instance with our custom tools
     from deepagents import create_deep_agent
     from langchain_openai import ChatOpenAI
-    import creds
+    from utils.credentials_helper import get_credential, get_helper
+    
+    # Initialize credentials
+    get_helper()
     
     tools = [resolve_domain, check_records]
     
     # Initialize model
-    model = ChatOpenAI(model="gpt-5-mini", api_key=creds.OPENAI_KEY)
+    model = ChatOpenAI(model="gpt-5-mini", api_key=get_credential("OPENAI_KEY"))
     
     agent_instance = create_deep_agent(
         model=model,

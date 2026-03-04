@@ -67,15 +67,18 @@ def check_dhcp_pool(subnet: str) -> str:
 
 def main():
     from deepagents import create_deep_agent
-    import creds
+    from utils.credentials_helper import get_credential, get_helper
     from langchain_openai import ChatOpenAI
+    
+    # Initialize credentials
+    get_helper()
     port = 8004
     logger.info("="*60)
     logger.info("🌐 DHCP DeepAgent - A2A Server")
     logger.info("="*60)
     logger.info(f"Starting DHCP DeepAgent on port {port}")
     
-    model = ChatOpenAI(model="gpt-5-mini", api_key=creds.OPENAI_KEY)
+    model = ChatOpenAI(model="gpt-5-mini", api_key=get_credential("OPENAI_KEY"))
     tools = [check_dhcp_pool, get_ip_info, check_dhcp_lease]
     dhcp_agent_instance = create_deep_agent(
         model=model,

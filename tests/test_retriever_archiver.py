@@ -8,11 +8,8 @@ import shutil
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Load credentials
-try:
-    import creds
-    os.environ["OPENAI_API_KEY"] = creds.OPENAI_KEY
-except ImportError:
-    pass
+from utils.credentials_helper import get_helper
+get_helper()
 
 from tools_helpers.retriever_archiver import ArchiverRetriever, DocumentType
 

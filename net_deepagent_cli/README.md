@@ -28,3 +28,19 @@ net-deepagent
 
 Configuration is stored in `~/.net-deepagent/<agent-name>/config.yaml`.
 History and memories are also stored in the same directory.
+
+## Credential Management
+
+The system uses a centralized `CredentialsHelper` to load API keys and SSH credentials. Keys are sourced in the following order of priority:
+1. Environment variables (e.g., `OPENAI_API_KEY`)
+2. Encrypted Vault (`~/.creds.vault`)
+3. Legacy `creds.py` (Fallback)
+
+### Encrypted Vault
+You can store your credentials securely in an encrypted vault. If a vault is detected, the CLI will prompt you for the decryption password at startup.
+
+To create a new vault:
+```python
+from utils.credentials_helper import CredentialsHelper
+CredentialsHelper.create_vault({"OPENAI_KEY": "sk-...", "ANTHROPIC_KEY": "sk-ant-..."}, "your-password")
+```
