@@ -140,7 +140,8 @@ async def create_cli_agent(
     subagent_model_name: str,
     design_model_name: str,
     auto_approve: bool = False,
-    ui: Any = None
+    ui: Any = None,
+    extra_tools: List[Any] = []
 ):
     """Create agent with CLI-specific middleware"""
     
@@ -213,7 +214,7 @@ async def create_cli_agent(
         main_model_name=main_model_name,
         subagent_model_name=subagent_model_name,
         design_model_name=design_model_name,
-        extra_tools=a2a_tools,
+        extra_tools=a2a_tools + extra_tools,
         tool_wrapper=security_tool_wrapper,
         custom_middlewares=[custom_registry]
     )

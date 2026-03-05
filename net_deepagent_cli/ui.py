@@ -119,9 +119,10 @@ class TerminalUI:
         "/exit": {"desc": "Exit the CLI"}
     }
     
-    def __init__(self, agent_name: str):
+    def __init__(self, agent_name: str, logger: Optional[Any] = None):
         self.console = Console(force_terminal=True, force_interactive=False)
         self.agent_name = agent_name
+        self.logger = logger
         self.config_dir = Path.home() / ".net-deepagent" / agent_name
         self.history_file = self.config_dir / "history"
         self.config_dir.mkdir(parents=True, exist_ok=True)
@@ -260,16 +261,24 @@ class TerminalUI:
 
         if role == "assistant":
             # Render markdown for assistant messages
+            if self.logger:
+                self.logger.info(f"ASSISTANT: {text_content}")
             try:
                 if text_content.strip():
                     self.console.print(Markdown(text_content))
             except Exception:
                 self.console.print(text_content)
         elif role == "system":
+            if self.logger:
+                self.logger.info(f"SYSTEM: {text_content}")
             self.console.print(f"[bold blue]System:[/bold blue] {text_content}")
         elif role == "error":
+            if self.logger:
+                self.logger.error(f"ERROR: {text_content}")
             self.console.print(f"[bold red]Error:[/bold red] {text_content}")
         else:
+            if self.logger:
+                self.logger.info(f"USER: {text_content}")
             self.console.print(f"[bold green]User:[/bold green] {text_content}")
         
         import sys
@@ -278,6 +287,8 @@ class TerminalUI:
     def print_tool_call(self, tool_name: str, args: dict):
         """Display tool call"""
         args_str = ", ".join(f"[cyan]{k}[/cyan]=[green]{v}[/green]" for k, v in args.items())
+        if self.logger:
+            self.logger.info(f"TOOL CALL: {tool_name}({args})")
         self.console.print(
             f"[bold yellow]⚙ Executing tool:[/bold yellow] [bold magenta]{tool_name}[/bold magenta]({args_str})"
         )

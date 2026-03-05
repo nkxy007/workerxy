@@ -143,6 +143,27 @@ The agent connects to an MCP server on startup and dynamically loads all registe
 
 ---
 
+---
+
+## 📡 Headless & Remote Communication
+
+Decoupled communication system for remote agent interaction via Discord and RabbitMQ.
+
+| Component | Description | Launch Command |
+|---|---|---|
+| **Discord Bot** | Bridges Discord messages to RabbitMQ | `python net_deepagent_cli/communication/discord_bot.py` |
+| **Headless Agent** | Processes jobs from RabbitMQ (Worker Mode) | `python net_deepagent_cli/headless.py` |
+| **RabbitMQ Broker** | Reliable message delivery between bot and agent | `sudo systemctl start rabbitmq-server` |
+
+### Key Features:
+- **Mention-to-Job**: Mentioning the bot on Discord automatically creates a job for the agent.
+- **Automatic Replies**: The agent's final textual response is automatically sent back to the Discord channel where it was mentioned.
+- **Channel Routing**: Supports routing messages to specific channels by name (e.g., `Network-jobs`).
+- **Structured Logging**: All activity (screen + file) is logged to `logs/communication.log`.
+- **Worker Mode**: `headless.py` allows the agent to run 24/7 as a background worker without a terminal UI.
+
+---
+
 ### ⚡ Topic-Drift Detection & Interaction Association
 
 When started with `--automatic-context-detection`, the agent monitors your questions for two things:

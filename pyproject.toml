@@ -33,4 +33,6 @@ dependencies = [
     "langchain-community",
     "langchain-text-splitters",
     "pypdf",
+    "aio-pika>=9.0.0",
+    "discord.py>=2.3.0",
 ]
