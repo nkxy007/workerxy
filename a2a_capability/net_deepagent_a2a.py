@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import os
@@ -18,15 +17,10 @@ import os
 # Initialize credentials
 get_helper()
 
-# Configure logging for visibility
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("net_deepagent_a2a")
+from net_deepagent_cli.communication.logger import setup_logger
+
+# Configure logging using centralized utility
+logger = setup_logger("net_deepagent_a2a")
 
 async def main():
     logger.info("=== Starting Net DeepAgent with A2A Capability ===")

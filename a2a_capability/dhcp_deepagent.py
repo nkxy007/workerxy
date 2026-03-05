@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import sys
@@ -8,15 +7,10 @@ from a2a_capability.server import create_a2a_app
 import uvicorn
 from langchain_core.tools import tool
 
-# Configure logging for visibility
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("dhcp_deepagent")
+from net_deepagent_cli.communication.logger import setup_logger
+
+# Configure logging using centralized utility
+logger = setup_logger("dhcp_deepagent")
 
 
 DHCP_POOLS = [

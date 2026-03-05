@@ -34,13 +34,10 @@ import time
 # Initialize credentials
 get_helper()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
-logger = logging.getLogger(__name__)
+from net_deepagent_cli.communication.logger import setup_logger
+
+# Configure logging using centralized utility
+logger = setup_logger("mcp_server")
 
 mcp = FastMCP("network_tools_server")
 

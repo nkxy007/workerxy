@@ -4,6 +4,7 @@ import discord
 import aio_pika
 import sys
 import logging
+import logging
 from pathlib import Path
 
 # Add project root to path to import creds and logic
@@ -11,7 +12,9 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 import creds
 from net_deepagent_cli.communication.schema import AgentMessage
-from net_deepagent_cli.communication.logger import comm_logger as logger
+from net_deepagent_cli.communication.logger import setup_logger
+
+logger = setup_logger("discord_bot")
 
 # Suppress noisy discord logs
 logging.getLogger('discord').setLevel(logging.WARNING)

@@ -5,10 +5,10 @@ import uuid
 from typing import Dict, Any, Optional, List
 import httpx
 from datetime import datetime
-import logging
+from net_deepagent_cli.communication.logger import setup_logger
 
-# Configure logging
-logger = logging.getLogger(__name__)
+# Configure logging using centralized utility
+logger = setup_logger("a2a_client")
 
 class A2AHTTPClient:
     """Real HTTP client for A2A protocol communication"""

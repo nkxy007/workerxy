@@ -1,5 +1,6 @@
 
 import asyncio
+import asyncio
 import logging
 from typing import List
 from langchain_core.tools import tool
@@ -10,15 +11,10 @@ print(sys.path)
 from a2a_capability.server import create_a2a_app
 import uvicorn
 
-# Configure logging for visibility
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("dns_deepagent")
+from net_deepagent_cli.communication.logger import setup_logger
+
+# Configure logging using centralized utility
+logger = setup_logger("dns_deepagent")
 
 # Optional: Add simulated DNS tools
 @tool

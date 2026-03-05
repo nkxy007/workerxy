@@ -1,5 +1,5 @@
-import asyncio
-import logging
+from net_deepagent_cli.communication.logger import setup_logger
+from net_deepagent_cli.communication.logger import setup_logger, set_process_log_file
 from typing import List, Dict, Any
 from net_deepagent_cli.ui import TerminalUI
 from net_deepagent_cli.commands import handle_command
@@ -8,10 +8,15 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from net_deepagent_cli.drift import TopicDriftDetector
 from net_deepagent_cli.association import InteractionAssociationEngine
 
-logger = logging.getLogger("net_deepagent_cli")
+# Set unified log file for the entire process
+set_process_log_file("main.log")
+
+# Configure logging for net_deepagent_cli
+logger = setup_logger("net_deepagent_cli")
 
 async def interactive_loop(agent, args, ui: TerminalUI):
     """Main interactive loop"""
+    logger.info(f"Starting interactive session for agent: {ui.agent_name}")
     ui.print_banner()
     
     # Start background tasks
@@ -144,7 +149,7 @@ async def interactive_loop(agent, args, ui: TerminalUI):
         if 'automata_manager' in locals():
             automata_manager.stop()
 
-async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: bool):
+async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: bool, **kwargs):
     """Stream agent response with real-time updates"""
     
     # In LangGraph/DeepAgent, the state is passed. 
@@ -160,8 +165,12 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
             
             last_message_count = len(messages)
             
+            # Build the full input state including any extra metadata (like discord_channel_id)
+            input_state = {"messages": messages}
+            input_state.update(kwargs)
+            
             async for chunk in agent.astream(
-                {"messages": messages},
+                input_state,
                 stream_mode="values" # This gives the full state at each step
             ):
                 if "messages" in chunk:

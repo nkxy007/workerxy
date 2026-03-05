@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import uuid
@@ -13,8 +12,6 @@ from pydantic import BaseModel, Field
 import uvicorn
 
 from langchain_core.messages import HumanMessage, AIMessage
-# Assuming deepagents package is available or we use the local implementation
-# If deepagents is not installed as package, we might need to adjust imports
 from deepagents import create_deep_agent
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -22,19 +19,13 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from utils.credentials_helper import get_credential, get_helper
+from net_deepagent_cli.communication.logger import setup_logger
 
 # Initialize credentials
 get_helper()
 
-# Configure logging for visibility
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Configure logging for visibility using centralized utility
+logger = setup_logger("a2a_server")
 
 # ============================================================================
 # A2A Data Models (Pydantic)

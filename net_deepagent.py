@@ -3,7 +3,8 @@ import operator
 from typing import Optional, Callable, Any, Dict, List
 from pathlib import Path
 import logging
-#from langgraph.checkpoint.sqlite import SqliteSaver
+from net_deepagent_cli.communication.logger import setup_logger
+from net_deepagent_cli.communication.logger import setup_logger, set_process_log_file
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 from langchain_core.tools import tool
 from utils.credentials_helper import get_credential, get_helper
@@ -13,12 +14,11 @@ from pydantic import BaseModel, Field
 # Initialize credentials
 get_helper()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Set unified log file for the entire process
+set_process_log_file("main.log")
+
+# Configure logging using centralized utility
+logger = setup_logger("net_deepagent", level=logging.INFO)
 #from langgraph.prebuilt import ToolNode, create_react_agent, InjectedState
 from langgraph.graph import START, END, StateGraph, MessagesState
 from langgraph.checkpoint.memory import MemorySaver
