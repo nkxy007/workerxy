@@ -253,6 +253,27 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                                 
                                 agent.skill_learning_middleware.process_message({'role': role, 'content': content})
 
+        # --- Phase 1: Discord auto-reply (headless mode only) ---
+        # Fires once after the full agent turn completes (all tool iterations done).
+        # No-op in interactive CLI mode — discord_channel_id is never present there.
+        discord_channel_id = kwargs.get("discord_channel_id")
+        if discord_channel_id:
+            final_ai = next(
+                (
+                    m for m in reversed(messages)
+                    if isinstance(m, AIMessage) and not getattr(m, "tool_calls", None)
+                ),
+                None,
+            )
+            if final_ai and final_ai.content:
+                from net_deepagent_cli.communication.tools import send_final_reply_to_discord
+                logger.info("Phase 1: Sending final AI response to Discord...")
+                await send_final_reply_to_discord(
+                    final_ai,
+                    channel_id=discord_channel_id,
+                    channel_name=kwargs.get("channel_name"),
+                )
+
     except Exception as e:
         ui.print_message(f"An error occurred: {str(e)}", role="error")
         import traceback

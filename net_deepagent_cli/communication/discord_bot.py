@@ -66,6 +66,7 @@ class AgentBot(discord.Client):
             author=str(message.author),
             channel_id=message.channel.id,
             guild_id=message.guild.id if message.guild else None,
+            message_id=str(message.id),  # Discord message ID used as task ref in ack
         )
 
         # Publish to inbound.agent queue
@@ -104,7 +105,32 @@ class AgentBot(discord.Client):
                                 break
                     
                     if discord_channel:
-                        await discord_channel.send(payload.content)
+                        content = payload.content
+                        max_length = 1900  # Safe limit under 2000
+                        
+                        if len(content) <= max_length:
+                            await discord_channel.send(content)
+                        else:
+                            # Split into chunks, preferring newline boundaries
+                            lines = content.split('\n')
+                            current_chunk = ""
+                            for line in lines:
+                                if len(current_chunk) + len(line) + 1 <= max_length:
+                                    current_chunk += line + '\n'
+                                else:
+                                    if current_chunk.strip():
+                                        await discord_channel.send(current_chunk)
+                                        current_chunk = ""
+                                    
+                                    # If a single line is too long, hard split it
+                                    if len(line) > max_length:
+                                        for i in range(0, len(line), max_length):
+                                            await discord_channel.send(line[i:i+max_length])
+                                    else:
+                                        current_chunk = line + '\n'
+                            
+                            if current_chunk.strip():
+                                await discord_channel.send(current_chunk)
                     else:
                         logger.error(f"Error: Could not find channel {payload.channel_id or payload.channel_name}")
         except Exception as e:
