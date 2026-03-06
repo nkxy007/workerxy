@@ -36,7 +36,7 @@ async def run_headless():
     from net_deepagent_cli.communication.logger import comm_logger
     ui = TerminalUI(args.agent, logger=comm_logger)
     
-    logger.info(f"Initializing headless agent '{args.agent}'...")
+    logger.info(f"Initializing headless agent '{args.agent}'... with args: {args}")
     
     # RabbitMQ URL from creds
     rabbitmq_url = f"amqp://{creds.RABBITMQUSER}:{creds.RABBITMQ_PASSWORD}@localhost:5672/"
