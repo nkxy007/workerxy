@@ -20,19 +20,21 @@ class CredentialsHelper:
     """
     
     VAULT_FILE = Path.home() / ".creds.vault"
+    CREDS_FILE = Path("creds.py")
     
-    def __init__(self, vault_password: Optional[str] = None):
+    def __init__(self, vault_password: Optional[str] = None, use_vault: bool = True):
         self._credentials: Dict[str, str] = {}
         self._initialized = False
-        self._load_all(vault_password)
+        self._load_all(vault_password, use_vault)
 
-    def _load_all(self, vault_password: Optional[str] = None):
+    def _load_all(self, vault_password: Optional[str] = None, use_vault: bool = True):
         """Loads all available credentials into internal cache and environment variables."""
         # 1. Load from legacy creds.py if available
-        self._load_from_creds_py()
+        if self.CREDS_FILE.exists():
+            self._load_from_creds_py()
         
-        # 2. Load from vault file if available
-        if self.VAULT_FILE.exists():
+        # 2. Load from vault file if available (only if use_vault is True)
+        if use_vault and self.VAULT_FILE.exists():
             self._load_from_vault(vault_password)
         
         # 3. Inject all found credentials into environment variables
@@ -97,7 +99,9 @@ class CredentialsHelper:
             "GEMINI_KEY": "GOOGLE_API_KEY",
             "TAVILY_SEARCH_KEY": "TAVILY_API_KEY",
             "GROK_KEY": "XAI_API_KEY",
-            "GROQ_KEY": "GROQ_API_KEY"
+            "GROQ_KEY": "GROQ_API_KEY",
+            "DEVICES_SSH_USERNAME": "DEVICES_SSH_USERNAME",
+            "DEVICES_SSH_PASSWORD": "DEVICES_SSH_PASSWORD"
         }
         
         for key, value in self._credentials.items():
@@ -139,10 +143,10 @@ class CredentialsHelper:
 # Singleton instance for easy access
 _instance: Optional[CredentialsHelper] = None
 
-def get_helper(password: Optional[str] = None) -> CredentialsHelper:
+def get_helper(password: Optional[str] = None, use_vault: bool = True) -> CredentialsHelper:
     global _instance
     if _instance is None:
-        _instance = CredentialsHelper(password)
+        _instance = CredentialsHelper(password, use_vault)
     return _instance
 
 def get_credential(key: str, default: Optional[str] = None) -> Optional[str]:

@@ -29,10 +29,25 @@ import csv
 from datetime import datetime
 from tools_helpers.retriever_archiver import ArchiverRetriever
 from utils.credentials_helper import get_helper
-import time
+import argparse
+import getpass
 
-# Initialize credentials
-get_helper()
+# Initialize credentials based on CLI arguments
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument('--vault', action='store_true', help='Use credentials from vault file')
+args, remaining_argv = parser.parse_known_args()
+
+# Update sys.argv to remove our custom flags so FastMCP doesn't error
+sys.argv = [sys.argv[0]] + remaining_argv
+
+if args.vault:
+    # Prompt for password if we are using the vault
+    print("\n--- Vault Access Requested ---")
+    password = getpass.getpass("Enter vault decryption password: ")
+    get_helper(password=password, use_vault=True)
+else:
+    # Fallback to creds.py (no vault prompt)
+    get_helper(use_vault=False)
 
 from net_deepagent_cli.communication.logger import setup_logger
 
@@ -72,10 +87,10 @@ def log_tool_call_to_csv(tool_name: str, intention: str, **kwargs):
 
 
 class DeviceSShSession:
-    def __init__(self, management_ip: str, username: str = 'admin', password: str = 'password'):
+    def __init__(self, management_ip: str, username: Optional[str] = None, password: Optional[str] = None):
         self.management_ip = management_ip
-        self.username = username
-        self.password = password
+        self.username = username or os.environ.get("DEVICES_SSH_USERNAME", "admin")
+        self.password = password or os.environ.get("DEVICES_SSH_PASSWORD", "password")
 
     def execute_command(self, command: str) -> str:
         # create ssh connection to the device and execute the command, set timeout to 5 seconds, and change buffer to 15000
