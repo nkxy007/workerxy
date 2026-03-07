@@ -4,9 +4,13 @@ from typing import List, Dict, Any
 from net_deepagent_cli.ui import TerminalUI
 from net_deepagent_cli.commands import handle_command
 from net_deepagent_cli.automata import AutomataManager, handle_automata_ui
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from net_deepagent_cli.drift import TopicDriftDetector
 from net_deepagent_cli.association import InteractionAssociationEngine
+import json
+import datetime
+from pathlib import Path
+from langchain_core.messages import message_to_dict, HumanMessage, AIMessage, ToolMessage
+from net_deepagent_cli.communication.session import save_session, load_session
 
 # Set unified log file for the entire process
 set_process_log_file("main.log")
@@ -153,9 +157,11 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
     """Stream agent response with real-time updates"""
     
     # In LangGraph/DeepAgent, the state is passed. 
-    # We want to keep track of what's new.
-    
     try:
+        discord_channel_id = kwargs.get("discord_channel_id")
+        author = kwargs.get("author")
+        session_id = kwargs.get("session_id")
+        
         # We use a Live display for the assistant's growing message
         with ui.show_progress("Agent is thinking...") as progress:
             task = progress.add_task("Processing request...", total=100)
@@ -257,6 +263,7 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
         # Fires once after the full agent turn completes (all tool iterations done).
         # No-op in interactive CLI mode — discord_channel_id is never present there.
         discord_channel_id = kwargs.get("discord_channel_id")
+        author = kwargs.get("author")
         if discord_channel_id:
             final_ai = next(
                 (
@@ -273,6 +280,37 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                     channel_id=discord_channel_id,
                     channel_name=kwargs.get("channel_name"),
                 )
+
+        # --- Memory Feature: Persistent Session Saving ---
+        if session_id:
+            try:
+                # We load the existing session state to append the NEW messages generated in this turn
+                session = load_session(session_id)
+                session["messages"] = messages
+                save_session(session_id, session)
+                logger.info(f"Memory synced for session {session_id}")
+            except Exception as e:
+                logger.error(f"Failed to sync memory for session {session_id}: {e}")
+        
+        # --- Legacy/Fallback Session Saving (per author per timestamp) ---
+        elif author and (discord_channel_id or kwargs.get("channel_name")):
+            try:
+                # Target directory: ~/.net_deepagent/online_chat_sessions/<user-id>/
+                base_dir = Path.home() / ".net_deepagent" / "online_chat_sessions" / str(author)
+                base_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Filename: timestamp.json
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                filepath = base_dir / f"{timestamp}.json"
+                
+                # Serialize and save
+                serialized_messages = [message_to_dict(m) for m in messages]
+                with open(filepath, 'w') as f:
+                    json.dump(serialized_messages, f, indent=2)
+                    
+                logger.info(f"Online session saved for user {author} to {filepath}")
+            except Exception as e:
+                logger.error(f"Failed to save online session for {author}: {e}")
 
     except Exception as e:
         ui.print_message(f"An error occurred: {str(e)}", role="error")

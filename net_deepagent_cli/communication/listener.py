@@ -6,6 +6,12 @@ from net_deepagent_cli.communication.schema import AgentMessage
 from net_deepagent_cli.communication.tools import init_rabbit_channel, send_discord_message
 from net_deepagent_cli.communication.logger import comm_logger as logger
 from net_deepagent_cli.loop import stream_agent_response
+from net_deepagent_cli.communication.session import (
+    load_session, save_session, clear_session, 
+    build_llm_messages, estimate_tokens, 
+    filter_tool_messages, TOKEN_THRESHOLD, RECENT_EXCHANGES_TO_KEEP
+)
+from net_deepagent_cli.communication.summariser import summarise_session
 
 async def run_agent_listener(agent: Any, connection: aio_pika.Connection, ui: Any = None):
     """
@@ -41,20 +47,54 @@ async def run_agent_listener(agent: Any, connection: aio_pika.Connection, ui: An
                     })
                     logger.info("Phase 2: Ack sent to Discord.")
 
-                # Build initial message list
+                # --- Memory Feature: Load and process session ---
+                RESET_KEYWORDS = ["reset", "new topic", "start over", "clear history"]
+                if any(kw in payload.content.lower() for kw in RESET_KEYWORDS):
+                    clear_session(payload.channel_id)
+                    logger.info(f"Session cleared for channel {payload.channel_id}")
+                    # Acknowledge the reset
+                    if payload.channel_id or payload.channel_name:
+                        await send_discord_message.ainvoke({
+                            "channel_id": payload.channel_id,
+                            "message": "🔄 Conversation memory has been reset.",
+                            "channel_name": payload.channel_name,
+                        })
+                    continue
+
+                session = load_session(payload.channel_id)
+                
+                # Check for summarisation
+                current_tokens = estimate_tokens(filter_tool_messages(session["messages"]))
+                if current_tokens >= TOKEN_THRESHOLD:
+                    logger.info(f"Token threshold hit ({current_tokens}). Summarising...")
+                    summary = await summarise_session(session)
+                    
+                    # Keep most recent exchanges
+                    recent = filter_tool_messages(session["messages"])
+                    recent = recent[-(RECENT_EXCHANGES_TO_KEEP * 2):]
+                    
+                    session = {"summary": summary, "messages": recent}
+                    save_session(payload.channel_id, session)
+                    logger.info("Session history replaced with summary.")
+
+                # Append new user message
                 msg = HumanMessage(content=payload.content)
-                messages_list = [msg]
+                session["messages"].append(msg)
+                
+                # Build context-aware message list for LLM
+                llm_messages = build_llm_messages(session)
 
                 # stream_agent_response handles Phase 1 (final reply to Discord)
                 # by detecting discord_channel_id in kwargs after streaming completes.
                 await stream_agent_response(
                     agent,
-                    messages_list,
+                    llm_messages,
                     ui,
                     auto_approve=True,
                     discord_channel_id=payload.channel_id,
                     author=payload.author,
                     channel_name=payload.channel_name,
+                    session_id=payload.channel_id, # Link back to the session for saving the AI response
                 )
 
             except Exception as e:
