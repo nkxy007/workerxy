@@ -34,11 +34,6 @@ import asyncio
 from langchain.agents import create_agent
 from prompts import network_activity_planner_agent_template, LAN_subagent_template
 
-# Evaluation with Trulens imports
-from trulens.core import Feedback, TruSession, Select
-from trulens.core.feedback.selector import Selector
-from trulens.providers.openai import OpenAI as TrulensOpenAI
-from trulens.apps.langgraph import TruGraph
 from langchain.agents.middleware import PIIMiddleware
 from custom_middleware.netpii_middlewares import PIIPseudonymizationMiddleware
 
@@ -504,6 +499,12 @@ async def main():
 
     elif choice == '2':
         print("\nRunning in Evaluation Mode (TruLens)...")
+        # Evaluation with Trulens imports
+        from trulens.core import Feedback, TruSession, Select
+        from trulens.core.feedback.selector import Selector
+        from trulens.providers.openai import OpenAI as TrulensOpenAI
+        from trulens.apps.langgraph import TruGraph
+        
         # evaluation layer 
         session = TruSession()
         session.reset_database()

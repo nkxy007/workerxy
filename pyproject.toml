@@ -2,7 +2,7 @@
 name = "agentic"
 version = "0.1.0"
 description = "Network agent automation and LangChain-based AI system"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "streamlit>=1.52.2",
     "paramiko",
@@ -20,6 +20,7 @@ dependencies = [
     "langchain-mcp-adapters",
     "google-generativeai",
     "trulens-core",
+    "trulens-providers-openai",
     "trustcall",
     "mcp",
     "playwright>=1.57.0",
@@ -35,4 +36,32 @@ dependencies = [
     "pypdf",
     "aio-pika>=9.0.0",
     "discord.py>=2.3.0",
+    "InquirerPy",
+]
+
+[project.scripts]
+workerxy = "net_deepagent_cli.entrypoint:main"
+
+[tool.setuptools.packages.find]
+include = ["*"]
+exclude = ["*creds*", "*vault*"]
+
+[tool.setuptools]
+py-modules = [
+    "ai_helper",
+    "code_executor",
+    "creds",
+    "custom_middleware_gpt",
+    "design_crunch_tool",
+    "local_tools",
+    "main",
+    "mcp_servers",
+    "net_deepagent",
+    "net_deepagent_old",
+    "prompts",
+    "service_now_changes_helper",
+    "service_now_incidents_helper",
+    "snow_creds",
+    "test_models",
+    "verify_final_skills_v2"
 ]
