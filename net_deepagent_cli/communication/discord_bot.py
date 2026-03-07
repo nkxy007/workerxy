@@ -6,6 +6,12 @@ import sys
 import logging
 import logging
 from pathlib import Path
+from warnings import filterwarnings
+filterwarnings("ignore", category=DeprecationWarning)
+filterwarnings("ignore", category=RuntimeWarning)
+# ignore typing.NotRequired
+filterwarnings("ignore", category=FutureWarning)
+filterwarnings("ignore", category=UserWarning)
 
 # Add project root to path to import creds and logic
 sys.path.append(str(Path(__file__).parent.parent.parent))

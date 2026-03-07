@@ -12,6 +12,12 @@ import creds
 from net_deepagent_cli.agent import create_cli_agent
 from net_deepagent_cli.communication.listener import run_agent_listener
 from net_deepagent_cli.ui import TerminalUI
+from warnings import filterwarnings
+filterwarnings("ignore", category=DeprecationWarning)
+filterwarnings("ignore", category=RuntimeWarning)
+# ignore typing.NotRequired
+filterwarnings("ignore", category=FutureWarning)
+filterwarnings("ignore", category=UserWarning)
 
 # Configure logging
 logging.basicConfig(

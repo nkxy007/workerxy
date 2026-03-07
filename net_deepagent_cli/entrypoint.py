@@ -1,5 +1,12 @@
 import sys
 import asyncio
+from warnings import filterwarnings
+filterwarnings("ignore", category=DeprecationWarning)
+filterwarnings("ignore", category=RuntimeWarning)
+# ignore typing.NotRequired
+filterwarnings("ignore", category=FutureWarning)
+filterwarnings("ignore", category=UserWarning)
+
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] not in ["cli", "headless"]:
