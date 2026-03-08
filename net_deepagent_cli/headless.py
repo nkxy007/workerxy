@@ -34,8 +34,13 @@ async def run_headless():
     parser.add_argument("--subagent-model", default="gpt-5-mini-minimal", help="Subagent model to use")
     parser.add_argument("--design-model", default="gpt-5.1", help="Design model to use")
     parser.add_argument("--mcp-server", default="http://localhost:8000/mcp", help="MCP server URL")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Set the logging level")
     
     args = parser.parse_args()
+
+    # Set log level immediately
+    from net_deepagent_cli.communication.logger import set_log_level
+    set_log_level(args.log_level)
     
     # We still create a TerminalUI instance but it will be largely suppressed
     # or used for formatted logging if needed.

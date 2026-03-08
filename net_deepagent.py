@@ -18,7 +18,7 @@ get_helper()
 set_process_log_file("main.log")
 
 # Configure logging using centralized utility
-logger = setup_logger("net_deepagent", level=logging.INFO)
+logger = setup_logger("net_deepagent")
 #from langgraph.prebuilt import ToolNode, create_react_agent, InjectedState
 from langgraph.graph import START, END, StateGraph, MessagesState
 from langgraph.checkpoint.memory import MemorySaver

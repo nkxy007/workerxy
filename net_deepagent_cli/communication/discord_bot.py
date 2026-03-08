@@ -6,12 +6,7 @@ import sys
 import logging
 import logging
 from pathlib import Path
-from warnings import filterwarnings
-filterwarnings("ignore", category=DeprecationWarning)
-filterwarnings("ignore", category=RuntimeWarning)
-# ignore typing.NotRequired
-filterwarnings("ignore", category=FutureWarning)
-filterwarnings("ignore", category=UserWarning)
+
 
 # Add project root to path to import creds and logic
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -143,6 +138,18 @@ class AgentBot(discord.Client):
             logger.error(f"Error in consume_outbound: {e}")
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Discord Bot for Net DeepAgent")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Set the logging level")
+    
+    # We use parse_known_args because workerxy entrypoint might pass extra things, 
+    # though entrypoint.py pops the subcommand.
+    args = parser.parse_args()
+
+    # Set log level immediately
+    from net_deepagent_cli.communication.logger import set_log_level
+    set_log_level(args.log_level)
+
     bot = AgentBot(intents=intents)
     try:
         bot.run(creds.DISCORD_API_KEY)

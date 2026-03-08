@@ -31,6 +31,7 @@ from tools_helpers.retriever_archiver import ArchiverRetriever
 from utils.credentials_helper import get_helper
 import argparse
 import getpass
+import time
 
 # Initialize credentials based on CLI arguments
 parser = argparse.ArgumentParser(add_help=False)
@@ -42,7 +43,7 @@ sys.argv = [sys.argv[0]] + remaining_argv
 
 if args.vault:
     # Prompt for password if we are using the vault
-    print("\n--- Vault Access Requested ---")
+    logger.info("\n--- Vault Access Requested ---")
     password = getpass.getpass("Enter vault decryption password: ")
     get_helper(password=password, use_vault=True)
 else:
@@ -111,7 +112,7 @@ class DeviceSShSession:
 
                 # Clear initial banner
                 if shell.recv_ready():
-                    print(shell.recv(65535).decode())
+                    logger.info(shell.recv(65535).decode())
                 # Send command with ?
                 shell.send(command)
                 time.sleep(1)
@@ -144,7 +145,7 @@ class DeviceSShSession:
 
                 # Clear initial banner
                 if shell.recv_ready():
-                    print(shell.recv(65535).decode())
+                    logger.info(shell.recv(65535).decode())
                 # Send command with ?
                 shell.send("enable\n")
                 time.sleep(0.5)
@@ -629,8 +630,10 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, command: List[
     """
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(cloud_ssh_tool.__name__, intention, management_ip=management_ip, cloud_provider=cloud_provider, command=command)
-    logger.info(f"Connecting to {cloud_provider} VM at {management_ip} as {username}")
     device = DeviceSShSession(management_ip)
+    device.username = os.environ.get("CLOUD_DESKTOP_USER","admin")
+    device.password = os.environ.get("CLOUD_DESKTOP_PASSWORD","password")
+    logger.info(f"Connecting to {cloud_provider} VM at {management_ip} as {device.username}")
     output = ""
     for cmd in command:
         logger.info(f"Executing command: {cmd}")
@@ -650,10 +653,10 @@ async def linux_server_ssh_tool(management_ip: str, command: List[str], intentio
     """
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(linux_server_ssh_tool.__name__, intention, management_ip=management_ip, command=command)
-    logger.info(f"Connecting to Linux server at {management_ip} as {username}")
     device = DeviceSShSession(management_ip)
     device.username = os.environ.get("SERVER_USERNAME","admin")
     device.password = os.environ.get("SERVER_PASSWORD","password")
+    logger.info(f"Connecting to Linux server at {management_ip} as {device.username}")
     output = ""
     for cmd in command:
         logger.info(f"Executing command: {cmd}")

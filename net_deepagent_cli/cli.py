@@ -21,8 +21,13 @@ async def run_cli():
     parser.add_argument("--auto-approve", action="store_true", help="Auto-approve all tool calls")
     parser.add_argument("--automatic-context-detection", action="store_true", help="Proactively detect topic drift")
     parser.add_argument("--association-window", type=int, default=5, help="Lookback window for past session association in days")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Set the logging level")
     
     args = parser.parse_args()
+
+    # Set log level immediately
+    from net_deepagent_cli.communication.logger import set_log_level
+    set_log_level(args.log_level)
     
     # Load or create config
     config_manager = AgentConfig(args.agent)

@@ -6,8 +6,9 @@ from typing import Optional
 
 DEFAULT_LOG_DIR = Path.home() / ".net_deepagent" / "logs"
 
-# Global variable to hold the log file for the current process/session
+# Global variables to hold the log file and level for the current process/session
 _PROCESS_LOG_FILE: Optional[Path] = None
+_PROCESS_LOG_LEVEL: int = logging.INFO
 
 def set_process_log_file(log_file: str):
     """
@@ -26,7 +27,7 @@ def set_process_log_file(log_file: str):
 
     # Configure root logger to ensure all libraries find a sane default
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(_PROCESS_LOG_LEVEL)
     
     # Clear existing handlers
     if root_logger.hasHandlers():
@@ -47,7 +48,7 @@ def set_process_log_file(log_file: str):
     except Exception as e:
         print(f"Warning: Could not setup root file logging at {_PROCESS_LOG_FILE}: {e}")
 
-def setup_logger(name: str, log_file: Optional[str] = None, level=logging.INFO):
+def setup_logger(name: str, log_file: Optional[str] = None, level=None):
     """
     Function to setup a logger. 
     Priority for file destination:
@@ -60,6 +61,8 @@ def setup_logger(name: str, log_file: Optional[str] = None, level=logging.INFO):
     
     # Create logger
     logger = logging.getLogger(name)
+    if level is None:
+        level = _PROCESS_LOG_LEVEL
     logger.setLevel(level)
     
     # Disable propagation to root to avoid double logging
@@ -100,6 +103,32 @@ def setup_logger(name: str, log_file: Optional[str] = None, level=logging.INFO):
         print(f"Warning: Could not setup file logging at {final_path}: {e}")
 
     return logger
+
+def set_log_level(level):
+    """
+    Dynamically update the log level for all relevant loggers in the process.
+    'level' can be a string (e.g., 'DEBUG') or a logging level constant.
+    """
+    global _PROCESS_LOG_LEVEL
+    
+    if isinstance(level, str):
+        level = getattr(logging, level.upper(), logging.INFO)
+    
+    _PROCESS_LOG_LEVEL = level
+    
+    # Update root logger (affects everything that propagates)
+    logging.getLogger().setLevel(level)
+    
+    # Update communication logger
+    comm_logger.setLevel(level)
+    
+    # Update all loggers in the project namespaces for already-initialized modules
+    project_namespaces = ("net_deepagent_cli", "communication", "utils", "a2a_capability", "net_deepagent")
+    for name in logging.root.manager.loggerDict:
+        if any(name.startswith(ns) for ns in project_namespaces):
+            logging.getLogger(name).setLevel(level)
+    
+    comm_logger.info(f"Log level set to {logging.getLevelName(level)}")
 
 # Default logger for the communication module
 # Initially setup, but will follow the process log if set later
