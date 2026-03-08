@@ -617,22 +617,20 @@ async def servicenow_create_change_request(short_description: str, description: 
         return f"❌ Failed to create change request: {result.get('error', 'Unknown error')}"
 
 @mcp.tool()
-async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str, password: str, command: List[str], intention: str) -> str:
+async def cloud_ssh_tool(management_ip: str, cloud_provider: str, command: List[str], intention: str) -> str:
     """SSH into a cloud VM and run a command, it can run commands on AWS, Azure, GCP
     args:
         management_ip (str): management IP of the VM
         cloud_provider (str): the cloud provider (AWS, Azure, GCP)
-        username (str): SSH username
-        password (str): SSH password
-        command (List[str]): commands to execute
+        command (List[str]): commands to execute to get information from the cloud
         intention (str): llm intention to call this tool
     returns:
         str: output of the command execution
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv(cloud_ssh_tool.__name__, intention, management_ip=management_ip, cloud_provider=cloud_provider, username=username, command=command)
+    log_tool_call_to_csv(cloud_ssh_tool.__name__, intention, management_ip=management_ip, cloud_provider=cloud_provider, command=command)
     logger.info(f"Connecting to {cloud_provider} VM at {management_ip} as {username}")
-    device = DeviceSShSession(management_ip, username, password)
+    device = DeviceSShSession(management_ip)
     output = ""
     for cmd in command:
         logger.info(f"Executing command: {cmd}")
@@ -641,21 +639,21 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, username: str,
     return output
 
 @mcp.tool()
-async def linux_server_ssh_tool(management_ip: str, command: List[str], intention: str, username: str = 'admin', password: str = 'password') -> str:
+async def linux_server_ssh_tool(management_ip: str, command: List[str], intention: str) -> str:
     """SSH into a Linux server and run a command
     args:
         management_ip (str): management IP of the VM
         command (List[str]): commands to execute
         intention (str): llm intention to call this tool
-        username (str): SSH username (default: admin)
-        password (str): SSH password (default: password)
     returns:
         str: output of the command execution
     """
     logger.info(f"Intention: {intention}")
-    log_tool_call_to_csv(linux_server_ssh_tool.__name__, intention, management_ip=management_ip, command=command, username=username)
+    log_tool_call_to_csv(linux_server_ssh_tool.__name__, intention, management_ip=management_ip, command=command)
     logger.info(f"Connecting to Linux server at {management_ip} as {username}")
-    device = DeviceSShSession(management_ip, username, password)
+    device = DeviceSShSession(management_ip)
+    device.username = os.environ.get("SERVER_USERNAME","admin")
+    device.password = os.environ.get("SERVER_PASSWORD","password")
     output = ""
     for cmd in command:
         logger.info(f"Executing command: {cmd}")
@@ -1283,4 +1281,10 @@ async def query_agent_archives(query: str, intention: str) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http")
+    try:
+        mcp.run(transport="streamable-http")
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user, Exiting...")
+    except Exception as e:
+        logger.error(f"Error running MCP server: {e}")
+        traceback.print_exc()
