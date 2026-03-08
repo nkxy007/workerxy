@@ -9,8 +9,8 @@ filterwarnings("ignore", category=UserWarning)
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ["cli", "headless"]:
-        print("Usage: workerxy {cli,headless} [options]")
+    if len(sys.argv) < 2 or sys.argv[1] not in ["cli", "headless", "discord"]:
+        print("Usage: workerxy {cli,headless,discord} [options]")
         sys.exit(1)
 
     command = sys.argv.pop(1)  # Remove the subcommand so existing parsers work cleanly
@@ -25,6 +25,9 @@ def main():
         except KeyboardInterrupt:
             # Matches existing headless.py behavior
             logger.info("Headless agent stopped by user.")
+    elif command == "discord":
+        from net_deepagent_cli.communication.discord_bot import main as discord_main
+        discord_main()
 
 if __name__ == "__main__":
     main()
