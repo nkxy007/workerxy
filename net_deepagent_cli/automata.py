@@ -118,7 +118,7 @@ class AutomataManager:
              return filepath.read_text()
         return "Log file not found."
 
-    def add_task(self, prompt: str, interval_seconds: int = 0, cron: str = None) -> str:
+    def add_task(self, prompt: str, interval_seconds: int = 0, cron: str = None, end_time: str = None) -> str:
         """Add a new task"""
         import uuid
         task_id = str(uuid.uuid4())[:8]
@@ -129,6 +129,7 @@ class AutomataManager:
             "created_at": str(datetime.now()),
             "interval_seconds": interval_seconds,
             "cron": cron,
+            "end_time": end_time,
             "enabled": True
         }
         
@@ -179,9 +180,24 @@ class AutomataManager:
         if not task_info.get("enabled", True):
             return
 
+        # Check if expired
+        end_time_str = task_info.get("end_time")
+        end_date = None
+        if end_time_str:
+            try:
+                end_date = datetime.fromisoformat(end_time_str)
+                if end_date < datetime.now():
+                    logger.info(f"Task {task_id} has expired (End Time: {end_time_str}). Not scheduling.")
+                    task_info["enabled"] = False
+                    task_info["stale"] = True
+                    task_info["last_status"] = "Expired"
+                    return
+            except Exception as e:
+                logger.error(f"Failed to parse end_time for task {task_id}: {e}")
+
         trigger = None
         if task_info.get("interval_seconds", 0) > 0:
-            trigger = IntervalTrigger(seconds=task_info["interval_seconds"])
+            trigger = IntervalTrigger(seconds=task_info["interval_seconds"], end_date=end_date)
         # TODO: Add cron support parsing if needed
         elif task_info.get("cron"):
              # Simple cron string support if needed later
@@ -196,6 +212,20 @@ class AutomataManager:
                 replace_existing=True
             )
 
+    def _normalize_content(self, msg_content: Any) -> str:
+        """Normalize message content to string (handles list of blocks)"""
+        if isinstance(msg_content, list):
+            text_parts = []
+            for block in msg_content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+                elif isinstance(block, str):
+                    text_parts.append(block)
+                elif hasattr(block, "text"): # Support for some objects
+                    text_parts.append(getattr(block, "text"))
+            return "".join(text_parts)
+        return str(msg_content) if msg_content is not None else ""
+
     async def execute_agent_task(self, prompt: str, task_id: str):
         """Execute the agent task"""
         logger.info(f"Executing Automata Task {task_id}: {prompt}")
@@ -209,7 +239,7 @@ class AutomataManager:
              content = "No output."
              if "messages" in result:
                  last_msg = result["messages"][-1]
-                 content = last_msg.content
+                 content = self._normalize_content(last_msg.content)
                  logger.info(f"Task {task_id} completed. Result: {content[:50]}...")
              
              # Save result to file
@@ -226,27 +256,31 @@ class AutomataManager:
             self.save_tasks()
 
     async def get_agent_help_for_parsing(self, user_input: str) -> Dict[str, Any]:
-        """Ask the agent to parse the user input into prompt and interval"""
+        """Ask the agent to parse the user input into prompt, interval, and optional end_time"""
         try:
+            now = datetime.now().isoformat()
             # We construct a specific prompt for the agent to act as a parser
             parsing_prompt = (
                 f"You are a parser helper. The user wants to schedule a task.\n"
+                f"Current Time: {now}\n"
                 f"User Input: '{user_input}'\n"
-                f"Extract the task description and the interval in seconds.\n"
-                f"Return ONLY a JSON object with keys 'prompt' (str) and 'interval_seconds' (int).\n"
-                f"If you cannot determine an interval, set 'interval_seconds' to 0.\n"
-                f"Example JSON: {{\"prompt\": \"check ping\", \"interval_seconds\": 60}}"
+                f"Extract the task description, the interval in seconds, and an optional end_time.\n"
+                f"Return ONLY a JSON object with keys:\n"
+                f"- 'prompt' (str): The task to perform.\n"
+                f"- 'interval_seconds' (int): How often to run it (0 if not specified).\n"
+                f"- 'end_time' (str, optional): ISO 8601 timestamp when the task should stop (null if not specified).\n"
+                f"If the user says 'for 5 hours', calculate the end_time based on the Current Time.\n"
+                f"If the user says 'till 1:30', assume the next occurrence of 1:30 AM/PM and return the ISO timestamp.\n"
+                f"Example JSON: {{\"prompt\": \"check ping\", \"interval_seconds\": 60, \"end_time\": \"2024-05-20T15:00:00\"}}"
             )
             
             # We use ainvoke on the agent. 
-            # Note: This might trigger a full agent step (tools etc).
-            # To avoid that, we hope the main model follows instructions and returns JSON.
             inputs = {"messages": [HumanMessage(content=parsing_prompt)]}
             result = await self.agent.ainvoke(inputs)
             
             if "messages" in result:
                 last_msg = result["messages"][-1]
-                content = last_msg.content
+                content = self._normalize_content(last_msg.content)
                 
                 # Cleanup potential markdown code blocks
                 if "```json" in content:
@@ -311,6 +345,7 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
             table.add_column("ID", style="cyan")
             table.add_column("Prompt", style="white")
             table.add_column("Interval", style="green")
+            table.add_column("End Time", style="blue")
             table.add_column("Last Run", style="yellow")
             table.add_column("Status", style="magenta")
             
@@ -323,6 +358,18 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
                 else:
                     interval_str = f"{interval_s}s"
                 
+                # Format end_time nicely
+                end_time_raw = t.get("end_time")
+                if end_time_raw:
+                    try:
+                        # Try to make it a bit more readable
+                        dt = datetime.fromisoformat(end_time_raw)
+                        end_time_str = dt.strftime("%Y-%m-%d %H:%M")
+                    except:
+                        end_time_str = end_time_raw
+                else:
+                    end_time_str = "[dim]Forever[/dim]"
+
                 status = t.get("last_status", "Unknown")
                 status_style = "magenta"
                 
@@ -331,6 +378,9 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
                     if t.get("stale", False):
                         status = "STALE (Stopped)"
                         status_style = "dim yellow"
+                        if t.get("last_status") == "Expired":
+                            status = "EXPIRED"
+                            status_style = "dim red"
                     else:
                         status = "DISABLED"
                         status_style = "dim"
@@ -339,6 +389,7 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
                     t["id"],
                     t["prompt"],
                     interval_str,
+                    end_time_str,
                     t.get("last_run", "Never"),
                     f"[{status_style}]{status}[/{status_style}]"
                 )
@@ -447,8 +498,9 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
             prompt_parts = prompt_parts[1:]
         prompt = " ".join(prompt_parts).strip()
         
-    # 2. If regex fail or prompt empty, try LLM fallback
-    if not prompt or interval == 0:
+    # 2. If regex fail or prompt empty, or contains duration/end keywords, try LLM fallback
+    # This allows the LLM to handle complex timelines like "for 5 hours" or "till 1:30"
+    if not prompt or interval == 0 or any(kw in command.lower() for kw in ["for", "till", "until", "duration"]):
          ui.console.print("[dim]Parsing with agent intelligence...[/dim]")
          parsed = await manager.get_agent_help_for_parsing(command)
          if parsed and "prompt" in parsed and "interval_seconds" in parsed:
@@ -456,8 +508,13 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
              interval = parsed["interval_seconds"]
     
     if prompt and interval > 0:
-        task_id = manager.add_task(prompt, interval_seconds=interval)
-        ui.console.print(f"[green]Task added with ID {task_id} (Interval: {interval}s)[/green]")
+        end_time = None
+        if 'parsed' in locals() and parsed:
+            end_time = parsed.get("end_time")
+            
+        task_id = manager.add_task(prompt, interval_seconds=interval, end_time=end_time)
+        end_str = f", End: {end_time}" if end_time else ""
+        ui.console.print(f"[green]Task added with ID {task_id} (Interval: {interval}s{end_str})[/green]")
         return True
     
     if "every" in command:
