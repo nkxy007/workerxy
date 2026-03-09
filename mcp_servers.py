@@ -23,6 +23,7 @@ import traceback
 import base64
 import aiohttp
 import urllib.parse
+from urllib.parse import urlparse
 from pathlib import Path
 import xml.etree.ElementTree as ET
 import csv
@@ -32,6 +33,10 @@ from utils.credentials_helper import get_helper
 import argparse
 import getpass
 import time
+from enum import Enum
+import httpx
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 
 # Initialize credentials based on CLI arguments
 parser = argparse.ArgumentParser(add_help=False)
@@ -1280,7 +1285,528 @@ async def query_agent_archives(query: str, intention: str) -> str:
         logger.error(f"Error querying archives: {e}")
         return f"❌ Failed to query archives: {str(e)}"
 
+## API Calls adapter #####
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
 
+DEFAULT_TIMEOUT = 30.0          # seconds
+MAX_RESPONSE_BYTES = 1_048_576  # 1 MB — truncate larger responses
+OAUTH2_TOKEN_CACHE: dict[str, str] = {}  # simple in-process cache keyed by prefix
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+class HttpMethod(str, Enum):
+    GET    = "GET"
+    POST   = "POST"
+    PUT    = "PUT"
+    PATCH  = "PATCH"
+    DELETE = "DELETE"
+    HEAD   = "HEAD"
+
+
+class AuthMethod(str, Enum):
+    NONE                    = "none"
+    BASIC_AUTH              = "basic_auth"
+    BEARER_TOKEN            = "bearer_token"
+    API_KEY_HEADER          = "api_key_header"
+    OAUTH2_CLIENT_CREDS     = "oauth2_client_credentials"
+
+
+# ---------------------------------------------------------------------------
+# Input model
+# ---------------------------------------------------------------------------
+
+class RestApiCallInput(BaseModel):
+    """Input model for generic REST API call."""
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
+
+    base_url: str = Field(
+        ...,
+        description=(
+            "Base URL of the API including scheme and host. "
+            "Examples: 'https://nsxmgr.corp', 'https://api.github.com'. "
+            "Used to derive the env var prefix for credential resolution."
+        ),
+        min_length=7,
+        max_length=512,
+    )
+
+    endpoint: str = Field(
+        ...,
+        description=(
+            "API endpoint path, starting with '/'. "
+            "Examples: '/api/v1/logical-switches', '/repos/owner/repo/issues'."
+        ),
+        min_length=1,
+        max_length=1024,
+    )
+
+    method: HttpMethod = Field(
+        default=HttpMethod.GET,
+        description="HTTP method: GET, POST, PUT, PATCH, DELETE, HEAD.",
+    )
+
+    auth_method: AuthMethod = Field(
+        default=AuthMethod.NONE,
+        description=(
+            "Authentication scheme. Credentials are resolved from env vars "
+            "derived from the base_url hostname — never passed as parameters. "
+            "Options: none, basic_auth, bearer_token, api_key_header, "
+            "oauth2_client_credentials."
+        ),
+    )
+
+    body: Optional[dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Request body as a JSON object. Used for POST, PUT, PATCH. "
+            "Ignored for GET, HEAD, DELETE."
+        ),
+    )
+
+    query_params: Optional[dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "URL query parameters as a key-value dict. "
+            "Example: {'page': 1, 'per_page': 50}."
+        ),
+    )
+
+    extra_headers: Optional[dict[str, str]] = Field(
+        default=None,
+        description=(
+            "Additional HTTP headers to include in the request. "
+            "Do NOT pass Authorization here — use auth_method instead."
+        ),
+    )
+
+    use_proxy: bool = Field(
+        default=False,
+        description=(
+            "If True, route the request through the proxy configured in "
+            "HTTP_PROXY / HTTPS_PROXY environment variables."
+        ),
+    )
+
+    verify_ssl: bool = Field(
+        default=True,
+        description=(
+            "If False, skip TLS certificate verification. "
+            "Useful for internal APIs with self-signed certs."
+        ),
+    )
+
+    timeout: float = Field(
+        default=DEFAULT_TIMEOUT,
+        description="Request timeout in seconds.",
+        ge=1.0,
+        le=300.0,
+    )
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, v: str) -> str:
+        parsed = urlparse(v)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("base_url must start with http:// or https://")
+        if not parsed.netloc:
+            raise ValueError("base_url must include a valid hostname")
+        # Strip trailing slash for consistent joining
+        return v.rstrip("/")
+
+    @field_validator("endpoint")
+    @classmethod
+    def validate_endpoint(cls, v: str) -> str:
+        if not v.startswith("/"):
+            raise ValueError("endpoint must start with '/'")
+        return v
+
+    @field_validator("extra_headers")
+    @classmethod
+    def block_auth_headers(cls, v: Optional[dict[str, str]]) -> Optional[dict[str, str]]:
+        if not v:
+            return v
+        forbidden = {"authorization", "x-api-key", "api-key", "x-auth-token"}
+        lowered = {k.lower() for k in v}
+        overlap = forbidden & lowered
+        if overlap:
+            raise ValueError(
+                f"Do not pass auth headers directly ({overlap}). "
+                "Use auth_method instead — credentials come from env vars."
+            )
+        return v
+
+
+# ---------------------------------------------------------------------------
+# Credential resolution helpers
+# ---------------------------------------------------------------------------
+
+def _env_prefix(base_url: str) -> str:
+    """
+    Derive an env var prefix from the base URL hostname.
+
+    Examples:
+      https://nsxmgr.corp         → NSXMGR_CORP
+      https://api.github.com      → API_GITHUB_COM
+      https://rabbitmq.internal:15672 → RABBITMQ_INTERNAL
+    """
+    parsed = urlparse(base_url)
+    host = parsed.hostname or ""  # strips port
+    # Replace dots/hyphens with underscores, uppercase
+    prefix = re.sub(r"[.\-]", "_", host).upper()
+    return prefix
+
+
+def _require_env(var: str) -> str:
+    """Read a required env var or raise a descriptive error."""
+    val = os.environ.get(var)
+    if not val:
+        raise EnvironmentError(
+            f"Required env var '{var}' is not set. "
+            "Set it in your environment before using this auth method."
+        )
+    return val
+
+
+def _build_auth_headers(auth_method: AuthMethod, prefix: str) -> dict[str, str]:
+    """
+    Resolve credentials from env vars and return the appropriate auth headers.
+    Never returns raw credentials to the LLM — only injects them into headers.
+    """
+    logger.info(f"Building auth headers for prefix: {prefix}")
+    if auth_method == AuthMethod.NONE:
+        return {}
+
+    if auth_method == AuthMethod.BASIC_AUTH:
+        logger.info("Building headers for basic authentication")
+        import base64
+        user = _require_env(f"{prefix}_USER")
+        passwd = _require_env(f"{prefix}_PASS")
+        token = base64.b64encode(f"{user}:{passwd}".encode()).decode()
+        return {"Authorization": f"Basic {token}"}
+
+    if auth_method == AuthMethod.BEARER_TOKEN:
+        token = _require_env(f"{prefix}_TOKEN")
+        scheme = os.environ.get(f"{prefix}_TOKEN_SCHEME", "Bearer")  # default Bearer, override per API
+        return {"Authorization": f"{scheme} {token}"}
+
+    if auth_method == AuthMethod.API_KEY_HEADER:
+        logger.info("Building headers for api key authentication")
+        api_key = _require_env(f"{prefix}_API_KEY")
+        header_name = os.environ.get(f"{prefix}_API_KEY_HEADER", "X-API-Key")
+        return {header_name: api_key}
+
+    if auth_method == AuthMethod.OAUTH2_CLIENT_CREDS:
+        logger.info("Building headers for oauth2 client credentials")
+        return _oauth2_client_credentials(prefix)
+    logger.warning("Unknown auth method: %s", auth_method)
+
+    return {}
+
+
+def _oauth2_client_credentials(prefix: str) -> dict[str, str]:
+    """
+    Obtain an OAuth2 bearer token via client_credentials grant.
+    Token is cached in-process to avoid redundant token requests.
+    """
+    if prefix in OAUTH2_TOKEN_CACHE:
+        return {"Authorization": f"Bearer {OAUTH2_TOKEN_CACHE[prefix]}"}
+
+    client_id     = _require_env(f"{prefix}_CLIENT_ID")
+    client_secret = _require_env(f"{prefix}_CLIENT_SECRET")
+    token_url     = _require_env(f"{prefix}_TOKEN_URL")
+
+    with httpx.Client(timeout=30) as client:
+        resp = client.post(
+            token_url,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+        )
+        resp.raise_for_status()
+        token = resp.json()["access_token"]
+
+    OAUTH2_TOKEN_CACHE[prefix] = token
+    logger.info("OAuth2 token obtained and cached for prefix %s", prefix)
+    return {"Authorization": f"Bearer {token}"}
+
+
+# ---------------------------------------------------------------------------
+# Proxy helper
+# ---------------------------------------------------------------------------
+
+def _proxy_settings() -> Optional[str]:
+    """Return proxy URL from env, preferring HTTPS_PROXY over HTTP_PROXY."""
+    return os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+
+
+# ---------------------------------------------------------------------------
+# HTTP execution
+# ---------------------------------------------------------------------------
+
+async def _execute_request(params: RestApiCallInput) -> dict[str, Any]:
+    """
+    Build and execute the HTTP request. Returns a structured result dict.
+    """
+    url = params.base_url + params.endpoint
+    prefix = _env_prefix(params.base_url)
+
+    # Resolve auth headers
+    try:
+        auth_headers = _build_auth_headers(params.auth_method, prefix)
+    except EnvironmentError as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "hint": (
+                f"Env var prefix derived from '{params.base_url}' is '{prefix}'. "
+                f"Set the required vars (e.g. {prefix}_USER, {prefix}_PASS) "
+                "in your environment."
+            ),
+        }
+
+    # Merge headers
+    headers: dict[str, str] = {"Content-Type": "application/json", "Accept": "application/json"}
+    headers.update(auth_headers)
+    if params.extra_headers:
+        logger.info(f"Extra headers: {params.extra_headers}")
+        headers.update(params.extra_headers)
+
+    # Proxy
+    proxy: Optional[str] = None
+    if params.use_proxy:
+        proxy = _proxy_settings()
+        if not proxy:
+            return {
+                "success": False,
+                "error": "use_proxy=True but neither HTTP_PROXY nor HTTPS_PROXY is set in environment.",
+            }
+
+    # Build httpx client kwargs
+    client_kwargs: dict[str, Any] = {
+        "timeout": params.timeout,
+        "verify": params.verify_ssl,
+    }
+    if proxy:
+        client_kwargs["proxy"] = proxy
+
+    # Body — only attach for mutating methods
+    body_bytes: Optional[bytes] = None
+    if params.body and params.method in (HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH):
+        body_bytes = json.dumps(params.body).encode("utf-8")
+
+    try:
+        async with httpx.AsyncClient(**client_kwargs) as client:
+            response = await client.request(
+                method=params.method.value,
+                url=url,
+                headers=headers,
+                params=params.query_params,
+                content=body_bytes,
+            )
+
+        # Parse response
+        status = response.status_code
+        response_headers = dict(response.headers)
+        content_type = response_headers.get("content-type", "")
+
+        # Truncate large responses
+        raw = response.content
+        truncated = False
+        if len(raw) > MAX_RESPONSE_BYTES:
+            raw = raw[:MAX_RESPONSE_BYTES]
+            truncated = True
+
+        # Try JSON decode
+        body_out: Any
+        try:
+            body_out = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            body_out = raw.decode("utf-8", errors="replace")
+
+        return {
+            "success": status < 400,
+            "status_code": status,
+            "url": str(response.url),
+            "method": params.method.value,
+            "auth_method": params.auth_method.value,
+            "env_prefix": prefix,
+            "response_body": body_out,
+            "response_headers": response_headers,
+            "truncated": truncated,
+        }
+
+    except httpx.HTTPStatusError as e:
+        return {
+            "success": False,
+            "status_code": e.response.status_code,
+            "error": f"HTTP error {e.response.status_code}: {e.response.text[:500]}",
+        }
+    except httpx.TimeoutException:
+        return {
+            "success": False,
+            "error": f"Request timed out after {params.timeout}s. Consider increasing the timeout parameter.",
+        }
+    except httpx.ConnectError as e:
+        return {
+            "success": False,
+            "error": f"Connection failed: {e}. Check base_url and network connectivity.",
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Unexpected error: {type(e).__name__}: {e}",
+        }
+
+
+# ---------------------------------------------------------------------------
+# MCP tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool(
+    name="rest_api_call",
+    annotations={
+        "title": "Generic REST API Call",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+)
+async def rest_api_call(params: RestApiCallInput, intention: str) -> str:
+    """
+    Execute an HTTP request against any REST API endpoint.
+
+    Credentials are NEVER passed as parameters. The tool derives an env var
+    prefix from the base_url hostname and reads credentials from the
+    environment at call time. The LLM only specifies which auth scheme to use.
+
+    Env var naming convention (examples):
+      https://nsxmgr.corp          → prefix NSXMGR_CORP
+        Basic auth:   NSXMGR_CORP_USER, NSXMGR_CORP_PASS
+        Bearer:       NSXMGR_CORP_TOKEN
+        API key:      NSXMGR_CORP_API_KEY (header name: NSXMGR_CORP_API_KEY_HEADER)
+        OAuth2:       NSXMGR_CORP_CLIENT_ID, NSXMGR_CORP_CLIENT_SECRET, NSXMGR_CORP_TOKEN_URL
+
+      https://api.github.com       → prefix API_GITHUB_COM
+        Bearer:       API_GITHUB_COM_TOKEN
+
+    Args:
+        params (RestApiCallInput): Validated input containing:
+            - base_url (str): API base URL (scheme + host)
+            - endpoint (str): Endpoint path starting with '/'
+            - method (HttpMethod): GET | POST | PUT | PATCH | DELETE | HEAD
+            - auth_method (AuthMethod): Authentication scheme
+            - body (dict | None): Request body for POST/PUT/PATCH
+            - query_params (dict | None): URL query parameters
+            - extra_headers (dict | None): Additional headers (no auth headers)
+            - use_proxy (bool): Route through HTTP_PROXY / HTTPS_PROXY
+            - verify_ssl (bool): Verify TLS certificates (default True)
+            - timeout (float): Request timeout in seconds
+        intention (str): The user's intention for this API call.
+
+    Returns:
+        str: JSON-formatted response containing:
+            {
+              "success": bool,
+              "status_code": int,
+              "url": str,
+              "method": str,
+              "auth_method": str,
+              "env_prefix": str,        # derived prefix used for credential lookup
+              "response_body": any,     # parsed JSON or raw text
+              "response_headers": dict,
+              "truncated": bool,        # True if response exceeded 1 MB
+              "error": str              # only present on failure
+            }
+    """
+    logger.info(f"calling: {rest_api_call.__name__}")
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(rest_api_call.__name__,intention, query=params.model_dump(exclude={"body"}, exclude_none=True))
+    result = await _execute_request(params)
+    return json.dumps(result, indent=2, default=str)
+
+
+@mcp.tool(
+    name="rest_api_inspect_env",
+    annotations={
+        "title": "Inspect REST API Env Var Prefix",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
+)
+async def rest_api_inspect_env(base_url: str, intention: str) -> str:
+    """
+    Show what env var prefix and variable names will be used for a given base_url.
+
+    Use this before calling rest_api_call to verify which environment variables
+    need to be set for a given API endpoint and auth method.
+
+    Args:
+        base_url (str): The API base URL to inspect (e.g. 'https://nsxmgr.corp').
+
+    Returns:
+        str: JSON showing the derived prefix and all expected variable names per auth method.
+    """
+    logger.info(f"calling: {rest_api_inspect_env.__name__}")
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(rest_api_inspect_env.__name__, intention)
+    try:
+        base_url = base_url.rstrip("/")
+        parsed = urlparse(base_url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            return json.dumps({"error": "Invalid base_url. Must start with http:// or https://"})
+
+        prefix = _env_prefix(base_url)
+        logger.info(f"searching for variables on prefix: {prefix}")
+
+        expected_vars = {
+            "basic_auth": [f"{prefix}_USER", f"{prefix}_PASS"],
+            "bearer_token": [f"{prefix}_TOKEN"],
+            "api_key_header": [f"{prefix}_API_KEY", f"{prefix}_API_KEY_HEADER (optional, default: X-API-Key)"],
+            "oauth2_client_credentials": [
+                f"{prefix}_CLIENT_ID",
+                f"{prefix}_CLIENT_SECRET",
+                f"{prefix}_TOKEN_URL",
+            ],
+        }
+        logger.info(f"expected variables: {expected_vars}")
+
+        # Check which vars are already set (presence only, not values)
+        presence: dict[str, dict[str, bool]] = {}
+        for method, vars_ in expected_vars.items():
+            presence[method] = {}
+            for var in vars_:
+                clean_var = var.split(" ")[0]  # strip "(optional...)" notes
+                presence[method][clean_var] = bool(os.environ.get(clean_var))
+
+        global_proxy = {
+            "HTTP_PROXY": bool(os.environ.get("HTTP_PROXY")),
+            "HTTPS_PROXY": bool(os.environ.get("HTTPS_PROXY")),
+        }
+
+        return json.dumps({
+            "base_url": base_url,
+            "hostname": parsed.hostname,
+            "env_prefix": prefix,
+            "expected_vars_by_auth_method": expected_vars,
+            "vars_present_in_env": presence,
+            "proxy_vars": global_proxy,
+        }, indent=2)
+
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 if __name__ == "__main__":
