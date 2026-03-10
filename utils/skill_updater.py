@@ -245,6 +245,23 @@ class SkillUpdateDetector:
             'Zabbix': ['zabbix'],
             'Prometheus': ['prometheus'],
             'Grafana': ['grafana'],
+            'Cisco Prime': ['cisco prime', 'prime'],
+            'Mist org ID': ['mist org id', 'mist orgid'],
+            'Meraki org ID': ['meraki org id', 'meraki orgid'],
+            'Aruba Central': ['aruba central', 'aruba'],
+            'Juniper Mist': ['juniper mist', 'mist'],
+            'Cisco DNA Center': ['cisco dna center', 'dna center'],
+            'Cisco Meraki': ['cisco meraki', 'meraki'],
+            'Cisco ISE': ['cisco ise', 'ise'],
+            'Cisco WLC': ['cisco wlc', 'wlc'],
+            'Cisco ASA': ['cisco asa', 'asa'],
+            'Cisco IOS': ['cisco ios', 'ios'],
+            'Cisco NX-OS': ['cisco nx-os', 'nx-os'],
+            'Cisco IOS-XE': ['cisco ios-xe', 'ios-xe'],
+            'Cisco IOS-XR': ['cisco ios-xr', 'ios-xr'],
+            'Cisco IOS-XR': ['cisco ios-xr', 'ios-xr'],
+            'NMS': ['nms'],
+            'netbox':['netbox']
         }
         
         context_lower = context.lower()
@@ -262,6 +279,35 @@ class SkillUpdateDetector:
         
         if 'tool_name' in tool_info or 'url' in tool_info:
             return tool_info
+        
+        return None
+    
+    def extract_procedures(self, context: str) -> Optional[Dict]:
+        """
+        Extract procedures from context
+        
+        Args:
+            context: Text containing potential procedures
+        
+        Returns:
+            Dict with procedures or None
+        """
+        procedures = {}
+        
+        # Extract procedures
+        procedure_patterns = [
+            r'Procedure:\s*([A-Za-z\s]+)',
+            r'Procedure:\s*([A-Za-z\s]+)',
+        ]
+        
+        for pattern in procedure_patterns:
+            match = re.search(pattern, context, re.IGNORECASE)
+            if match:
+                procedures['procedure'] = match.group(1).strip()
+                break
+        
+        if 'procedure' in procedures:
+            return procedures
         
         return None
     

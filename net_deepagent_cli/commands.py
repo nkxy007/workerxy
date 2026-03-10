@@ -15,6 +15,10 @@ from net_deepagent_cli.agents_ui import (
 )
 from net_deepagent_cli.automata_skills_ui import handle_skill_updates
 from custom_middleware.skills_middleware import get_skill_learning_middleware
+from net_deepagent_cli.skill_commands import (
+    handle_skill_add,
+    handle_skill_update,
+)
 import json
 import datetime
 
@@ -160,17 +164,24 @@ async def handle_command(command: str, ui, messages, agent=None):
     elif cmd == "/skills":
         sub = parts[1].lower() if len(parts) > 1 else "list"
 
-        if sub in ["add", "extract"] and len(parts) > 2:
+        if sub in ["add", "extract"]:
+            if len(parts) < 3:
+                ui.print_message("Usage: /skills add <doc_path> [skill_name]", role="error")
+                return
             doc_path = parts[2]
-            await extract_skills_from_document(doc_path, ui.agent_name, ui)
+            skill_name_hint = parts[3] if len(parts) > 3 else None
+            await handle_skill_add(doc_path, skill_name_hint, ui.agent_name, ui)
             return
-        elif sub == "update" and len(parts) > 2:
-            skill_name = parts[2]
-            source = parts[3] if len(parts) > 3 else None
-            await handle_skills_update(skill_name, source, ui, messages)
-            return
+
         elif sub == "update":
-            ui.print_message("Usage: /skills update <skill_name> [source]", role="error")
+            # Parse: /skills update [skill_name] [source] [--dry-run]
+            remaining = parts[2:]
+            dry_run = "--dry-run" in remaining
+            remaining = [p for p in remaining if p != "--dry-run"]
+
+            skill_name = remaining[0] if len(remaining) > 0 else None
+            source = remaining[1] if len(remaining) > 1 else None
+            await handle_skill_update(skill_name, source, dry_run, ui.agent_name, ui, messages)
             return
 
         # List available skills

@@ -78,9 +78,9 @@ class TerminalUI:
             "desc": "Manage and list skills",
             "subs": {
                 "list": "List available skills",
-                "add": "Extract and add skills from a document",
+                "add": "Create a new skill from a document: /skills add <doc> [skill_name]",
                 "extract": "Alias for add",
-                "update": "Force update check for a skill: /skills update <name> [source]"
+                "update": "Update skill from context or doc: /skills update [skill_name] [source] [--dry-run]"
             }
         },
         "/agents": {
