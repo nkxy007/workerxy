@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
@@ -13,6 +13,8 @@ from net_deepagent_cli.agents_ui import (
     handle_agents_unload,
     handle_agents_load,
 )
+from net_deepagent_cli.automata_skills_ui import handle_skill_updates
+from custom_middleware.skills_middleware import get_skill_learning_middleware
 import json
 import datetime
 
@@ -156,9 +158,19 @@ async def handle_command(command: str, ui, messages, agent=None):
         ))
     
     elif cmd == "/skills":
-        if len(parts) > 2 and parts[1].lower() in ["add", "extract"]:
+        sub = parts[1].lower() if len(parts) > 1 else "list"
+
+        if sub in ["add", "extract"] and len(parts) > 2:
             doc_path = parts[2]
             await extract_skills_from_document(doc_path, ui.agent_name, ui)
+            return
+        elif sub == "update" and len(parts) > 2:
+            skill_name = parts[2]
+            source = parts[3] if len(parts) > 3 else None
+            await handle_skills_update(skill_name, source, ui, messages)
+            return
+        elif sub == "update":
+            ui.print_message("Usage: /skills update <skill_name> [source]", role="error")
             return
 
         # List available skills
@@ -425,14 +437,57 @@ async def extract_skills_from_document(doc_path: str, agent_name: str, ui):
     This is a stub for future implementation using RAG.
     """
     ui.print_message(f"Initiating skill extraction from: [bold]{doc_path}[/bold]", role="system")
-    
-    # Placeholder for future implementation:
-    # 1. Load document (doc_path)
-    # 2. Use RAG/LLM to identify best practices or specialized knowledge
-    # 3. Create a folder in ~/.net-deepagent/<agent_name>/skills/<skill_name>
-    # 4. Write SKILL.md with frontmatter and instructions
-    
     ui.print_message("Note: Skill extraction logic is currently a placeholder. RAG-based extraction will be implemented in the next phase.", role="system")
+
+async def handle_skills_update(skill_name: str, source: Optional[str], ui, messages):
+    """
+    Handle checking for updates to a specific skill.
+    source can be a document path, or if None, current context is used.
+    """
+    ui.print_message(f"🔍 Checking for updates to [bold yellow]{skill_name}[/bold yellow]...", role="system")
+    
+    content = ""
+    if source and source.lower() != "context":
+        # Load from document
+        doc_path = Path(source)
+        if not doc_path.exists():
+            ui.print_message(f"Source document [bold red]{source}[/bold red] not found.", role="error")
+            return
+        
+        try:
+            content = doc_path.read_text()
+            ui.print_message(f"Loaded content from [bold cyan]{source}[/bold cyan]", role="system")
+        except Exception as e:
+            ui.print_message(f"Failed to read source document: {e}", role="error")
+            return
+    else:
+        # Use current context (messages)
+        # Aggregate last 15 messages for context
+        relevant_messages = messages[-15:] if len(messages) > 15 else messages
+        for m in relevant_messages:
+            content += f"\n{m.type.upper()}: {m.content}"
+        
+        ui.print_message("Using current conversation context for update detection.", role="system")
+
+    # Get middleware
+    skills_dir = AgentConfig(ui.agent_name).config_dir / "skills"
+    middleware = get_skill_learning_middleware(str(skills_dir))
+    
+    # Trigger detection
+    # We use a custom call to the middleware's internal analyzer or just trigger manual update
+    # The middleware has _analyze_for_updates but it's internal.
+    # However, we can use the detector directly or call analyze. 
+    # Actually SkillLearningMiddleware._analyze_for_updates is what we want.
+    middleware._analyze_for_updates(content)
+    
+    # Check if anything was added for this skill
+    pending = middleware.get_pending_updates(skill_name)
+    if not pending or not pending.get(skill_name):
+        ui.print_message(f"No new information found for [bold yellow]{skill_name}[/bold yellow].", role="system")
+        return
+        
+    # Trigger the UI for review (only for this skill)
+    await handle_skill_updates(middleware, ui, skill_name=skill_name)
 
 async def handle_middlewares(ui):
     """Interactive menu to toggle and configure custom middlewares"""

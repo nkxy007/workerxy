@@ -4,16 +4,22 @@ Handle UI interactions for skill updates
 from net_deepagent_cli.ui import TerminalUI
 from utils.skill_update_prompts import format_batch_update_summary, format_apply_result
 
-async def handle_skill_updates(middleware, ui: TerminalUI):
+from typing import Optional
+
+async def handle_skill_updates(middleware, ui: TerminalUI, skill_name: Optional[str] = None):
     """
     Check for pending skill updates and prompt user
     
     Args:
         middleware: SkillLearningMiddleware instance
         ui: TerminalUI instance
+        skill_name: Optional skill name to filter by
     """
-    # Get all pending updates
-    pending = middleware.get_all_pending_updates()
+    # Get pending updates
+    if skill_name:
+        pending = middleware.get_pending_updates(skill_name)
+    else:
+        pending = middleware.get_all_pending_updates()
     
     if not pending:
         return

@@ -79,7 +79,8 @@ class TerminalUI:
             "subs": {
                 "list": "List available skills",
                 "add": "Extract and add skills from a document",
-                "extract": "Alias for add"
+                "extract": "Alias for add",
+                "update": "Force update check for a skill: /skills update <name> [source]"
             }
         },
         "/agents": {

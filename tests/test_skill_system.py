@@ -15,7 +15,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from custom_middleware.skills_middleware import SkillsMiddleware
+from custom_middleware.skills_middleware import SkillLearningMiddleware
 from utils.skill_writer import SkillWriter
 from utils.skill_update_prompts import (
     format_update_proposal,
@@ -29,7 +29,7 @@ def test_skill_discovery():
     print("TEST 1: Skill Discovery")
     print("="*60)
     
-    middleware = SkillsMiddleware("skills")
+    middleware = SkillLearningMiddleware("skills")
     
     print(f"\nDiscovered {len(middleware.detector.skills)} skills:")
     for skill_name in middleware.detector.skills.keys():
@@ -44,7 +44,7 @@ def test_network_device_detection():
     print("TEST 2: Network Device Detection")
     print("="*60)
     
-    middleware = SkillsMiddleware("skills")
+    middleware = SkillLearningMiddleware("skills")
     
     # Simulate a conversation with network device info
     test_context = """
@@ -79,7 +79,7 @@ def test_vlan_detection():
     print("TEST 3: VLAN Detection")
     print("="*60)
     
-    middleware = SkillsMiddleware("skills")
+    middleware = SkillLearningMiddleware("skills")
     
     test_context = """
     Configured VLAN 20: Application Servers
@@ -110,7 +110,7 @@ def test_monitoring_tool_detection():
     print("TEST 4: Monitoring Tool Detection")
     print("="*60)
     
-    middleware = SkillsMiddleware("skills")
+    middleware = SkillLearningMiddleware("skills")
     
     test_context = """
     Accessed SolarWinds monitoring dashboard at https://nms.corp.local
@@ -141,7 +141,7 @@ def test_apply_updates():
     print("TEST 5: Applying Updates")
     print("="*60)
     
-    middleware = SkillsMiddleware("skills")
+    middleware = SkillLearningMiddleware("skills")
     
     # Add some test data
     test_context = """
