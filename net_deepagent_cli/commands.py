@@ -247,19 +247,23 @@ async def handle_command(command: str, ui, messages, agent=None):
         await handle_middlewares(ui)
 
     elif cmd == "/exit":
-        ui.print_message("Exiting...", role="system")
+        await handle_exit(messages, ui)
         raise EOFError()
     
     else:
         ui.print_message(f"Unknown command: {cmd}", role="error")
 
-async def handle_new_session(messages, ui):
-    """Confirm with user to save current session then clear it"""
+async def prompt_and_save_session(messages, ui, prompt_msg: str):
+    """Ask use if they want to save session, if so prompt for name and save."""
     if messages:
-        ui.console.print("[bold yellow]You have an active session.[/bold yellow]")
-        if await ui.confirm("[bold yellow]Save current session before starting a new one?[/bold yellow]"):
+        ui.console.print(f"[bold yellow]{prompt_msg}[/bold yellow]")
+        if await ui.confirm("[bold yellow]Save current session?[/bold yellow]"):
             session_name = (await ui.prompt_simple("[bold blue]Enter session name to save:[/] ")).strip()
             if session_name:
+                from net_deepagent_cli.communication.session import save_session # Ensure imports
+                from net_deepagent_cli.config import AgentConfig # Already in commands.py
+                import json # Already in commands.py
+                
                 config_manager = AgentConfig(ui.agent_name)
                 sessions_dir = config_manager.sessions_dir
                 
@@ -278,20 +282,36 @@ async def handle_new_session(messages, ui):
                     with open(filepath, 'w') as f:
                         json.dump(serialized_messages, f, indent=2)
                     ui.print_message(f"Session saved to [bold cyan]{filename}[/bold cyan]", role="system")
+                    return True
                 except Exception as e:
                     ui.print_message(f"Failed to save session: {e}", role="error")
-                    # We continue to clear even if save fails? 
-                    # User might want to stop if save failed.
-                    # For now, let's keep it simple and clear anyway as requested.
             else:
                 ui.print_message("Save cancelled (no name provided).", role="warning")
-                # Don't clear if user cancelled save? 
-                # The user intention "new" usually means they want to start fresh.
-                # If they skipped naming, maybe they don't want to save after all.
-                # I'll clear anyway as it's a "/session new" command.
+    return False
 
+async def handle_new_session(messages, ui):
+    """Confirm with user to save current session then clear it"""
+    await prompt_and_save_session(messages, ui, "You have an active session.")
     messages.clear()
     ui.print_message("✨ [bold green]New session started.[/bold green]", role="system")
+
+async def handle_exit(messages, ui):
+    """Handle exit sequence: prompt for save, then skill update, then exit."""
+    # 1. Prompt for Session Save
+    await prompt_and_save_session(messages, ui, "Session is about to end.")
+
+    # 2. Prompt for Skill Update
+    if messages:
+        if await ui.confirm("[bold yellow]Do you want to check for skill updates from this session?[/bold yellow]"):
+            skill_name = (await ui.prompt_simple("[bold blue]Enter skill name to update (default: network-facts-and-procedures):[/] ")).strip()
+            if not skill_name:
+                skill_name = "network-facts-and-procedures"
+            
+            # handle_skill_update(skill_name, source, dry_run, agent_name, ui, messages)
+            from net_deepagent_cli.skill_commands import handle_skill_update
+            await handle_skill_update(skill_name, None, False, ui.agent_name, ui, messages)
+
+    ui.print_message("Exiting...", role="system")
 
 async def handle_delete_session(parts, ui):
     """Delete a saved session file by name"""

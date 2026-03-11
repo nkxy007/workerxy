@@ -42,7 +42,7 @@ import re
 from typing import Any, Optional
 
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 logger = logging.getLogger(__name__)
 
@@ -133,33 +133,37 @@ class LLMClient:
         Returns dict with keys:
           should_update (bool), reason (str), extracted_facts (list[str])
         """
-        prompt = f"""You are a skill document curator. Decide if the context below contains
-NEW factual information that is not already in the skill body, and that would make the skill
-more useful to future agents.
+        system_prompt = (
+            "You are a skill document curator for an AI agent system.\n"
+            "Your job is to decide whether a piece of context contains NEW factual "
+            "information that is not already captured in a skill document, and that "
+            "would make the skill more useful to future agents.\n\n"
+            "Rules:\n"
+            "- Only flag an update if the new info is concrete and durable: device names, "
+            "endpoints, API patterns, procedures, credentials patterns, tool URLs, "
+            "config details, environment-specific facts, etc.\n"
+            "- Ignore conversational filler, already-known facts, vague statements, "
+            "or information that changes frequently.\n"
+            "- Respond with ONLY valid JSON (no markdown fences, no extra text):\n"
+            '{"should_update": true | false, "reason": "<one sentence>", '
+            '"extracted_facts": ["<fact 1>", "<fact 2>"]}'
+        )
 
-Only flag an update if the new info is concrete and durable (device names, endpoints,
-API patterns, procedures, credentials patterns, tool URLs, config details, etc.).
-Ignore conversational filler, already-known facts, or vague statements.
-
+        user_prompt = f"""Skill document body to check against:
 <skill_body>
 {skill_body[:BODY_CHAR_LIMIT]}
 </skill_body>
-Here is the new context from which you can extract info to update the skill body.
+
+New context to evaluate:
 <new_context>
 {context[:CONTEXT_CHAR_LIMIT]}
-</new_context>
-
-Respond with ONLY valid JSON (no markdown fences, no extra text):
-{{
-  "should_update": true | false,
-  "reason": "<one sentence>",
-  "extracted_facts": ["<fact 1>", "<fact 2>"]
-}}"""
+</new_context>"""
 
         return self._json_call(
-            prompt,
+            user_prompt,
             max_tokens=MAX_TOKENS_DETECT,
             fallback={"should_update": False, "reason": "LLM call failed", "extracted_facts": []},
+            system_prompt=system_prompt,
         )
 
     def rewrite_body(self, skill_body: str, facts: list[str], skill_name: str) -> str:
@@ -305,25 +309,28 @@ Output ONLY the description text, nothing else."""
             **self._model_kwargs,
         )
 
-    def _invoke(self, prompt: str, max_tokens: int) -> str:
-        """Send a single human message and return the response text."""
-        # Bind max_tokens per-call so different methods can use different limits
+    def _invoke(self, prompt: str, max_tokens: int, system_prompt: Optional[str] = None) -> str:
+        """Send a message and return the response text. Optionally prepend a system message."""
         llm = self._llm.bind(max_tokens=max_tokens)
-        response = llm.invoke([HumanMessage(content=prompt)])
+        messages = []
+        if system_prompt:
+            messages.append(SystemMessage(content=system_prompt))
+        messages.append(HumanMessage(content=prompt))
+        response = llm.invoke(messages)
         return response.content
 
-    def _text_call(self, prompt: str, max_tokens: int) -> str:
+    def _text_call(self, prompt: str, max_tokens: int, system_prompt: Optional[str] = None) -> str:
         """Call the LLM and return plain text. Raises on failure."""
         try:
-            return self._invoke(prompt, max_tokens).strip()
+            return self._invoke(prompt, max_tokens, system_prompt=system_prompt).strip()
         except Exception as exc:
             logger.error(f"LLM text call failed ({self._provider}/{self._model}): {exc}")
             raise
 
-    def _json_call(self, prompt: str, max_tokens: int, fallback: Any) -> Any:
+    def _json_call(self, prompt: str, max_tokens: int, fallback: Any, system_prompt: Optional[str] = None) -> Any:
         """Call the LLM, parse JSON response. Returns fallback on any failure."""
         try:
-            raw = self._invoke(prompt, max_tokens).strip()
+            raw = self._invoke(prompt, max_tokens, system_prompt=system_prompt).strip()
             # Strip accidental markdown fences that some models add
             raw = re.sub(r"^```(?:json)?\s*", "", raw)
             raw = re.sub(r"\s*```$", "", raw)

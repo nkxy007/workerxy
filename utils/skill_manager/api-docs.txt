@@ -1,0 +1,67 @@
+NetBox REST API - Quick Reference
+
+NetBox is an open-source DCIM and IPAM tool. Its REST API allows automation of network infrastructure documentation.
+
+Base URL: https://netbox.example.com/api/
+Authentication: Token-based. Include header: Authorization: Token <your_token>
+Content-Type: application/json
+
+Common Endpoints:
+
+1. Sites
+   GET    /dcim/sites/           - List all sites
+   POST   /dcim/sites/           - Create a site
+   GET    /dcim/sites/{id}/      - Get a site by ID
+   PATCH  /dcim/sites/{id}/      - Update a site
+   DELETE /dcim/sites/{id}/      - Delete a site
+
+2. Devices
+   GET    /dcim/devices/         - List all devices
+   POST   /dcim/devices/         - Create a device
+   GET    /dcim/devices/{id}/    - Get device by ID
+   PATCH  /dcim/devices/{id}/    - Update a device
+
+3. IP Addresses
+   GET    /ipam/ip-addresses/    - List IP addresses
+   POST   /ipam/ip-addresses/    - Assign a new IP
+   PATCH  /ipam/ip-addresses/{id}/ - Update an IP record
+
+4. Prefixes
+   GET    /ipam/prefixes/        - List all prefixes
+   POST   /ipam/prefixes/        - Create a prefix
+
+Pagination:
+All list endpoints return paginated results. Use ?limit=50&offset=0 to paginate.
+Response format: { "count": 100, "next": "<url>", "previous": null, "results": [...] }
+
+Filtering:
+Append query params to filter results. Examples:
+  /dcim/devices/?site=sydney-dc1
+  /ipam/ip-addresses/?status=active
+  /dcim/devices/?role=firewall
+
+Example: Create a device
+POST /dcim/devices/
+{
+  "name": "core-sw-01",
+  "device_type": 12,
+  "site": 3,
+  "status": "active",
+  "role": 7
+}
+
+Response: 201 Created with full device object.
+
+Common status codes:
+  200 OK            - Successful GET or PATCH
+  201 Created       - Successful POST
+  204 No Content    - Successful DELETE
+  400 Bad Request   - Validation error, check response body for details
+  403 Forbidden     - Invalid or missing token
+  404 Not Found     - Object does not exist
+
+Notes:
+- All IDs are integers, not UUIDs.
+- Device type, site, and role must exist before creating a device.
+- Use /api/dcim/device-types/, /api/dcim/sites/, /api/dcim/device-roles/ to look up valid IDs.
+- The API is browseable at https://netbox.example.com/api/ in a browser when logged in.
