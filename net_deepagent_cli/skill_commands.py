@@ -7,6 +7,7 @@ injection so the module works without install and without changing its imports.
 
 import sys
 import logging
+import asyncio
 from pathlib import Path
 from typing import Optional, List
 
@@ -60,15 +61,40 @@ def _build_context_from_messages(messages: List) -> str:
     return "\n\n".join(human_msgs + selected_ai)
 
 
+async def _background_skill_creation(ui, doc_path, document_text, skill_name_hint, output_dir):
+    try:
+        creator = SkillCreator()
+        skill_path = await asyncio.to_thread(
+            creator.from_document,
+            document=document_text,
+            skill_name=skill_name_hint,
+            output_dir=output_dir,
+        )
+        ui.print_message(
+            f"✅ Skill [bold green]{skill_path.name}[/bold green] created at "
+            f"[dim]{skill_path}[/dim]",
+            role="system",
+        )
+    except FileExistsError:
+        ui.print_message(
+            f"Skill [bold yellow]{skill_name_hint}[/bold yellow] already exists. "
+            "Use a different name or delete the existing skill directory first.",
+            role="error",
+        )
+    except Exception as exc:
+        logger.error(f"Skill creation failed: {exc}", exc_info=True)
+        ui.print_message(f"❌ Skill creation failed: {exc}", role="error")
+
 async def handle_skill_add(doc_path_str: str, skill_name_hint: Optional[str], agent_name: str, ui):
     """
     Handle /skills add <doc_path> [skill_name].
     Uses SkillCreator to generate a new LLM-powered SKILL.md from a document.
+    Returns the background task so callers can await if needed.
     """
     doc_path = Path(doc_path_str)
     if not doc_path.exists():
         ui.print_message(f"Document not found: [bold red]{doc_path_str}[/bold red]", role="error")
-        return
+        return None
 
     # Derive skill name from filename if not provided
     if not skill_name_hint:
@@ -90,90 +116,19 @@ async def handle_skill_add(doc_path_str: str, skill_name_hint: Optional[str], ag
 
     try:
         document_text = doc_path.read_text(encoding="utf-8", errors="ignore")
-        creator = SkillCreator()
-        skill_path = creator.from_document(
-            document=document_text,
-            skill_name=skill_name_hint,
-            output_dir=output_dir,
-        )
-        ui.print_message(
-            f"✅ Skill [bold green]{skill_path.name}[/bold green] created at "
-            f"[dim]{skill_path}[/dim]",
-            role="system",
-        )
-    except FileExistsError:
-        ui.print_message(
-            f"Skill [bold yellow]{skill_name_hint}[/bold yellow] already exists. "
-            "Use a different name or delete the existing skill directory first.",
-            role="error",
+        return asyncio.create_task(
+            _background_skill_creation(ui, doc_path, document_text, skill_name_hint, output_dir)
         )
     except Exception as exc:
-        logger.error(f"Skill creation failed: {exc}", exc_info=True)
-        ui.print_message(f"❌ Skill creation failed: {exc}", role="error")
+        ui.print_message(f"Failed to read source document: {exc}", role="error")
+        return None
 
 
-async def handle_skill_update(
-    skill_name: Optional[str],
-    source: Optional[str],
-    dry_run: bool,
-    agent_name: str,
-    ui,
-    messages: List,
-):
-    """
-    Handle /skills update [skill_name] [source] [--dry-run].
-
-    - skill_name defaults to DEFAULT_UPDATE_SKILL.
-    - source: path to a document, or None to use conversation context.
-    - Context: all human messages + last 10 AI messages.
-    """
-    skill_name = skill_name or DEFAULT_UPDATE_SKILL
-
-    # Resolve skill path
-    skill_path = _skills_dir(agent_name) / skill_name
-    if not (skill_path / "SKILL.md").exists():
-        ui.print_message(
-            f"Skill [bold red]{skill_name}[/bold red] not found at [dim]{skill_path}[/dim].\n"
-            f"Create it first with: [bold]/skills add \u003cdoc\u003e {skill_name}[/bold]",
-            role="error",
-        )
-        return
-
-    # Build context
-    if source and source != "--dry-run":
-        src_path = Path(source)
-        if not src_path.exists():
-            ui.print_message(f"Source file [bold red]{source}[/bold red] not found.", role="error")
-            return
-        try:
-            context = src_path.read_text(encoding="utf-8", errors="ignore")
-            ui.print_message(
-                f"📄 Using document [bold cyan]{src_path.name}[/bold cyan] as context.",
-                role="system",
-            )
-        except Exception as exc:
-            ui.print_message(f"Failed to read source: {exc}", role="error")
-            return
-    else:
-        if not messages:
-            ui.print_message("No conversation messages available to use as context.", role="warning")
-            return
-        context = _build_context_from_messages(messages)
-        msg_summary = f"all user messages + last 10 AI messages ({len(context)} chars)"
-        ui.print_message(
-            f"💬 Using current session context: {msg_summary}",
-            role="system",
-        )
-
-    dry_label = "[DRY RUN] " if dry_run else ""
-    ui.print_message(
-        f"🔍 {dry_label}Checking [bold yellow]{skill_name}[/bold yellow] for updates...",
-        role="system",
-    )
-
+async def _background_skill_update(ui, skill_name, skill_path, context, dry_run):
     try:
         updater = SkillUpdater()
-        result = updater.update_from_context(
+        result = await asyncio.to_thread(
+            updater.update_from_context,
             skill_path=skill_path,
             context=context,
             dry_run=dry_run,
@@ -196,3 +151,68 @@ async def handle_skill_update(
     except Exception as exc:
         logger.error(f"Skill update failed: {exc}", exc_info=True)
         ui.print_message(f"❌ Skill update failed: {exc}", role="error")
+
+
+async def handle_skill_update(
+    skill_name: Optional[str],
+    source: Optional[str],
+    dry_run: bool,
+    agent_name: str,
+    ui,
+    messages: List,
+):
+    """
+    Handle /skills update [skill_name] [source] [--dry-run].
+
+    - skill_name defaults to DEFAULT_UPDATE_SKILL.
+    - source: path to a document, or None to use conversation context.
+    - Context: all human messages + last 10 AI messages.
+    Returns the background task so callers can await if needed.
+    """
+    skill_name = skill_name or DEFAULT_UPDATE_SKILL
+
+    # Resolve skill path
+    skill_path = _skills_dir(agent_name) / skill_name
+    if not (skill_path / "SKILL.md").exists():
+        ui.print_message(
+            f"Skill [bold red]{skill_name}[/bold red] not found at [dim]{skill_path}[/dim].\n"
+            f"Create it first with: [bold]/skills add <doc> {skill_name}[/bold]",
+            role="error",
+        )
+        return None
+
+    # Build context
+    if source and source != "--dry-run":
+        src_path = Path(source)
+        if not src_path.exists():
+            ui.print_message(f"Source file [bold red]{source}[/bold red] not found.", role="error")
+            return None
+        try:
+            context = src_path.read_text(encoding="utf-8", errors="ignore")
+            ui.print_message(
+                f"📄 Using document [bold cyan]{src_path.name}[/bold cyan] as context.",
+                role="system",
+            )
+        except Exception as exc:
+            ui.print_message(f"Failed to read source: {exc}", role="error")
+            return None
+    else:
+        if not messages:
+            ui.print_message("No conversation messages available to use as context.", role="warning")
+            return None
+        context = _build_context_from_messages(messages)
+        msg_summary = f"all user messages + last 10 AI messages ({len(context)} chars)"
+        ui.print_message(
+            f"💬 Using current session context: {msg_summary}",
+            role="system",
+        )
+
+    dry_label = "[DRY RUN] " if dry_run else ""
+    ui.print_message(
+        f"🔍 {dry_label}Checking [bold yellow]{skill_name}[/bold yellow] for updates...",
+        role="system",
+    )
+
+    return asyncio.create_task(
+        _background_skill_update(ui, skill_name, skill_path, context, dry_run)
+    )

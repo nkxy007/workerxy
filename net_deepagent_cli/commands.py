@@ -21,6 +21,7 @@ from net_deepagent_cli.skill_commands import (
 )
 import json
 import datetime
+import asyncio
 
 async def handle_command(command: str, ui, messages, agent=None):
     """Handle special slash commands"""
@@ -309,7 +310,9 @@ async def handle_exit(messages, ui):
             
             # handle_skill_update(skill_name, source, dry_run, agent_name, ui, messages)
             from net_deepagent_cli.skill_commands import handle_skill_update
-            await handle_skill_update(skill_name, None, False, ui.agent_name, ui, messages)
+            task = await handle_skill_update(skill_name, None, False, ui.agent_name, ui, messages)
+            if task:
+                await task
 
     ui.print_message("Exiting...", role="system")
 

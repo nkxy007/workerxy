@@ -50,7 +50,8 @@ Dynamically attach external Agent-to-Agent (A2A) specialist agents at runtime.
 | Feature | Command / Detail |
 |---|---|
 | List available skills | `/skills` or `/skills list` |
-| Extract skill from document | `/skills add <path>` or `/skills extract <path>` |
+| Extract skill from document | `/skills add <path>` — **Async**: Runs in background after name prompt |
+| Update skill from context | `/skills update [name]` — **Async**: Checks for updates in background |
 | Auto-injected into system prompt | Skills discovered from `~/.net-deepagent/<name>/skills/` and `./skills/` |
 
 ---
