@@ -14,6 +14,7 @@ A living reference of the features supported by the `net_deepagent_cli`.
 | Security approval for sensitive tools | Prompted before `execute_shell_command`, `execute_generated_code`, etc. |
 | Human-in-the-loop clarification | Agent can ask user questions via `user_clarification_and_action_tool` |
 | Auto-approve mode | `--auto-approve` CLI flag bypasses approval prompts |
+| Skill Management CLI | `workerxy skill <args>` — Launches the skill-manager CLI |
 
 ---
 

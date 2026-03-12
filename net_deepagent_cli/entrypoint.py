@@ -15,7 +15,7 @@ filterwarnings("ignore", category=UserWarning)
 
 
 def main():
-    valid_commands = ["cli", "headless", "discord", "ui", "mcp"]
+    valid_commands = ["cli", "headless", "discord", "ui", "mcp", "skill"]
     if len(sys.argv) < 2 or sys.argv[1] not in valid_commands:
         print(f"Usage: workerxy {{{','.join(valid_commands)}}} [options]")
         sys.exit(1)
@@ -55,6 +55,12 @@ def main():
         except KeyboardInterrupt:
             # Matches existing mcp_servers.py behavior
             logger.info("MCP servers stopped by user.")
+    elif command == "skill":
+        try:
+            skill_cli_path = os.path.join(project_root, "utils", "skill_manager", "cli.py")
+            subprocess.run([sys.executable, skill_cli_path] + sys.argv[1:], cwd=project_root)
+        except KeyboardInterrupt:
+            logger.info("Skill manager stopped by user.")
 
 
 if __name__ == "__main__":
