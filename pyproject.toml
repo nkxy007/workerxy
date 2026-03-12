@@ -39,6 +39,9 @@ dependencies = [
     "InquirerPy",
 ]
 
+[project.optional-dependencies]
+eve-ng = ["eve-ng>=0.2.7"]
+
 [project.scripts]
 workerxy = "net_deepagent_cli.entrypoint:main"
 
