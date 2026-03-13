@@ -71,6 +71,7 @@ Dynamically attach external Agent-to-Agent (A2A) specialist agents at runtime.
 | Automatic context detection | `--automatic-context-detection` (startup flag) |
 | Association window | `--association-window <days>` (startup flag) |
 | Persistent prompt history | Stored at `~/.net-deepagent/<name>/history` |
+| Centralized Credential Management | `~/.net-deepagent/creds.json` — Unified API keys and SSH config |
 
 ---
 

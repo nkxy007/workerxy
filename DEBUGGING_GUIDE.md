@@ -20,7 +20,7 @@ Comprehensive logging has been added to all modules to help debug issues.
 conda activate test_langchain_env
 
 # Navigate to project directory
-cd /home/toffe/workspace/agentic
+cd /home/<user>/workspace/agentic
 
 # Run Streamlit (logs will appear in console)
 streamlit run ui/app.py
@@ -58,7 +58,7 @@ INFO - Creating network agent...
 **If you see errors here:**
 - Check if MCP server is running
 - Verify network connectivity to MCP server
-- Check API keys are set in creds.py
+- Check API keys are set in `~/.net-deepagent/creds.json`
 
 ### When Clicking Send Button
 
@@ -120,7 +120,7 @@ If it stops here, the agent.astream() is hanging.
    - Test with: `curl http://localhost:8000/mcp`
 
 2. **Model API not responding**
-   - Solution: Verify API keys in creds.py
+   - Solution: Verify API keys in `~/.net-deepagent/creds.json`
    - Check network access to OpenAI/Anthropic/Google APIs
 
 3. **Agent waiting for tool response**
@@ -138,7 +138,7 @@ ERROR - Failed to create network agent: <error>
 ```
 
 **Solutions:**
-- Verify creds.py has valid API keys
+- Verify `~/.net-deepagent/creds.json` has valid API keys
 - Check MCP server is running
 - Ensure all dependencies are installed
 
@@ -184,7 +184,7 @@ python -c "import langchain_core; print('OK')"
 ### Step 1: Check Initialization
 1. Run app: `streamlit run ui/app.py`
 2. Look for: `INFO - Agent initialized successfully!`
-3. If error, check MCP server and API keys
+3. If error, check MCP server and API keys in `~/.net-deepagent/creds.json`
 
 ### Step 2: Test Message Sending
 1. Type a message and click Send
@@ -279,7 +279,7 @@ streamlit run ui/app.py 2>&1 | tee full_debug.log
 
 Before running:
 - [ ] MCP server running at http://localhost:8000/mcp
-- [ ] API keys set in creds.py
+- [ ] API keys set in `~/.net-deepagent/creds.json`
 - [ ] Conda environment activated
 - [ ] Dependencies installed
 
@@ -351,4 +351,4 @@ If logs show errors you don't understand:
 **Most common hang point:** After "Starting agent.astream()..."
 - This usually means the agent backend is not responding
 - Check MCP server status first
-- Verify API keys are valid
+- Verify API keys are valid in `~/.net-deepagent/creds.json`

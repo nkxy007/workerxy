@@ -34,7 +34,8 @@ History and memories are also stored in the same directory.
 The system uses a centralized `CredentialsHelper` to load API keys and SSH credentials. Keys are sourced in the following order of priority:
 1. Environment variables (e.g., `OPENAI_API_KEY`)
 2. Encrypted Vault (`~/.creds.vault`)
-3. Legacy `creds.py` (Fallback)
+3. Centralized JSON config (`~/.net-deepagent/creds.json`)
+4. Legacy `creds.py` (Deprecated Fallback)
 
 ### Encrypted Vault
 You can store your credentials securely in an encrypted vault. If a vault is detected, the CLI will prompt you for the decryption password at startup.
