@@ -432,7 +432,7 @@ builder.build_from_yaml("topologies/leaf-spine-lab.yml", template_dir="templates
 
 ```bash
 # List all labs
-eve-ng --host 192.168.1.100 --username admin --password eve lab list
+eve-ng --host $EVE_NG_HOST --username $EVE_NG_USERNAME --password $EVE_NG_PASSWORD lab list
 
 # Create lab
 eve-ng lab create --name test-lab --path /
