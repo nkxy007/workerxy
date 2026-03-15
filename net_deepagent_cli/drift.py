@@ -137,7 +137,7 @@ class TopicDriftDetector:
         if last_ai_msg or last_user_msg:
             ai_similarity = await self._get_ai_relevance(last_user_msg, last_ai_msg, new_input)
             # Combine 50/50
-            final_similarity = (0.5 * emb_similarity) + (0.5 * ai_similarity)
+            final_similarity = (0.3 * emb_similarity) + (0.7 * ai_similarity)
             logger.info(f"Drift Debug: Hybrid Similarity={final_similarity:.2f} (Emb={emb_similarity:.2f}, AI={ai_similarity:.2f})")
         else:
             final_similarity = float(emb_similarity)
