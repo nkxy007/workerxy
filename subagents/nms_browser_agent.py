@@ -23,6 +23,7 @@ def nms_browser(task: str, trajectories: Optional[List[Dict[str, Any]]] = None) 
     If provided, the trajectories argument should be a list of browser-use dict-based actions
     for the agent to execute initially. Example: [{"navigate": {"url": "..."}}]
     """
+    #TODO: move this tool to the tools folder so that it can be used by ather agents
     async def _run():
         agent = Agent(task=task, llm=_llm, initial_actions=trajectories)
         return str(await agent.run())
