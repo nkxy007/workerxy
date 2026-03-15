@@ -81,7 +81,7 @@ def search_internet(query: str, confidence: Optional[float] = None) -> str:
     This tool is used if the model has a confidence level below 90% on the immediate response to the query.
     Args:
         query (str): A comprehensive search query like a sentence of what we are after and main keywords.
-        confidence (Optional[float]): The confidence level encountered that triggers the use of this tool.
+        confidence (Optional[float]): The confidence level the model had in its own direct response that triggers the use of this tool to increase confidence.
     Returns:
         str: search results.
     """
@@ -409,6 +409,8 @@ async def create_network_agent(
     )
     logger.info(f"datacentre_subagent built with {len(datacenter_tools)} datacenter tools")
 
+    from subagents.nms_browser_agent import nms_browser_agent
+
     subagents = [
         LAN_subagent,
         knowledge_acquisition_subagent,
@@ -416,6 +418,7 @@ async def create_network_agent(
         cloud_computing_subagent,
         design_interpretor_subagent,
         datacentre_subagent,
+        nms_browser_agent,
     ]
 
     ## create deep agent
