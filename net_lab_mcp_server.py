@@ -148,6 +148,22 @@ async def eveng_server_status() -> str:
     return json.dumps(data, indent=2)
 
 # ============================================================
+
+@mcp.tool(description="Set an environment variable for the EVE-NG MCP server (e.g. EVE_NG_HOST, EVE_NG_USERNAME, EVE_NG_PASSWORD).")
+async def eveng_set_env_var(key: str, value: str) -> str:
+    """Set an environment variable."""
+    import os
+    os.environ[key] = value
+    
+    # Reset httpx cache to pick up new creds on next use
+    global _session
+    async with _session_lock:
+        if _session and not _session.is_closed:
+            await _session.aclose()
+        _session = None
+        
+    return f"Environment variable {key} set to {value} successfully. Client will re-initialize on next use."
+
 # LABS
 # ============================================================
 
@@ -364,6 +380,101 @@ def eveng_build_topology_from_yaml(yaml_path: str, template_dir: str = "") -> st
         client.logout()
 
 
+@mcp.tool(description="Export an EVE-NG lab topology to a YAML string, including resolved node-to-node connections.")
+async def eveng_export_topology_yaml(lab_path: str) -> str:
+    """
+    Export lab topology (metadata, networks, nodes with interfaces, and resolved links) to YAML.
+
+    Uses the native EVE-NG /topology endpoint to retrieve properly resolved peer-to-peer
+    connections between nodes. Interfaces are returned by the API as a list and are
+    handled correctly here.
+
+    Args:
+        lab_path: Full lab path, e.g. '/MyLab.unl'
+    """
+    encoded = _encode_path(lab_path)
+
+    # Fetch lab metadata
+    lab_data = await _api("GET", f"/labs{encoded}")
+    lab_details = lab_data.get("data", {})
+
+    # Fetch networks (API returns {} for none, dict of id->net otherwise)
+    net_data = await _api("GET", f"/labs{encoded}/networks")
+    networks_raw = net_data.get("data", {})
+    networks = []
+    if isinstance(networks_raw, dict):
+        for net_id, net in networks_raw.items():
+            networks.append({
+                "id": net_id,
+                "name": net.get("name"),
+                "type": net.get("type"),
+                "visibility": net.get("visibility"),
+            })
+
+    # Fetch nodes (API returns {} for none, dict of id->node otherwise)
+    nodes_data = await _api("GET", f"/labs{encoded}/nodes")
+    nodes_raw = nodes_data.get("data", {})
+    nodes = []
+    if isinstance(nodes_raw, dict):
+        for nid, node in nodes_raw.items():
+            node_info = {
+                "id": nid,
+                "name": node.get("name"),
+                "template": node.get("template"),
+                "image": node.get("image"),
+                "ethernet": [],
+                "serial": [],
+            }
+            interfaces_resp = await _api("GET", f"/labs{encoded}/nodes/{nid}/interfaces")
+            iface_data = interfaces_resp.get("data", {})
+
+            # Ethernet and serial interfaces are returned as LISTS by the EVE-NG API.
+            # Each element is a dict with keys: name, network_id, etc.
+            for media in ("ethernet", "serial"):
+                iface_list = iface_data.get(media, [])
+                if not isinstance(iface_list, list):
+                    iface_list = list(iface_list.values()) if isinstance(iface_list, dict) else []
+                for idx, iface in enumerate(iface_list):
+                    node_info[media].append({
+                        "index": idx,
+                        "name": iface.get("name"),
+                        "network_id": iface.get("network_id"),
+                    })
+
+            nodes.append(node_info)
+
+    # Use the native /topology endpoint to get resolved peer-to-peer connections.
+    # This is the authoritative way to resolve which node interfaces are connected
+    # to which other node interfaces (the raw interface data only exposes network_id).
+    topo_data = await _api("GET", f"/labs{encoded}/topology")
+    topology_links = topo_data.get("data", [])
+    links = []
+    if isinstance(topology_links, list):
+        for link in topology_links:
+            links.append({
+                "type": link.get("type"),
+                "source": link.get("source"),
+                "source_type": link.get("source_type"),
+                "source_label": link.get("source_label"),
+                "destination": link.get("destination"),
+                "destination_type": link.get("destination_type"),
+                "destination_label": link.get("destination_label"),
+            })
+
+    topology = {
+        "lab": {
+            "name": lab_details.get("name"),
+            "description": lab_details.get("description"),
+            "version": lab_details.get("version"),
+        },
+        "networks": networks,
+        "nodes": nodes,
+        "links": links,
+    }
+
+    return yaml.dump(topology, sort_keys=False)
+
+
 @mcp.tool(description="Return the telnet console URL for a named node in a lab.")
 async def eveng_get_node_console_url(lab_path: str, node_name: str) -> str:
     """
@@ -441,33 +552,41 @@ async def eveng_wipe_nodes(lab_path: str, node_id: Optional[str] = None) -> str:
 @mcp.tool(description="List all inter-node connections (links) in a lab, showing which interfaces are wired together.")
 async def eveng_list_lab_links(lab_path: str) -> str:
     """
-    List all topology links in a lab.
+    List all topology links in a lab as resolved peer-to-peer connections.
+
+    Uses the native EVE-NG /topology endpoint which directly returns resolved
+    source-to-destination node/interface pairs, including cloud/network connections.
+    This avoids the need to manually correlate interface network_ids across nodes.
 
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
     encoded = _encode_path(lab_path)
-    # Fetch nodes and their interface wiring
-    nodes_data = await _api("GET", f"/labs{encoded}/nodes")
-    nodes = nodes_data.get("data", {})
+
+    # Use the dedicated /topology endpoint — returns fully resolved connections
+    # in the form {source, source_label, destination, destination_label, type}.
+    # This is the same endpoint used by the evengsdk `get_lab_topology()` method.
+    topo_data = await _api("GET", f"/labs{encoded}/topology")
+    topology_links = topo_data.get("data", [])
+
+    if not topology_links:
+        return f"No topology links found in '{lab_path}'. Is the lab empty or no interfaces wired?"
 
     lines = [f"Topology links in '{lab_path}':"]
-    found = False
+    for link in topology_links:
+        src       = link.get("source", "?")
+        src_label = link.get("source_label", "?")
+        src_type  = link.get("source_type", "")
+        dst       = link.get("destination", "?")
+        dst_label = link.get("destination_label", "?")
+        dst_type  = link.get("destination_type", "")
+        ltype     = link.get("type", "")
 
-    for nid, node in nodes.items():
-        interfaces_resp = await _api("GET", f"/labs{encoded}/nodes/{nid}/interfaces")
-        interfaces = interfaces_resp.get("data", {}).get("ethernet", {})
-        node_name = node.get("name", f"node-{nid}")
-        for iface_id, iface in interfaces.items():
-            net_id = iface.get("network_id")
-            if net_id:
-                lines.append(
-                    f"  {node_name} [{iface.get('name','?')}]  <-->  network_id={net_id}"
-                )
-                found = True
+        src_str = f"{src} [{src_label}]" if src_label else src
+        dst_str = f"{dst} [{dst_label}]" if dst_label else dst
+        type_str = f" ({ltype})" if ltype else ""
+        lines.append(f"  {src_str}  <-->  {dst_str}{type_str}")
 
-    if not found:
-        return f"No wired interfaces found in '{lab_path}'."
     return "\n".join(lines)
 
 
