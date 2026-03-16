@@ -861,4 +861,9 @@ async def eveng_push_initial_config(
 # Entrypoint
 # ============================================================
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8001)
+    try:
+        mcp.run(transport="streamable-http", host="0.0.0.0", port=8001)
+    except KeyboardInterrupt:
+        logging.info("Interrupted by user, Exiting...")
+    except Exception as e:
+        logging.error(f"MCP server error: {e}")
