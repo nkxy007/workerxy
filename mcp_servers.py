@@ -181,12 +181,15 @@ async def get_site_info(site_name: str, intention: str) -> str:
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(get_site_info.__name__, intention, site_name=site_name)
     logger.info(f"Getting site info for site: {site_name}")
-    with open("sites.json", "r") as f:
-        data = json.load(f)
-    for site in data["sites"]:
-        if site_name.lower() in site["name"].lower():
-            return json.dumps(site, indent=2)
-    return f"Site {site_name} not found"
+    try:
+        with open("sites.json", "r") as f:
+            data = json.load(f)
+        for site in data["sites"]:
+            if site_name.lower() in site["name"].lower():
+                return json.dumps(site, indent=2)
+        return f"Site {site_name} not found"
+    except Exception as e:
+        return f"Error retrieving site info: {e}"
 
 @mcp.tool()
 async def net_get_devices_management_ip(site_name: str, device_type: str, intention: str) -> str:
@@ -228,10 +231,13 @@ async def net_find_network_interfaces(device_management_ip: str, intention: str)
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_find_network_interfaces.__name__, intention, device_management_ip=device_management_ip)
     logger.info(f"Finding network interfaces for device: {device_management_ip}")
-    device = DeviceSShSession(device_management_ip)
-    interfaces_with_ip = device.execute_command("show ip interfaces brief | exclude unassigned")
-    interface_physical = device.execute_command("show interface status")
-    return interfaces_with_ip + "\n" + interface_physical
+    try:
+        device = DeviceSShSession(device_management_ip)
+        interfaces_with_ip = device.execute_command("show ip interfaces brief | exclude unassigned")
+        interface_physical = device.execute_command("show interface status")
+        return interfaces_with_ip + "\n" + interface_physical
+    except Exception as e:
+        return f"Error finding network interfaces: {type(e).__name__}: {e}"
 
 #@mcp.tool()
 #async def net_ping_device_from_gateway(device_ip: str, target_ip: str, intention: str, count: int = 5) -> str:
@@ -261,9 +267,12 @@ async def net_get_network_device_arp_table(device_management_ip: str, intention:
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_network_device_arp_table.__name__, intention, device_management_ip=device_management_ip)
     logger.info(f"Getting ARP table for device: {device_management_ip}")
-    device = DeviceSShSession(device_management_ip)
-    arp_table = device.execute_command("show ip arp")
-    return [line for line in arp_table.splitlines("\n") if line.strip()]
+    try:
+        device = DeviceSShSession(device_management_ip)
+        arp_table = device.execute_command("show ip arp")
+        return [line for line in arp_table.splitlines("\n") if line.strip()]
+    except Exception as e:
+        return [f"Error getting ARP table: {type(e).__name__}: {e}"]
 
 @mcp.tool()
 async def net_get_switch_mac_address_table(device_management_ip: str, intention: str) -> List[str]:
@@ -275,9 +284,12 @@ async def net_get_switch_mac_address_table(device_management_ip: str, intention:
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_switch_mac_address_table.__name__, intention, device_management_ip=device_management_ip)
     logger.info(f"Getting MAC address table for device: {device_management_ip}")
-    device = DeviceSShSession(device_management_ip)
-    mac_table = device.execute_command("show mac address-table")
-    return [line for line in mac_table.splitlines("\n") if line.strip()]
+    try:
+        device = DeviceSShSession(device_management_ip)
+        mac_table = device.execute_command("show mac address-table")
+        return [line for line in mac_table.splitlines("\n") if line.strip()]
+    except Exception as e:
+        return [f"Error getting MAC address table: {type(e).__name__}: {e}"]
 
 @mcp.tool()
 async def net_get_l2_forwarding_information(device_management_ip: str, intention: str) -> str:
@@ -309,9 +321,12 @@ async def net_get_nat_table(router_management_ip: str, intention: str) -> List[s
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_nat_table.__name__, intention, router_management_ip=router_management_ip)
     logger.info(f"Getting NAT table for router: {router_management_ip}")
-    device = DeviceSShSession(router_management_ip)
-    nat_table = device.execute_command("show ip nat translations")
-    return [line for line in nat_table.splitlines("\n") if line.strip()]
+    try:
+        device = DeviceSShSession(router_management_ip)
+        nat_table = device.execute_command("show ip nat translations")
+        return [line for line in nat_table.splitlines("\n") if line.strip()]
+    except Exception as e:
+        return [f"Error getting NAT table: {type(e).__name__}: {e}"]
 
 @mcp.tool()
 async def net_get_routing_table(router_management_ip: str, intention: str) -> str:
@@ -323,9 +338,12 @@ async def net_get_routing_table(router_management_ip: str, intention: str) -> st
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_routing_table.__name__, intention, router_management_ip=router_management_ip)
     logger.info(f"Getting routing table for router: {router_management_ip}")
-    device = DeviceSShSession(router_management_ip)
-    routing_table = device.execute_command("show ip route")
-    return f"routing table for router {router_management_ip}:\n{routing_table.splitlines("\n")}"
+    try:
+        device = DeviceSShSession(router_management_ip)
+        routing_table = device.execute_command("show ip route")
+        return f"routing table for router {router_management_ip}:\n{routing_table.splitlines('\n')}"
+    except Exception as e:
+        return f"Error getting routing table: {type(e).__name__}: {e}"
 
 @mcp.tool()
 async def net_capture_network_traffic(device_management_ip: str, interface: str, duration_seconds: int, intention: str) -> str:
@@ -341,33 +359,36 @@ async def net_capture_network_traffic(device_management_ip: str, interface: str,
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_capture_network_traffic.__name__, intention, device_management_ip=device_management_ip, interface=interface, duration_seconds=duration_seconds)
     logger.info(f"Capturing network traffic on {device_management_ip} interface {interface} for {duration_seconds}s")
-    device = DeviceSShSession(device_management_ip)
-    if device_model := device.execute_command("show version | include Model number"):
-        logger.info(f"Device model is {device_model}")
-    if "cisco" in device_model.lower():
+    try:
+        device = DeviceSShSession(device_management_ip)
+        if device_model := device.execute_command("show version | include Model number"):
+            logger.info(f"Device model is {device_model}")
+        if "cisco" in device_model.lower():
 
-        commands = [
-            "monitor capture buffer AI_CAPTURE size 10000",
-            f"monitor capture AI_CAPTURE {interface} both",
-            "monitor capture AI_CAPTURE match ipv4 protocol tcp any any limit pps 1000000",
-            "monitor capture start AI_CAPTURE",
-        ]
-        for command in commands:
-            device.execute_command(command)
-        # wait for duration_seconds
-        import time
-        time.sleep(duration_seconds)
-        # stop capture
-        device.execute_command("monitor capture stop AI_CAPTURE")
-        # show capture and export to tftp server (assuming tftp server is at TODO: to add this later)
-        device.execute_command("term length 0")
-        captured_network_traffic = device.execute_command("show monitor capture AI_CAPTURE buffer detailed")
-        # if captured packets exist then sanitize the capture and filter what you look for using the tcpdump tool return the filtered capture
-        # TODO: implement a cisco capture to pcap converter then apply it to the traffic and make it into text for LLM
-    else:
-        # TODO: implement for juniper, arista, palo alto, etc.
-        logger.warning(f"Device model {device_model} not supported for traffic capture yet.")
-    return f"Captured traffic on {interface} for {duration_seconds} seconds. is {captured_network_traffic}"
+            commands = [
+                "monitor capture buffer AI_CAPTURE size 10000",
+                f"monitor capture AI_CAPTURE {interface} both",
+                "monitor capture AI_CAPTURE match ipv4 protocol tcp any any limit pps 1000000",
+                "monitor capture start AI_CAPTURE",
+            ]
+            for command in commands:
+                device.execute_command(command)
+            # wait for duration_seconds
+            import time
+            time.sleep(duration_seconds)
+            # stop capture
+            device.execute_command("monitor capture stop AI_CAPTURE")
+            # show capture and export to tftp server (assuming tftp server is at TODO: to add this later)
+            device.execute_command("term length 0")
+            captured_network_traffic = device.execute_command("show monitor capture AI_CAPTURE buffer detailed")
+            # if captured packets exist then sanitize the capture and filter what you look for using the tcpdump tool return the filtered capture
+            # TODO: implement a cisco capture to pcap converter then apply it to the traffic and make it into text for LLM
+        else:
+            # TODO: implement for juniper, arista, palo alto, etc.
+            logger.warning(f"Device model {device_model} not supported for traffic capture yet.")
+        return f"Captured traffic on {interface} for {duration_seconds} seconds. is {captured_network_traffic}"
+    except Exception as e:
+        return f"Error capturing network traffic: {type(e).__name__}: {e}"
 
 @mcp.tool()
 async def net_get_device_logs(device_management_ip: str, log_type: str, time_range: str, intention: str, filter_regex: str = "") -> List[str]:
@@ -382,25 +403,28 @@ async def net_get_device_logs(device_management_ip: str, log_type: str, time_ran
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_device_logs.__name__, intention, device_management_ip=device_management_ip, log_type=log_type, time_range=time_range, filter_regex=filter_regex)
     logger.info(f"Getting device logs for {device_management_ip} (type={log_type}, range={time_range})")
-    device = DeviceSShSession(device_management_ip)
-    # retrieve logs via ssh command
-    if log_type.lower() == "error":
-        log_level = "-4-.*"
-    elif log_type.lower() == "warning":
-        log_level = "-5-.*"
-    elif log_type.lower() == "info":
-        log_level = "-6-.*"
-    else:
-        log_level = ".*"
-    device_logs = device.execute_command(f"show logging | i {log_level}")
-    # filter using regex the logs matching the time range 
-    if time_range:
-        time_range_expression = f"{time_range}.*"
-        time_range_regexp = re.compile(time_range_expression)
-        device_logs = [log for log in device_logs.splitlines("\n") if time_range_regexp.search(log)]
-    else:
-        device_logs = device_logs.splitlines("\n")
-    return device_logs[:10]  # return first 10 logs for brevity
+    try:
+        device = DeviceSShSession(device_management_ip)
+        # retrieve logs via ssh command
+        if log_type.lower() == "error":
+            log_level = "-4-.*"
+        elif log_type.lower() == "warning":
+            log_level = "-5-.*"
+        elif log_type.lower() == "info":
+            log_level = "-6-.*"
+        else:
+            log_level = ".*"
+        device_logs = device.execute_command(f"show logging | i {log_level}")
+        # filter using regex the logs matching the time range 
+        if time_range:
+            time_range_expression = f"{time_range}.*"
+            time_range_regexp = re.compile(time_range_expression)
+            device_logs = [log for log in device_logs.splitlines("\n") if time_range_regexp.search(log)]
+        else:
+            device_logs = device_logs.splitlines("\n")
+        return device_logs[:10]  # return first 10 logs for brevity
+    except Exception as e:
+        return [f"Error getting device logs: {type(e).__name__}: {e}"]
 
 @mcp.tool()
 async def net_run_commands_on_device(device_management_ip: str, commands: List[str], intention: str, privileged: bool = False) -> str:
@@ -416,17 +440,20 @@ async def net_run_commands_on_device(device_management_ip: str, commands: List[s
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_run_commands_on_device.__name__, intention, device_management_ip=device_management_ip, commands=commands)
     logger.info(f"Running commands on {device_management_ip}: {commands}")
-    device = DeviceSShSession(device_management_ip)
-    output = ""
-    if privileged:
-        for command in commands:
-            _output = device.execute_privileged_command(command)
-            output += f"Command: {command}\nOutput: {_output}\n"
-    else:
-        for command in commands:
-            _output = device.execute_command(command)
-            output += f"Command: {command}\nOutput: {_output}\n"
-    return output
+    try:
+        device = DeviceSShSession(device_management_ip)
+        output = ""
+        if privileged:
+            for command in commands:
+                _output = device.execute_privileged_command(command)
+                output += f"Command: {command}\nOutput: {_output}\n"
+        else:
+            for command in commands:
+                _output = device.execute_command(command)
+                output += f"Command: {command}\nOutput: {_output}\n"
+        return output
+    except Exception as e:
+        return f"Error running commands: {type(e).__name__}: {e}"
 
 @mcp.tool()
 async def servicenow_get_incidents_by_priority(priority: int, intention: str) -> str:
@@ -635,16 +662,19 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, command: List[
     """
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(cloud_ssh_tool.__name__, intention, management_ip=management_ip, cloud_provider=cloud_provider, command=command)
-    device = DeviceSShSession(management_ip)
-    device.username = os.environ.get("CLOUD_DESKTOP_USER","admin")
-    device.password = os.environ.get("CLOUD_DESKTOP_PASSWORD","password")
-    logger.info(f"Connecting to {cloud_provider} VM at {management_ip} as {device.username}")
-    output = ""
-    for cmd in command:
-        logger.info(f"Executing command: {cmd}")
-        _output = device.execute_command(cmd)
-        output += f"Command: {cmd}\nOutput: {_output}\n"
-    return output
+    try:
+        device = DeviceSShSession(management_ip)
+        device.username = os.environ.get("CLOUD_DESKTOP_USER","admin")
+        device.password = os.environ.get("CLOUD_DESKTOP_PASSWORD","password")
+        logger.info(f"Connecting to {cloud_provider} VM at {management_ip} as {device.username}")
+        output = ""
+        for cmd in command:
+            logger.info(f"Executing command: {cmd}")
+            _output = device.execute_command(cmd)
+            output += f"Command: {cmd}\nOutput: {_output}\n"
+        return output
+    except Exception as e:
+        return f"Error connecting/executing on cloud VM: {type(e).__name__}: {e}"
 
 @mcp.tool()
 async def linux_server_ssh_tool(management_ip: str, command: List[str], intention: str) -> str:
@@ -658,16 +688,19 @@ async def linux_server_ssh_tool(management_ip: str, command: List[str], intentio
     """
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(linux_server_ssh_tool.__name__, intention, management_ip=management_ip, command=command)
-    device = DeviceSShSession(management_ip)
-    device.username = os.environ.get("SERVER_USERNAME","admin")
-    device.password = os.environ.get("SERVER_PASSWORD","password")
-    logger.info(f"Connecting to Linux server at {management_ip} as {device.username}")
-    output = ""
-    for cmd in command:
-        logger.info(f"Executing command: {cmd}")
-        _output = device.execute_command(cmd)
-        output += f"Command: {cmd}\nOutput: {_output}\n"
-    return output
+    try:
+        device = DeviceSShSession(management_ip)
+        device.username = os.environ.get("SERVER_USERNAME","admin")
+        device.password = os.environ.get("SERVER_PASSWORD","password")
+        logger.info(f"Connecting to Linux server at {management_ip} as {device.username}")
+        output = ""
+        for cmd in command:
+            logger.info(f"Executing command: {cmd}")
+            _output = device.execute_command(cmd)
+            output += f"Command: {cmd}\nOutput: {_output}\n"
+        return output
+    except Exception as e:
+        return f"Error connecting/executing on Linux server: {type(e).__name__}: {e}"
 
 @mcp.tool()
 async def execute_shell_command(command: str, intention: str, timeout: int = 60) -> str:
@@ -974,13 +1007,23 @@ async def get_skill_all_related_tools(skill_name: str, intention: str) -> str:
     log_tool_call_to_csv(get_skill_all_related_tools.__name__, intention, skill_name=skill_name)
     # all skill related tools start with <skill-name>_name-of-the-tool
     # example: linux_server_ssh_tool for linux server skill
-    # TODO: test if LLM is able to call such tools when they were not passed to LLM as part of the tools list
-    all_tools = globals()
-    skill_tools = [tool for tool in all_tools if tool.startswith(skill_name + "_")]
-    # get tool name and description
-    skill_tools = [(tool.__name__, tool.__doc__) for tool in skill_tools]
-    logger.info(f"Skill tools information: {skill_tools}")
-    return f"{skill_name} skill tools: {skill_tools}"
+    try:
+        all_tools = globals()
+        skill_prefix = skill_name + "_"
+        skill_tools_list = []
+        
+        for name, obj in all_tools.items():
+            if name.startswith(skill_prefix) and callable(obj):
+                doc = (obj.__doc__ or "No description").strip()
+                skill_tools_list.append((name, doc))
+        
+        logger.info(f"Skill tools information: {skill_tools_list}")
+        if not skill_tools_list:
+            return f"No tools found related to skill '{skill_name}'"
+            
+        return f"{skill_name} skill tools: {skill_tools_list}"
+    except Exception as e:
+        return f"Error retrieving tools for skill '{skill_name}': {e}"
 
 @mcp.tool()
 async def visualize_drawio_diagram(

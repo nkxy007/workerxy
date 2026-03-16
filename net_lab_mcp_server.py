@@ -137,15 +137,21 @@ def _get_eveng_client() -> EvengClient:
 @mcp.tool(description="Test connectivity and authentication against the EVE-NG server.")
 async def eveng_check_auth() -> str:
     """Ping the EVE-NG API and confirm the session is valid."""
-    data = await _api("GET", "/status")
-    return json.dumps(data, indent=2)
+    try:
+        data = await _api("GET", "/status")
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return f"Error checking auth: {e}"
 
 
 @mcp.tool(description="Return EVE-NG server status and version information.")
 async def eveng_server_status() -> str:
     """Retrieve EVE-NG server status."""
-    data = await _api("GET", "/status")
-    return json.dumps(data, indent=2)
+    try:
+        data = await _api("GET", "/status")
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return f"Error getting server status: {e}"
 
 # ============================================================
 
@@ -175,16 +181,19 @@ async def eveng_list_labs(folder: str = "/") -> str:
     Args:
         folder: EVE-NG folder path to list (default: root "/").
     """
-    encoded = _encode_path(folder)
-    data = await _api("GET", f"/folders{encoded}")
-    labs = data.get("data", {}).get("labs", [])
-    if not labs:
-        return "No labs found in the specified folder."
-    lines = [f"Labs in '{folder}':"]
-    for lab in labs:
-        name = lab.get("file", "unknown")
-        lines.append(f"  • {name}")
-    return "\n".join(lines)
+    try:
+        encoded = _encode_path(folder)
+        data = await _api("GET", f"/folders{encoded}")
+        labs = data.get("data", {}).get("labs", [])
+        if not labs:
+            return "No labs found in the specified folder."
+        lines = [f"Labs in '{folder}':"]
+        for lab in labs:
+            name = lab.get("file", "unknown")
+            lines.append(f"  • {name}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error listing labs: {e}"
 
 
 @mcp.tool(description="Describe a lab: return its metadata (author, description, version).")
@@ -195,9 +204,12 @@ async def eveng_describe_lab(lab_path: str) -> str:
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
-    encoded = _encode_path(lab_path)
-    data = await _api("GET", f"/labs{encoded}")
-    return json.dumps(data.get("data", data), indent=2)
+    try:
+        encoded = _encode_path(lab_path)
+        data = await _api("GET", f"/labs{encoded}")
+        return json.dumps(data.get("data", data), indent=2)
+    except Exception as e:
+        return f"Error describing lab: {e}"
 
 
 @mcp.tool(description="Create a new lab in EVE-NG.")
@@ -228,15 +240,18 @@ async def eveng_list_lab_networks(lab_path: str) -> str:
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
-    encoded = _encode_path(lab_path)
-    data = await _api("GET", f"/labs{encoded}/networks")
-    networks = data.get("data", {})
-    if not networks:
-        return "No networks found in this lab."
-    lines = [f"Networks in '{lab_path}':"]
-    for nid, net in networks.items():
-        lines.append(f"  [{nid}] {net.get('name','?')}  type={net.get('type','?')}")
-    return "\n".join(lines)
+    try:
+        encoded = _encode_path(lab_path)
+        data = await _api("GET", f"/labs{encoded}/networks")
+        networks = data.get("data", {})
+        if not networks:
+            return "No networks found in this lab."
+        lines = [f"Networks in '{lab_path}':"]
+        for nid, net in networks.items():
+            lines.append(f"  [{nid}] {net.get('name','?')}  type={net.get('type','?')}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error listing lab networks: {e}"
 
 
 @mcp.tool(description="Add a network (cloud/bridge) to a lab in EVE-NG.")
@@ -271,28 +286,31 @@ async def eveng_list_nodes(lab_path: str) -> str:
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
-    encoded = _encode_path(lab_path)
-    data = await _api("GET", f"/labs{encoded}/nodes")
-    nodes = data.get("data", {})
-    if not nodes:
-        return "No nodes found in this lab."
+    try:
+        encoded = _encode_path(lab_path)
+        data = await _api("GET", f"/labs{encoded}/nodes")
+        nodes = data.get("data", {})
+        if not nodes:
+            return "No nodes found in this lab."
 
-    host = _cfg("EVE_NG_HOST")
-    lines = [f"Nodes in '{lab_path}':"]
-    for nid, node in nodes.items():
-        name         = node.get("name", f"node-{nid}")
-        status       = node.get("status", "?")
-        node_url     = node.get("url", "")          # e.g. "telnet://127.0.0.1:32769"
-        status_label = {0: "stopped", 2: "running"}.get(status, str(status))
-        # Replace the embedded host with the configured EVE_NG_HOST so it works
-        # when EVE-NG reports 127.0.0.1 in the url field
-        if node_url:
-            parts = node_url.rsplit(":", 1)
-            console_str = f"telnet://{host}:{parts[-1]}" if len(parts) == 2 else node_url
-        else:
-            console_str = "N/A"
-        lines.append(f"  [{nid}] {name:<20} status={status_label:<8} console={console_str}")
-    return "\n".join(lines)
+        host = _cfg("EVE_NG_HOST")
+        lines = [f"Nodes in '{lab_path}':"]
+        for nid, node in nodes.items():
+            name         = node.get("name", f"node-{nid}")
+            status       = node.get("status", "?")
+            node_url     = node.get("url", "")          # e.g. "telnet://127.0.0.1:32769"
+            status_label = {0: "stopped", 2: "running"}.get(status, str(status))
+            # Replace the embedded host with the configured EVE_NG_HOST so it works
+            # when EVE-NG reports 127.0.0.1 in the url field
+            if node_url:
+                parts = node_url.rsplit(":", 1)
+                console_str = f"telnet://{host}:{parts[-1]}" if len(parts) == 2 else node_url
+            else:
+                console_str = "N/A"
+            lines.append(f"  [{nid}] {name:<20} status={status_label:<8} console={console_str}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error listing nodes: {e}"
 
 
 @mcp.tool(description="Get detailed information about a single node in a lab.")
@@ -304,9 +322,12 @@ async def eveng_get_node(lab_path: str, node_id: str) -> str:
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Node ID number (as a string)
     """
-    encoded = _encode_path(lab_path)
-    data = await _api("GET", f"/labs{encoded}/nodes/{node_id}")
-    return json.dumps(data.get("data", data), indent=2)
+    try:
+        encoded = _encode_path(lab_path)
+        data = await _api("GET", f"/labs{encoded}/nodes/{node_id}")
+        return json.dumps(data.get("data", data), indent=2)
+    except Exception as e:
+        return f"Error getting node details: {e}"
 
 
 @mcp.tool(description="Add a node to a lab in EVE-NG.")
@@ -392,87 +413,90 @@ async def eveng_export_topology_yaml(lab_path: str) -> str:
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
-    encoded = _encode_path(lab_path)
+    try:
+        encoded = _encode_path(lab_path)
 
-    # Fetch lab metadata
-    lab_data = await _api("GET", f"/labs{encoded}")
-    lab_details = lab_data.get("data", {})
+        # Fetch lab metadata
+        lab_data = await _api("GET", f"/labs{encoded}")
+        lab_details = lab_data.get("data", {})
 
-    # Fetch networks (API returns {} for none, dict of id->net otherwise)
-    net_data = await _api("GET", f"/labs{encoded}/networks")
-    networks_raw = net_data.get("data", {})
-    networks = []
-    if isinstance(networks_raw, dict):
-        for net_id, net in networks_raw.items():
-            networks.append({
-                "id": net_id,
-                "name": net.get("name"),
-                "type": net.get("type"),
-                "visibility": net.get("visibility"),
-            })
+        # Fetch networks (API returns {} for none, dict of id->net otherwise)
+        net_data = await _api("GET", f"/labs{encoded}/networks")
+        networks_raw = net_data.get("data", {})
+        networks = []
+        if isinstance(networks_raw, dict):
+            for net_id, net in networks_raw.items():
+                networks.append({
+                    "id": net_id,
+                    "name": net.get("name"),
+                    "type": net.get("type"),
+                    "visibility": net.get("visibility"),
+                })
 
-    # Fetch nodes (API returns {} for none, dict of id->node otherwise)
-    nodes_data = await _api("GET", f"/labs{encoded}/nodes")
-    nodes_raw = nodes_data.get("data", {})
-    nodes = []
-    if isinstance(nodes_raw, dict):
-        for nid, node in nodes_raw.items():
-            node_info = {
-                "id": nid,
-                "name": node.get("name"),
-                "template": node.get("template"),
-                "image": node.get("image"),
-                "ethernet": [],
-                "serial": [],
-            }
-            interfaces_resp = await _api("GET", f"/labs{encoded}/nodes/{nid}/interfaces")
-            iface_data = interfaces_resp.get("data", {})
+        # Fetch nodes (API returns {} for none, dict of id->node otherwise)
+        nodes_data = await _api("GET", f"/labs{encoded}/nodes")
+        nodes_raw = nodes_data.get("data", {})
+        nodes = []
+        if isinstance(nodes_raw, dict):
+            for nid, node in nodes_raw.items():
+                node_info = {
+                    "id": nid,
+                    "name": node.get("name"),
+                    "template": node.get("template"),
+                    "image": node.get("image"),
+                    "ethernet": [],
+                    "serial": [],
+                }
+                interfaces_resp = await _api("GET", f"/labs{encoded}/nodes/{nid}/interfaces")
+                iface_data = interfaces_resp.get("data", {})
 
-            # Ethernet and serial interfaces are returned as LISTS by the EVE-NG API.
-            # Each element is a dict with keys: name, network_id, etc.
-            for media in ("ethernet", "serial"):
-                iface_list = iface_data.get(media, [])
-                if not isinstance(iface_list, list):
-                    iface_list = list(iface_list.values()) if isinstance(iface_list, dict) else []
-                for idx, iface in enumerate(iface_list):
-                    node_info[media].append({
-                        "index": idx,
-                        "name": iface.get("name"),
-                        "network_id": iface.get("network_id"),
-                    })
+                # Ethernet and serial interfaces are returned as LISTS by the EVE-NG API.
+                # Each element is a dict with keys: name, network_id, etc.
+                for media in ("ethernet", "serial"):
+                    iface_list = iface_data.get(media, [])
+                    if not isinstance(iface_list, list):
+                        iface_list = list(iface_list.values()) if isinstance(iface_list, dict) else []
+                    for idx, iface in enumerate(iface_list):
+                        node_info[media].append({
+                            "index": idx,
+                            "name": iface.get("name"),
+                            "network_id": iface.get("network_id"),
+                        })
 
-            nodes.append(node_info)
+                nodes.append(node_info)
 
-    # Use the native /topology endpoint to get resolved peer-to-peer connections.
-    # This is the authoritative way to resolve which node interfaces are connected
-    # to which other node interfaces (the raw interface data only exposes network_id).
-    topo_data = await _api("GET", f"/labs{encoded}/topology")
-    topology_links = topo_data.get("data", [])
-    links = []
-    if isinstance(topology_links, list):
-        for link in topology_links:
-            links.append({
-                "type": link.get("type"),
-                "source": link.get("source"),
-                "source_type": link.get("source_type"),
-                "source_label": link.get("source_label"),
-                "destination": link.get("destination"),
-                "destination_type": link.get("destination_type"),
-                "destination_label": link.get("destination_label"),
-            })
+        # Use the native /topology endpoint to get resolved peer-to-peer connections.
+        # This is the authoritative way to resolve which node interfaces are connected
+        # to which other node interfaces (the raw interface data only exposes network_id).
+        topo_data = await _api("GET", f"/labs{encoded}/topology")
+        topology_links = topo_data.get("data", [])
+        links = []
+        if isinstance(topology_links, list):
+            for link in topology_links:
+                links.append({
+                    "type": link.get("type"),
+                    "source": link.get("source"),
+                    "source_type": link.get("source_type"),
+                    "source_label": link.get("source_label"),
+                    "destination": link.get("destination"),
+                    "destination_type": link.get("destination_type"),
+                    "destination_label": link.get("destination_label"),
+                })
 
-    topology = {
-        "lab": {
-            "name": lab_details.get("name"),
-            "description": lab_details.get("description"),
-            "version": lab_details.get("version"),
-        },
-        "networks": networks,
-        "nodes": nodes,
-        "links": links,
-    }
+        topology = {
+            "lab": {
+                "name": lab_details.get("name"),
+                "description": lab_details.get("description"),
+                "version": lab_details.get("version"),
+            },
+            "networks": networks,
+            "nodes": nodes,
+            "links": links,
+        }
 
-    return yaml.dump(topology, sort_keys=False)
+        return yaml.dump(topology, sort_keys=False)
+    except Exception as e:
+        return f"Error exporting topology: {e}"
 
 
 @mcp.tool(description="Return the telnet console URL for a named node in a lab.")
@@ -484,21 +508,24 @@ async def eveng_get_node_console_url(lab_path: str, node_name: str) -> str:
         lab_path:  Full lab path, e.g. '/MyLab.unl'
         node_name: Node name as shown in the lab (case-insensitive match)
     """
-    encoded = _encode_path(lab_path)
-    data = await _api("GET", f"/labs{encoded}/nodes")
-    nodes = data.get("data", {})
-    host = _cfg("EVE_NG_HOST")
+    try:
+        encoded = _encode_path(lab_path)
+        data = await _api("GET", f"/labs{encoded}/nodes")
+        nodes = data.get("data", {})
+        host = _cfg("EVE_NG_HOST")
 
-    for nid, node in nodes.items():
-        if node.get("name", "").lower() == node_name.lower():
-            node_url = node.get("url", "")
-            if not node_url:
-                return f"Node '{node_name}' has no console URL assigned (is it running?)."
-            # Rewrite embedded host with configured EVE_NG_HOST
-            parts = node_url.rsplit(":", 1)
-            return f"telnet://{host}:{parts[-1]}" if len(parts) == 2 else node_url
+        for nid, node in nodes.items():
+            if node.get("name", "").lower() == node_name.lower():
+                node_url = node.get("url", "")
+                if not node_url:
+                    return f"Node '{node_name}' has no console URL assigned (is it running?)."
+                # Rewrite embedded host with configured EVE_NG_HOST
+                parts = node_url.rsplit(":", 1)
+                return f"telnet://{host}:{parts[-1]}" if len(parts) == 2 else node_url
 
-    return f"Node '{node_name}' not found in '{lab_path}'."
+        return f"Node '{node_name}' not found in '{lab_path}'."
+    except Exception as e:
+        return f"Error getting node console URL: {e}"
 
 
 @mcp.tool(description="Start one or all nodes in an EVE-NG lab.")
@@ -510,10 +537,13 @@ async def eveng_start_nodes(lab_path: str, node_id: Optional[str] = None) -> str
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Specific node ID to start, or omit to start all nodes.
     """
-    encoded = _encode_path(lab_path)
-    path = f"/labs{encoded}/nodes/{node_id}/start" if node_id else f"/labs{encoded}/nodes/start"
-    data = await _api("GET", path)
-    return data.get("message", json.dumps(data))
+    try:
+        encoded = _encode_path(lab_path)
+        path = f"/labs{encoded}/nodes/{node_id}/start" if node_id else f"/labs{encoded}/nodes/start"
+        data = await _api("GET", path)
+        return data.get("message", json.dumps(data))
+    except Exception as e:
+        return f"Error starting nodes: {e}"
 
 
 @mcp.tool(description="Stop one or all nodes in an EVE-NG lab.")
@@ -525,10 +555,13 @@ async def eveng_stop_nodes(lab_path: str, node_id: Optional[str] = None) -> str:
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Specific node ID to stop, or omit to stop all nodes.
     """
-    encoded = _encode_path(lab_path)
-    path = f"/labs{encoded}/nodes/{node_id}/stop" if node_id else f"/labs{encoded}/nodes/stop"
-    data = await _api("GET", path)
-    return data.get("message", json.dumps(data))
+    try:
+        encoded = _encode_path(lab_path)
+        path = f"/labs{encoded}/nodes/{node_id}/stop" if node_id else f"/labs{encoded}/nodes/stop"
+        data = await _api("GET", path)
+        return data.get("message", json.dumps(data))
+    except Exception as e:
+        return f"Error stopping nodes: {e}"
 
 
 @mcp.tool(description="Wipe (reset to factory defaults) one or all nodes in an EVE-NG lab.")
@@ -540,10 +573,13 @@ async def eveng_wipe_nodes(lab_path: str, node_id: Optional[str] = None) -> str:
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Specific node ID to wipe, or omit to wipe all.
     """
-    encoded = _encode_path(lab_path)
-    path = f"/labs{encoded}/nodes/{node_id}/wipe" if node_id else f"/labs{encoded}/nodes/wipe"
-    data = await _api("GET", path)
-    return data.get("message", json.dumps(data))
+    try:
+        encoded = _encode_path(lab_path)
+        path = f"/labs{encoded}/nodes/{node_id}/wipe" if node_id else f"/labs{encoded}/nodes/wipe"
+        data = await _api("GET", path)
+        return data.get("message", json.dumps(data))
+    except Exception as e:
+        return f"Error wiping nodes: {e}"
 
 # ============================================================
 # NODE CONNECTIONS / TOPOLOGY
@@ -561,33 +597,36 @@ async def eveng_list_lab_links(lab_path: str) -> str:
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
-    encoded = _encode_path(lab_path)
+    try:
+        encoded = _encode_path(lab_path)
 
-    # Use the dedicated /topology endpoint — returns fully resolved connections
-    # in the form {source, source_label, destination, destination_label, type}.
-    # This is the same endpoint used by the evengsdk `get_lab_topology()` method.
-    topo_data = await _api("GET", f"/labs{encoded}/topology")
-    topology_links = topo_data.get("data", [])
+        # Use the dedicated /topology endpoint — returns fully resolved connections
+        # in the form {source, source_label, destination, destination_label, type}.
+        # This is the same endpoint used by the evengsdk `get_lab_topology()` method.
+        topo_data = await _api("GET", f"/labs{encoded}/topology")
+        topology_links = topo_data.get("data", [])
 
-    if not topology_links:
-        return f"No topology links found in '{lab_path}'. Is the lab empty or no interfaces wired?"
+        if not topology_links:
+            return f"No topology links found in '{lab_path}'. Is the lab empty or no interfaces wired?"
 
-    lines = [f"Topology links in '{lab_path}':"]
-    for link in topology_links:
-        src       = link.get("source", "?")
-        src_label = link.get("source_label", "?")
-        src_type  = link.get("source_type", "")
-        dst       = link.get("destination", "?")
-        dst_label = link.get("destination_label", "?")
-        dst_type  = link.get("destination_type", "")
-        ltype     = link.get("type", "")
+        lines = [f"Topology links in '{lab_path}':"]
+        for link in topology_links:
+            src       = link.get("source", "?")
+            src_label = link.get("source_label", "?")
+            src_type  = link.get("source_type", "")
+            dst       = link.get("destination", "?")
+            dst_label = link.get("destination_label", "?")
+            dst_type  = link.get("destination_type", "")
+            ltype     = link.get("type", "")
 
-        src_str = f"{src} [{src_label}]" if src_label else src
-        dst_str = f"{dst} [{dst_label}]" if dst_label else dst
-        type_str = f" ({ltype})" if ltype else ""
-        lines.append(f"  {src_str}  <-->  {dst_str}{type_str}")
+            src_str = f"{src} [{src_label}]" if src_label else src
+            dst_str = f"{dst} [{dst_label}]" if dst_label else dst
+            type_str = f" ({ltype})" if ltype else ""
+            lines.append(f"  {src_str}  <-->  {dst_str}{type_str}")
 
-    return "\n".join(lines)
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error listing lab links: {e}"
 
 
 @mcp.tool(description="List all interfaces on a specific node and show which network each is connected to.")
@@ -599,9 +638,12 @@ async def eveng_list_node_interfaces(lab_path: str, node_id: str) -> str:
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Node ID number (as a string)
     """
-    encoded = _encode_path(lab_path)
-    data = await _api("GET", f"/labs{encoded}/nodes/{node_id}/interfaces")
-    return json.dumps(data.get("data", data), indent=2)
+    try:
+        encoded = _encode_path(lab_path)
+        data = await _api("GET", f"/labs{encoded}/nodes/{node_id}/interfaces")
+        return json.dumps(data.get("data", data), indent=2)
+    except Exception as e:
+        return f"Error listing node interfaces: {e}"
 
 
 @mcp.tool(
@@ -628,25 +670,28 @@ async def eveng_connect_nodes(
         dst_node_id: Destination node ID
         dst_if_id:   Destination interface ID (index)
     """
-    encoded = _encode_path(lab_path)
+    try:
+        encoded = _encode_path(lab_path)
 
-    # Create a bridge network to connect the two nodes
-    net_payload = {"type": "bridge", "name": f"link-n{src_node_id}i{src_if_id}-n{dst_node_id}i{dst_if_id}"}
-    net_resp = await _api("POST", f"/labs{encoded}/networks", json=net_payload)
-    net_id = net_resp.get("data", {}).get("id")
-    if not net_id:
-        return f"Failed to create bridge network: {net_resp}"
+        # Create a bridge network to connect the two nodes
+        net_payload = {"type": "bridge", "name": f"link-n{src_node_id}i{src_if_id}-n{dst_node_id}i{dst_if_id}"}
+        net_resp = await _api("POST", f"/labs{encoded}/networks", json=net_payload)
+        net_id = net_resp.get("data", {}).get("id")
+        if not net_id:
+            return f"Failed to create bridge network: {net_resp}"
 
-    # Connect both ends to the bridge
-    for node_id, if_id in [(src_node_id, src_if_id), (dst_node_id, dst_if_id)]:
-        conn_payload = {"id": int(if_id), "network_id": int(net_id)}
-        await _api("PUT", f"/labs{encoded}/nodes/{node_id}/interfaces", json=conn_payload)
+        # Connect both ends to the bridge
+        for node_id, if_id in [(src_node_id, src_if_id), (dst_node_id, dst_if_id)]:
+            conn_payload = {"id": int(if_id), "network_id": int(net_id)}
+            await _api("PUT", f"/labs{encoded}/nodes/{node_id}/interfaces", json=conn_payload)
 
-    return (
-        f"Connected node {src_node_id} if {src_if_id} "
-        f"<--> node {dst_node_id} if {dst_if_id} "
-        f"via network_id={net_id}"
-    )
+        return (
+            f"Connected node {src_node_id} if {src_if_id} "
+            f"<--> node {dst_node_id} if {dst_if_id} "
+            f"via network_id={net_id}"
+        )
+    except Exception as e:
+        return f"Error connecting nodes: {e}"
 
 # ============================================================
 # TELNET HELPER (returns connection string for LLM / agent)
@@ -669,28 +714,31 @@ async def eveng_telnet_command(lab_path: str, node_name: str) -> str:
     Returns:
         A string like: telnet 192.168.1.1 32769
     """
-    encoded = _encode_path(lab_path)
-    data = await _api("GET", f"/labs{encoded}/nodes")
-    nodes = data.get("data", {})
-    host = _cfg("EVE_NG_HOST")
+    try:
+        encoded = _encode_path(lab_path)
+        data = await _api("GET", f"/labs{encoded}/nodes")
+        nodes = data.get("data", {})
+        host = _cfg("EVE_NG_HOST")
 
-    for nid, node in nodes.items():
-        if node.get("name", "").lower() == node_name.lower():
-            status   = node.get("status", 0)
-            node_url = node.get("url", "")
-            parts    = node_url.rsplit(":", 1) if node_url else []
-            port     = parts[-1] if len(parts) == 2 else None
-            if status == 0:
-                port_hint = port or "?"
-                return (
-                    f"Node '{node_name}' is currently stopped. "
-                    f"Start it first with eveng_start_nodes, then connect via: telnet {host} {port_hint}"
-                )
-            if not port:
-                return f"Node '{node_name}' has no console port assigned."
-            return f"telnet {host} {port}"
+        for nid, node in nodes.items():
+            if node.get("name", "").lower() == node_name.lower():
+                status   = node.get("status", 0)
+                node_url = node.get("url", "")
+                parts    = node_url.rsplit(":", 1) if node_url else []
+                port     = parts[-1] if len(parts) == 2 else None
+                if status == 0:
+                    port_hint = port or "?"
+                    return (
+                        f"Node '{node_name}' is currently stopped. "
+                        f"Start it first with eveng_start_nodes, then connect via: telnet {host} {port_hint}"
+                    )
+                if not port:
+                    return f"Node '{node_name}' has no console port assigned."
+                return f"telnet {host} {port}"
 
-    return f"Node '{node_name}' not found in '{lab_path}'."
+        return f"Node '{node_name}' not found in '{lab_path}'."
+    except Exception as e:
+        return f"Error generating telnet command: {e}"
 
 
 # ============================================================
@@ -706,9 +754,12 @@ async def eveng_list_snapshots(lab_path: str, node_id: str) -> str:
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Node ID number (as a string)
     """
-    encoded = _encode_path(lab_path)
-    data = await _api("GET", f"/labs{encoded}/nodes/{node_id}/export")
-    return json.dumps(data.get("data", data), indent=2)
+    try:
+        encoded = _encode_path(lab_path)
+        data = await _api("GET", f"/labs{encoded}/nodes/{node_id}/export")
+        return json.dumps(data.get("data", data), indent=2)
+    except Exception as e:
+        return f"Error listing snapshots: {e}"
 
 
 # ============================================================
@@ -718,22 +769,28 @@ async def eveng_list_snapshots(lab_path: str, node_id: str) -> str:
 @mcp.tool(description="List all available node templates (image types) on the EVE-NG server.")
 async def eveng_list_templates() -> str:
     """List all node templates available on the EVE-NG server."""
-    data = await _api("GET", "/list/templates/")
-    templates = data.get("data", {})
-    if not templates:
-        return "No templates found."
-    lines = ["Available node templates:"]
-    for name, info in sorted(templates.items()):
-        desc = info.get("description", "")
-        lines.append(f"  • {name:<30} {desc}")
-    return "\n".join(lines)
+    try:
+        data = await _api("GET", "/list/templates/")
+        templates = data.get("data", {})
+        if not templates:
+            return "No templates found."
+        lines = ["Available node templates:"]
+        for name, info in sorted(templates.items()):
+            desc = info.get("description", "")
+            lines.append(f"  • {name:<30} {desc}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error listing templates: {e}"
 
 
 @mcp.tool(description="List all users on the EVE-NG server (admin only).")
 async def eveng_list_users() -> str:
     """List EVE-NG users."""
-    data = await _api("GET", "/users/")
-    return json.dumps(data.get("data", data), indent=2)
+    try:
+        data = await _api("GET", "/users/")
+        return json.dumps(data.get("data", data), indent=2)
+    except Exception as e:
+        return f"Error listing users: {e}"
 
 
 # ============================================================
@@ -801,7 +858,7 @@ async def _telnet_exchange(
                 chunk = await asyncio.wait_for(reader.read(4096), timeout=min(remaining, 0.5))
                 if not chunk:   # EOF
                     break
-                buf += chunk
+                buf += chunk.decode(encoding, errors="replace")
                 if prompt_re.search(buf):
                     break
             except asyncio.TimeoutError:
