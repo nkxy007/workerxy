@@ -39,10 +39,9 @@ dependencies = [
     "discord.py>=2.3.0",
     "InquirerPy",
     "telnetlib3",
+    "eve-ng>=0.2.7",
+    "httpx",
 ]
-
-[project.optional-dependencies]
-eve-ng = ["eve-ng>=0.2.7"]
 
 [project.scripts]
 workerxy = "net_deepagent_cli.entrypoint:main"
@@ -61,6 +60,7 @@ py-modules = [
     "local_tools",
     "main",
     "mcp_servers",
+    "net_lab_mcp_server",
     "net_deepagent",
     "net_deepagent_old",
     "prompts",

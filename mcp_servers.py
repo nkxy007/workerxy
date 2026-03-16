@@ -1811,7 +1811,7 @@ async def rest_api_inspect_env(base_url: str, intention: str) -> str:
 
 if __name__ == "__main__":
     try:
-        mcp.run(transport="streamable-http")
+        mcp.run(transport="streamable-http", host="0.0.0.0", port=8080)
     except KeyboardInterrupt:
         logger.info("Interrupted by user, Exiting...")
     except Exception as e:

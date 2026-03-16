@@ -246,6 +246,9 @@ def filter_tools_by_category(tools: List[BaseTool], category: str) -> List[BaseT
         elif category == 'isp':
             if name.startswith('isp_'):
                 filtered.append(tool)
+        elif category == 'lab':
+            if name.startswith('eveng_'):
+                filtered.append(tool)
                 
     return filtered
 
@@ -276,7 +279,7 @@ def log_before_calling_model(state: AgentState, runtime: Runtime) -> dict[str, A
     return None
 
 async def create_network_agent(
-    mcp_server_url: str = "http://localhost:8000/mcp",
+    mcp_server_url: str = "http://localhost:8080/mcp",
     main_model_name: str = "gpt-5.1",
     subagent_model_name: str = "gpt-5-mini-minimal",
     design_model_name: str = "gpt-5.1",
@@ -304,7 +307,10 @@ async def create_network_agent(
     logger.debug(f"Main model: {main_model_name}")
 
     ## MCP client and tools
-    logger.info("Creating MCP client...")
+    tools = []
+    
+    # 1. Main Network MCP Server (Critical)
+    logger.info("Connecting to core network MCP server...")
     try:
         client = MultiServerMCPClient(
             {
@@ -314,28 +320,44 @@ async def create_network_agent(
                 }
             }
         )
-        logger.info("MCP client created successfully")
-    except Exception as e:
-        logger.error(f"Failed to create MCP client: {e}", exc_info=True)
+        network_tools = await client.get_tools()
+        tools.extend(network_tools)
+        logger.info(f"Got {len(network_tools)} tools from network MCP")
+    except BaseException as e:
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        logger.error(f"CRITICAL: Failed to connect to core network MCP server: {e}", exc_info=True)
         raise
 
-    logger.info("Getting tools from MCP client...")
+    # 2. Lab MCP Server (Optional)
+    logger.info("Attempting to connect to lab MCP server...")
     try:
-        tools = await client.get_tools()
-        logger.info(f"Got {len(tools)} tools from MCP")
-    except Exception as e:
-        logger.error(f"Failed to get tools from MCP: {e}", exc_info=True)
-        raise
+        lab_client = MultiServerMCPClient(
+            {
+                "lab": {
+                    "url": "http://localhost:8001/mcp",
+                    "transport": "streamable_http",
+                }
+            }
+        )
+        lab_tools_list = await lab_client.get_tools()
+        tools.extend(lab_tools_list)
+        logger.info(f"Successfully added {len(lab_tools_list)} tools from lab MCP")
+    except BaseException as e:
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        logger.warning(f"Lab MCP server not available at http://localhost:8081/mcp. Lab functions won't be available. Error: {e}")
 
     # Dynamic tool filtering
     design_tools = filter_tools_by_category(tools, 'design')
     cloud_tools = filter_tools_by_category(tools, 'cloud')
     lan_tools = filter_tools_by_category(tools, 'lan')
+    lab_tools = filter_tools_by_category(tools, 'lab')
     
     # Filter out specialized tools from the main agent
     main_agent_tools = [
         t for t in tools 
-        if not any(t.name.lower().startswith(p) for p in ['net_', 'isp_', 'datacentre_', 'cloud'])
+        if not any(t.name.lower().startswith(p) for p in ['net_', 'isp_', 'datacentre_', 'cloud', 'eveng_'])
     ]
     
     logger.info(f"Filtered tools: {len(design_tools)} design, {len(cloud_tools)} cloud, {len(lan_tools)} LAN")
@@ -410,6 +432,10 @@ async def create_network_agent(
     logger.info(f"datacentre_subagent built with {len(datacenter_tools)} datacenter tools")
 
     from subagents.nms_browser_agent import nms_browser_agent
+    from subagents.net_lab_agent import net_lab_agent
+
+    # Set tools for net_lab_agent
+    net_lab_agent["tools"] = lab_tools + [search_internet, user_clarification_and_action_tool]
 
     subagents = [
         LAN_subagent,
@@ -419,6 +445,7 @@ async def create_network_agent(
         design_interpretor_subagent,
         datacentre_subagent,
         nms_browser_agent,
+        net_lab_agent,
     ]
 
     ## create deep agent

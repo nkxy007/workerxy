@@ -30,7 +30,12 @@ from typing import Optional
 from urllib.parse import quote
 
 import httpx
+import yaml
+from pathlib import Path
 from fastmcp import FastMCP
+from evengsdk.client import EvengClient
+from evengsdk.cli.lab.topology import Topology
+import evengsdk.cli.lab.commands as lab_commands
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -115,6 +120,20 @@ mcp = FastMCP(
 # AUTH / SESSION
 # ============================================================
 
+def _get_eveng_client() -> EvengClient:
+    host = _cfg("EVE_NG_HOST")
+    if not host:
+        raise RuntimeError("EVE_NG_HOST environment variable is not set")
+    proto = _cfg("EVE_NG_PROTOCOL", "http")
+    port = int(_cfg("EVE_NG_PORT", "80"))
+    user = _cfg("EVE_NG_USERNAME", "admin")
+    password = _cfg("EVE_NG_PASSWORD", "eve")
+    client = EvengClient(host, port=port, protocol=proto, ssl_verify=_ssl_verify())
+    if not _ssl_verify():
+        client.disable_insecure_warnings()
+    client.login(username=user, password=password)
+    return client
+
 @mcp.tool(description="Test connectivity and authentication against the EVE-NG server.")
 async def eveng_check_auth() -> str:
     """Ping the EVE-NG API and confirm the session is valid."""
@@ -165,6 +184,26 @@ async def eveng_describe_lab(lab_path: str) -> str:
     return json.dumps(data.get("data", data), indent=2)
 
 
+@mcp.tool(description="Create a new lab in EVE-NG.")
+def eveng_create_lab(name: str, description: str = "", path: str = "/") -> str:
+    """
+    Create a new lab.
+
+    Args:
+        name: Name of the lab.
+        description: Description of the lab.
+        path: Path where to create the lab (default: "/").
+    """
+    client = _get_eveng_client()
+    try:
+        resp = client.api.create_lab(name=name, description=description, path=path)
+        return json.dumps(resp, indent=2)
+    except Exception as e:
+        return f"Error creating lab: {str(e)}"
+    finally:
+        client.logout()
+
+
 @mcp.tool(description="List all networks (bridges, clouds, etc.) configured inside a lab.")
 async def eveng_list_lab_networks(lab_path: str) -> str:
     """
@@ -182,6 +221,27 @@ async def eveng_list_lab_networks(lab_path: str) -> str:
     for nid, net in networks.items():
         lines.append(f"  [{nid}] {net.get('name','?')}  type={net.get('type','?')}")
     return "\n".join(lines)
+
+
+@mcp.tool(description="Add a network (cloud/bridge) to a lab in EVE-NG.")
+def eveng_add_network(lab_path: str, name: str, network_type: str = "bridge", visibility: int = 1) -> str:
+    """
+    Add a network to a lab.
+
+    Args:
+        lab_path: Full path to the lab (e.g., '/MyLab.unl').
+        name: Name of the network.
+        network_type: Type of network ('bridge', 'pnet1', etc.).
+        visibility: Network visibility (1 for visible, 0 for hidden).
+    """
+    client = _get_eveng_client()
+    try:
+        resp = client.api.add_lab_network(lab_path, name=name, network_type=network_type, visibility=visibility)
+        return json.dumps(resp, indent=2)
+    except Exception as e:
+        return f"Error adding network: {str(e)}"
+    finally:
+        client.logout()
 
 # ============================================================
 # NODES
@@ -231,6 +291,77 @@ async def eveng_get_node(lab_path: str, node_id: str) -> str:
     encoded = _encode_path(lab_path)
     data = await _api("GET", f"/labs{encoded}/nodes/{node_id}")
     return json.dumps(data.get("data", data), indent=2)
+
+
+@mcp.tool(description="Add a node to a lab in EVE-NG.")
+def eveng_add_node(lab_path: str, name: str, template: str, image: str, left: int = 100, top: int = 100) -> str:
+    """
+    Add a node to an existing lab.
+
+    Args:
+        lab_path: Full path to the lab (e.g., '/MyLab.unl').
+        name: Name of the node.
+        template: Node template (e.g., 'veos', 'vios').
+        image: Node image version.
+        left: X coordinate in the topology.
+        top: Y coordinate in the topology.
+    """
+    client = _get_eveng_client()
+    try:
+        resp = client.api.add_node(lab_path, name=name, template=template, image=image, left=left, top=top)
+        return json.dumps(resp, indent=2)
+    except Exception as e:
+        return f"Error adding node: {str(e)}"
+    finally:
+        client.logout()
+
+@mcp.tool(description="Build an EVE-NG topology from a YAML definition file.")
+def eveng_build_topology_from_yaml(yaml_path: str, template_dir: str = "") -> str:
+    """
+    Deploy a complete lab topology from a YAML file.
+
+    Args:
+        yaml_path: Absolute path to the YAML topology definition.
+        template_dir: Path to directory containing Jinja2 configuration templates (optional).
+    """
+    if not os.path.exists(yaml_path):
+        return f"Error: YAML file not found at {yaml_path}"
+        
+    client = _get_eveng_client()
+    try:
+        # Load topology
+        topology_data = yaml.safe_load(Path(yaml_path).read_text())
+        topology = Topology(topology_data)
+        
+        # Validate
+        if errors := topology.validate():
+             return f"Topology validation failed: {errors}"
+             
+        # Build node configs if needed
+        # Default to 'templates' dir relative to yaml if not specified
+        t_dir = template_dir if template_dir else "templates"
+        topology.build_node_configs(template_dir=t_dir)
+        
+        # Set the global client for the CLI worker functions
+        lab_commands.client = client
+        
+        # Deploy lab
+        resp = client.api.create_lab(**topology.lab)
+        if resp["status"] != "success":
+             return f"Error creating lab: {resp.get('message')}"
+             
+        # Deploy components
+        # Note: These use ThreadPoolExecutor internally
+        lab_commands.create_and_configure_nodes(topology)
+        lab_commands.create_networks(topology)
+        lab_commands.create_network_links(topology)
+        lab_commands.create_p2p_links(topology)
+        
+        return f"Successfully built topology from {yaml_path}"
+    except Exception as e:
+        return f"Error building topology: {str(e)}"
+    finally:
+        client.logout()
 
 
 @mcp.tool(description="Return the telnet console URL for a named node in a lab.")
@@ -730,4 +861,4 @@ async def eveng_push_initial_config(
 # Entrypoint
 # ============================================================
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8081)
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=8001)
