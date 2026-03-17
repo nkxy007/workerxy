@@ -15,7 +15,7 @@ filterwarnings("ignore", category=UserWarning)
 
 
 def main():
-    valid_commands = ["cli", "headless", "discord", "ui", "mcp", "skill"]
+    valid_commands = ["cli", "headless", "discord", "ui", "mcp", "skill", "diagnose"]
     if len(sys.argv) < 2 or sys.argv[1] not in valid_commands:
         print(f"Usage: workerxy {{{','.join(valid_commands)}}} [options]")
         sys.exit(1)
@@ -61,6 +61,12 @@ def main():
             subprocess.run([sys.executable, skill_cli_path] + sys.argv[1:], cwd=project_root)
         except KeyboardInterrupt:
             logger.info("Skill manager stopped by user.")
+    elif command == "diagnose":
+        try:
+            from net_deepagent_cli.diagnose import main as diagnose_main
+            diagnose_main()
+        except KeyboardInterrupt:
+            logger.info("Diagnostic tool stopped by user.")
 
 
 if __name__ == "__main__":

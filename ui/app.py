@@ -186,6 +186,8 @@ if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 if 'selected_model' not in st.session_state:
     st.session_state.selected_model = agent_service.get_default_models()['main_model']
+if 'selected_subagent_model' not in st.session_state:
+    st.session_state.selected_subagent_model = agent_service.get_default_models().get('subagent_model', agent_service.get_available_models()[0] if agent_service.get_available_models() else None)
 if 'uploaded_docs' not in st.session_state:
     st.session_state.uploaded_docs = []
 if 'uploaded_diagrams' not in st.session_state:
@@ -254,8 +256,34 @@ with st.sidebar:
         index=available_models.index(st.session_state.selected_model) if st.session_state.selected_model in available_models else 0,
         help="Select the AI model to use for main agent"
     )
+    
+    selected_subagent_model = st.selectbox(
+        "Subagent Model",
+        options=available_models,
+        index=available_models.index(st.session_state.selected_subagent_model) if st.session_state.selected_subagent_model in available_models else 0,
+        help="Select the AI model to use for subagents (e.g. browser agent)"
+    )
+    
+    # Re-initialize agent if models have changed
+    models_changed = False
     if selected_model != st.session_state.selected_model:
         st.session_state.selected_model = selected_model
+        models_changed = True
+        
+    if selected_subagent_model != st.session_state.selected_subagent_model:
+        st.session_state.selected_subagent_model = selected_subagent_model
+        models_changed = True
+        
+    if models_changed:
+        with st.spinner("Re-initializing agent with new models..."):
+            try:
+                run_async(agent_service.initialize(
+                    main_model=st.session_state.selected_model,
+                    subagent_model=st.session_state.selected_subagent_model
+                ))
+                st.success("Agent models updated!")
+            except Exception as e:
+                st.error(f"Failed to update models: {str(e)}")
 
     st.markdown("---")
 

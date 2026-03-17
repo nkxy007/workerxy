@@ -241,7 +241,15 @@ class AgentService:
                 if "messages" in chunk.get("model", ""):
                     chunk_type = "model"
                     msg = chunk["model"]["messages"][-1]
-                    content = msg.content if hasattr(msg, 'content') else str(msg)
+                    content_raw = msg.content if hasattr(msg, 'content') else str(msg)
+                    if isinstance(content_raw, list):
+                        content = "".join([
+                            block.get("text", "") if isinstance(block, dict) and block.get("type") == "text" 
+                            else str(block) if isinstance(block, str) else ""
+                            for block in content_raw
+                        ])
+                    else:
+                        content = str(content_raw)
                     full_response += content
                     logger.debug(f"Model response chunk: {content[:50]}...")
 
