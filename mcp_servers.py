@@ -128,6 +128,7 @@ class DeviceSShSession:
             ssh.close()
             return output
         except Exception as e:
+            logger.error(f"SSH command execution failed: {e}\n{traceback.format_exc()}")
             return f"Error executing command: {e}"
     
     def execute_privileged_command(self, command: str) -> str:
@@ -164,6 +165,7 @@ class DeviceSShSession:
             ssh.close()
             return output
         except Exception as e:
+            logger.error(f"Privileged SSH command execution failed: {e}\n{traceback.format_exc()}")
             return f"Error executing command: {e}"
 
 
@@ -189,6 +191,7 @@ async def get_site_info(site_name: str, intention: str) -> str:
                 return json.dumps(site, indent=2)
         return f"Site {site_name} not found"
     except Exception as e:
+        logger.error(f"Error retrieving site info: {e}\n{traceback.format_exc()}")
         return f"Error retrieving site info: {e}"
 
 @mcp.tool()
@@ -218,7 +221,8 @@ async def net_get_devices_management_ip(site_name: str, device_type: str, intent
         sites_names = [site["name"] for site in data["sites"]]
         return f"Device management IP cannot be found, you could have issues wrong site name, try again. Available sites are: {', '.join(sites_names)}"
     except Exception as e:
-        logger.error(f"Error reading sites container: {e}")
+        logger.error(f"Error reading sites container: {e}\n{traceback.format_exc()}")
+        return f"Error reading sites container: {e}"
     return "Device management IP cannot be found."
 
 @mcp.tool()
@@ -237,6 +241,7 @@ async def net_find_network_interfaces(device_management_ip: str, intention: str)
         interface_physical = device.execute_command("show interface status")
         return interfaces_with_ip + "\n" + interface_physical
     except Exception as e:
+        logger.error(f"Error finding network interfaces: {e}\n{traceback.format_exc()}")
         return f"Error finding network interfaces: {type(e).__name__}: {e}"
 
 #@mcp.tool()
@@ -272,6 +277,7 @@ async def net_get_network_device_arp_table(device_management_ip: str, intention:
         arp_table = device.execute_command("show ip arp")
         return [line for line in arp_table.splitlines("\n") if line.strip()]
     except Exception as e:
+        logger.error(f"Error getting ARP table: {e}\n{traceback.format_exc()}")
         return [f"Error getting ARP table: {type(e).__name__}: {e}"]
 
 @mcp.tool()
@@ -289,6 +295,7 @@ async def net_get_switch_mac_address_table(device_management_ip: str, intention:
         mac_table = device.execute_command("show mac address-table")
         return [line for line in mac_table.splitlines("\n") if line.strip()]
     except Exception as e:
+        logger.error(f"Error getting MAC address table: {e}\n{traceback.format_exc()}")
         return [f"Error getting MAC address table: {type(e).__name__}: {e}"]
 
 @mcp.tool()
@@ -307,6 +314,7 @@ async def net_get_l2_forwarding_information(device_management_ip: str, intention
         trunking_info = device.execute_command("show interfaces trunk")
         spanning_tree_info = device.execute_command("show spanning-tree")
     except Exception as e:
+        logger.error(f"Error retrieving L2 information: {e}\n{traceback.format_exc()}")
         return f"Error retrieving L2 information: {e}"
     return f"Trunking Info:\n{trunking_info}\nSpanning Tree Info:\n{spanning_tree_info}"
     
@@ -326,6 +334,7 @@ async def net_get_nat_table(router_management_ip: str, intention: str) -> List[s
         nat_table = device.execute_command("show ip nat translations")
         return [line for line in nat_table.splitlines("\n") if line.strip()]
     except Exception as e:
+        logger.error(f"Error getting NAT table: {e}\n{traceback.format_exc()}")
         return [f"Error getting NAT table: {type(e).__name__}: {e}"]
 
 @mcp.tool()
@@ -343,6 +352,7 @@ async def net_get_routing_table(router_management_ip: str, intention: str) -> st
         routing_table = device.execute_command("show ip route")
         return f"routing table for router {router_management_ip}:\n{routing_table.splitlines('\n')}"
     except Exception as e:
+        logger.error(f"Error getting routing table: {e}\n{traceback.format_exc()}")
         return f"Error getting routing table: {type(e).__name__}: {e}"
 
 @mcp.tool()
@@ -388,6 +398,7 @@ async def net_capture_network_traffic(device_management_ip: str, interface: str,
             logger.warning(f"Device model {device_model} not supported for traffic capture yet.")
         return f"Captured traffic on {interface} for {duration_seconds} seconds. is {captured_network_traffic}"
     except Exception as e:
+        logger.error(f"Error capturing network traffic: {e}\n{traceback.format_exc()}")
         return f"Error capturing network traffic: {type(e).__name__}: {e}"
 
 @mcp.tool()
@@ -424,6 +435,7 @@ async def net_get_device_logs(device_management_ip: str, log_type: str, time_ran
             device_logs = device_logs.splitlines("\n")
         return device_logs[:10]  # return first 10 logs for brevity
     except Exception as e:
+        logger.error(f"Error getting device logs: {e}\n{traceback.format_exc()}")
         return [f"Error getting device logs: {type(e).__name__}: {e}"]
 
 @mcp.tool()
@@ -453,6 +465,7 @@ async def net_run_commands_on_device(device_management_ip: str, commands: List[s
                 output += f"Command: {command}\nOutput: {_output}\n"
         return output
     except Exception as e:
+        logger.error(f"Error running commands: {e}\n{traceback.format_exc()}")
         return f"Error running commands: {type(e).__name__}: {e}"
 
 @mcp.tool()
@@ -674,6 +687,7 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, command: List[
             output += f"Command: {cmd}\nOutput: {_output}\n"
         return output
     except Exception as e:
+        logger.error(f"Error connecting/executing on cloud VM: {e}\n{traceback.format_exc()}")
         return f"Error connecting/executing on cloud VM: {type(e).__name__}: {e}"
 
 @mcp.tool()
@@ -700,6 +714,7 @@ async def linux_server_ssh_tool(management_ip: str, command: List[str], intentio
             output += f"Command: {cmd}\nOutput: {_output}\n"
         return output
     except Exception as e:
+        logger.error(f"Error connecting/executing on Linux server: {e}\n{traceback.format_exc()}")
         return f"Error connecting/executing on Linux server: {type(e).__name__}: {e}"
 
 @mcp.tool()
@@ -755,6 +770,7 @@ async def execute_shell_command(command: str, intention: str, timeout: int = 60)
             return f"Error: Command timed out after {timeout} seconds"
             
     except Exception as e:
+        logger.error(f"Error executing shell command: {e}\n{traceback.format_exc()}")
         return f"Error executing command: {str(e)}"
 
 @mcp.tool()
@@ -862,7 +878,8 @@ async def execute_generated_code(code: str, intention: str, mode: str = "docker"
     except subprocess.TimeoutExpired:
         output += "\nExecution timed out."
     except Exception as e:
-        output += f"\nExecution failed: {str(e)}\n{traceback.format_exc()}"
+        logger.error(f"Execution failed: {e}\n{traceback.format_exc()}")
+        output += f"\nExecution failed: {str(e)}"
 
     return output
 
@@ -948,8 +965,8 @@ modified_output = json.dumps({"line_count": len(lines), "preview": lines[0]})
         return result
         
     except Exception as e:
-        error_msg = f"Error executing tool with modification: {str(e)}\n{traceback.format_exc()}"
-        logger.error(error_msg)
+        error_msg = f"Error executing tool with modification: {str(e)}"
+        logger.error(f"{error_msg}\n{traceback.format_exc()}")
         return error_msg
 
 
@@ -1023,6 +1040,7 @@ async def get_skill_all_related_tools(skill_name: str, intention: str) -> str:
             
         return f"{skill_name} skill tools: {skill_tools_list}"
     except Exception as e:
+        logger.error(f"Error retrieving tools for skill '{skill_name}': {e}\n{traceback.format_exc()}")
         return f"Error retrieving tools for skill '{skill_name}': {e}"
 
 @mcp.tool()
@@ -1106,7 +1124,7 @@ async def visualize_drawio_diagram(
                 return base64_result
                 
         except Exception as e:
-            logger.error(f"Exception during draw.io visualization: {str(e)}")
+            logger.error(f"Exception during draw.io visualization: {e}\n{traceback.format_exc()}")
             return f"Error: {str(e)}"
 
 @mcp.tool()
@@ -1245,7 +1263,7 @@ async def analyze_drawio_diagram(diagram_xml: str, intention: str, original_requ
         return "\n".join(report)
 
     except Exception as e:
-        logger.error(f"Audit failed: {e}")
+        logger.error(f"Audit failed: {e}\n{traceback.format_exc()}")
         return f"Error analyzing XML: {str(e)}"
 
 @mcp.tool()
@@ -1271,7 +1289,7 @@ async def archive_current_conversation(messages: List[Dict[str, str]], intention
         doc_id = archiver.archive_conversation(messages, metadata=metadata)
         return f"✅ Conversation archived successfully with document ID: {doc_id}"
     except Exception as e:
-        logger.error(f"Error archiving conversation: {e}")
+        logger.error(f"Error archiving conversation: {e}\n{traceback.format_exc()}")
         return f"❌ Failed to archive conversation: {str(e)}"
 
 @mcp.tool()
@@ -1297,7 +1315,7 @@ async def archive_local_document(file_path: str, intention: str, metadata: Optio
         doc_id = archiver.archive_documentation(file_path, metadata=metadata)
         return f"✅ Document '{file_path}' archived successfully with ID: {doc_id}"
     except Exception as e:
-        logger.error(f"Error archiving document: {e}")
+        logger.error(f"Error archiving document: {e}\n{traceback.format_exc()}")
         return f"❌ Failed to archive document: {str(e)}"
 
 @mcp.tool()
@@ -1325,7 +1343,7 @@ async def query_agent_archives(query: str, intention: str) -> str:
         sources = ", ".join(result['sources'])
         return f"RECALLED INFORMATION:\n{answer}\n\nSOURCES: {sources}"
     except Exception as e:
-        logger.error(f"Error querying archives: {e}")
+        logger.error(f"Error querying archives: {e}\n{traceback.format_exc()}")
         return f"❌ Failed to query archives: {str(e)}"
 
 ## API Calls adapter #####
@@ -1858,5 +1876,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Interrupted by user, Exiting...")
     except Exception as e:
-        logger.error(f"Error running MCP server: {e}")
-        traceback.print_exc()
+        logger.error(f"Error running MCP server: {e}\n{traceback.format_exc()}")

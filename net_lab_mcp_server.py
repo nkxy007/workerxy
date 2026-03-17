@@ -28,6 +28,7 @@ import asyncio
 import logging
 from typing import Optional
 from urllib.parse import quote
+import traceback
 
 import httpx
 import yaml
@@ -141,6 +142,7 @@ async def eveng_check_auth() -> str:
         data = await _api("GET", "/status")
         return json.dumps(data, indent=2)
     except Exception as e:
+        log.error(f"Error checking auth: {e}\n{traceback.format_exc()}")
         return f"Error checking auth: {e}"
 
 
@@ -151,6 +153,7 @@ async def eveng_server_status() -> str:
         data = await _api("GET", "/status")
         return json.dumps(data, indent=2)
     except Exception as e:
+        log.error(f"Error getting server status: {e}\n{traceback.format_exc()}")
         return f"Error getting server status: {e}"
 
 # ============================================================
@@ -193,6 +196,7 @@ async def eveng_list_labs(folder: str = "/") -> str:
             lines.append(f"  • {name}")
         return "\n".join(lines)
     except Exception as e:
+        log.error(f"Error listing labs: {e}\n{traceback.format_exc()}")
         return f"Error listing labs: {e}"
 
 
@@ -209,6 +213,7 @@ async def eveng_describe_lab(lab_path: str) -> str:
         data = await _api("GET", f"/labs{encoded}")
         return json.dumps(data.get("data", data), indent=2)
     except Exception as e:
+        log.error(f"Error describing lab: {e}\n{traceback.format_exc()}")
         return f"Error describing lab: {e}"
 
 
@@ -227,6 +232,7 @@ def eveng_create_lab(name: str, description: str = "", path: str = "/") -> str:
         resp = client.api.create_lab(name=name, description=description, path=path)
         return json.dumps(resp, indent=2)
     except Exception as e:
+        log.error(f"Error creating lab: {e}\n{traceback.format_exc()}")
         return f"Error creating lab: {str(e)}"
     finally:
         client.logout()
@@ -251,6 +257,7 @@ async def eveng_list_lab_networks(lab_path: str) -> str:
             lines.append(f"  [{nid}] {net.get('name','?')}  type={net.get('type','?')}")
         return "\n".join(lines)
     except Exception as e:
+        log.error(f"Error listing lab networks: {e}\n{traceback.format_exc()}")
         return f"Error listing lab networks: {e}"
 
 
@@ -270,6 +277,7 @@ def eveng_add_network(lab_path: str, name: str, network_type: str = "bridge", vi
         resp = client.api.add_lab_network(lab_path, name=name, network_type=network_type, visibility=visibility)
         return json.dumps(resp, indent=2)
     except Exception as e:
+        log.error(f"Error adding network: {e}\n{traceback.format_exc()}")
         return f"Error adding network: {str(e)}"
     finally:
         client.logout()
@@ -310,6 +318,7 @@ async def eveng_list_nodes(lab_path: str) -> str:
             lines.append(f"  [{nid}] {name:<20} status={status_label:<8} console={console_str}")
         return "\n".join(lines)
     except Exception as e:
+        log.error(f"Error listing nodes: {e}\n{traceback.format_exc()}")
         return f"Error listing nodes: {e}"
 
 
@@ -327,6 +336,7 @@ async def eveng_get_node(lab_path: str, node_id: str) -> str:
         data = await _api("GET", f"/labs{encoded}/nodes/{node_id}")
         return json.dumps(data.get("data", data), indent=2)
     except Exception as e:
+        log.error(f"Error getting node details: {e}\n{traceback.format_exc()}")
         return f"Error getting node details: {e}"
 
 
@@ -348,6 +358,7 @@ def eveng_add_node(lab_path: str, name: str, template: str, image: str, left: in
         resp = client.api.add_node(lab_path, name=name, template=template, image=image, left=left, top=top)
         return json.dumps(resp, indent=2)
     except Exception as e:
+        log.error(f"Error adding node: {e}\n{traceback.format_exc()}")
         return f"Error adding node: {str(e)}"
     finally:
         client.logout()
@@ -396,6 +407,7 @@ def eveng_build_topology_from_yaml(yaml_path: str, template_dir: str = "") -> st
         
         return f"Successfully built topology from {yaml_path}"
     except Exception as e:
+        log.error(f"Error building topology: {e}\n{traceback.format_exc()}")
         return f"Error building topology: {str(e)}"
     finally:
         client.logout()
@@ -496,6 +508,7 @@ async def eveng_export_topology_yaml(lab_path: str) -> str:
 
         return yaml.dump(topology, sort_keys=False)
     except Exception as e:
+        log.error(f"Error exporting topology: {e}\n{traceback.format_exc()}")
         return f"Error exporting topology: {e}"
 
 
@@ -525,6 +538,7 @@ async def eveng_get_node_console_url(lab_path: str, node_name: str) -> str:
 
         return f"Node '{node_name}' not found in '{lab_path}'."
     except Exception as e:
+        log.error(f"Error getting node console URL: {e}\n{traceback.format_exc()}")
         return f"Error getting node console URL: {e}"
 
 
@@ -543,6 +557,7 @@ async def eveng_start_nodes(lab_path: str, node_id: Optional[str] = None) -> str
         data = await _api("GET", path)
         return data.get("message", json.dumps(data))
     except Exception as e:
+        log.error(f"Error starting nodes: {e}\n{traceback.format_exc()}")
         return f"Error starting nodes: {e}"
 
 
@@ -561,6 +576,7 @@ async def eveng_stop_nodes(lab_path: str, node_id: Optional[str] = None) -> str:
         data = await _api("GET", path)
         return data.get("message", json.dumps(data))
     except Exception as e:
+        log.error(f"Error stopping nodes: {e}\n{traceback.format_exc()}")
         return f"Error stopping nodes: {e}"
 
 
@@ -579,6 +595,7 @@ async def eveng_wipe_nodes(lab_path: str, node_id: Optional[str] = None) -> str:
         data = await _api("GET", path)
         return data.get("message", json.dumps(data))
     except Exception as e:
+        log.error(f"Error wiping nodes: {e}\n{traceback.format_exc()}")
         return f"Error wiping nodes: {e}"
 
 # ============================================================
@@ -626,6 +643,7 @@ async def eveng_list_lab_links(lab_path: str) -> str:
 
         return "\n".join(lines)
     except Exception as e:
+        log.error(f"Error listing lab links: {e}\n{traceback.format_exc()}")
         return f"Error listing lab links: {e}"
 
 
@@ -643,6 +661,7 @@ async def eveng_list_node_interfaces(lab_path: str, node_id: str) -> str:
         data = await _api("GET", f"/labs{encoded}/nodes/{node_id}/interfaces")
         return json.dumps(data.get("data", data), indent=2)
     except Exception as e:
+        log.error(f"Error listing node interfaces: {e}\n{traceback.format_exc()}")
         return f"Error listing node interfaces: {e}"
 
 
@@ -691,6 +710,7 @@ async def eveng_connect_nodes(
             f"via network_id={net_id}"
         )
     except Exception as e:
+        log.error(f"Error connecting nodes: {e}\n{traceback.format_exc()}")
         return f"Error connecting nodes: {e}"
 
 # ============================================================
@@ -738,6 +758,7 @@ async def eveng_telnet_command(lab_path: str, node_name: str) -> str:
 
         return f"Node '{node_name}' not found in '{lab_path}'."
     except Exception as e:
+        log.error(f"Error generating telnet command: {e}\n{traceback.format_exc()}")
         return f"Error generating telnet command: {e}"
 
 
@@ -759,6 +780,7 @@ async def eveng_list_snapshots(lab_path: str, node_id: str) -> str:
         data = await _api("GET", f"/labs{encoded}/nodes/{node_id}/export")
         return json.dumps(data.get("data", data), indent=2)
     except Exception as e:
+        log.error(f"Error listing snapshots: {e}\n{traceback.format_exc()}")
         return f"Error listing snapshots: {e}"
 
 
@@ -780,6 +802,7 @@ async def eveng_list_templates() -> str:
             lines.append(f"  • {name:<30} {desc}")
         return "\n".join(lines)
     except Exception as e:
+        log.error(f"Error listing templates: {e}\n{traceback.format_exc()}")
         return f"Error listing templates: {e}"
 
 
@@ -790,6 +813,7 @@ async def eveng_list_users() -> str:
         data = await _api("GET", "/users/")
         return json.dumps(data.get("data", data), indent=2)
     except Exception as e:
+        log.error(f"Error listing users: {e}\n{traceback.format_exc()}")
         return f"Error listing users: {e}"
 
 
@@ -924,6 +948,7 @@ async def eveng_send_commands(
     try:
         host, port = await _resolve_console_port(lab_path, node_name)
     except ValueError as e:
+        log.error(f"Value Error in eveng_send_commands: {e}\n{traceback.format_exc()}")
         return f"Error: {e}"
 
     log.info("Connecting to %s console at %s:%d", node_name, host, port)
@@ -981,6 +1006,7 @@ async def eveng_push_initial_config(
     try:
         host, port = await _resolve_console_port(lab_path, node_name)
     except ValueError as e:
+        log.error(f"Value Error in eveng_push_initial_config: {e}\n{traceback.format_exc()}")
         return f"Error: {e}"
 
     dtype = device_type.lower()
@@ -1042,4 +1068,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logging.info("Interrupted by user, Exiting...")
     except Exception as e:
-        logging.error(f"MCP server error: {e}")
+        logging.error(f"MCP server error: {e}\n{traceback.format_exc()}")
