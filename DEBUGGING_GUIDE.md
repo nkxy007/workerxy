@@ -20,7 +20,7 @@ Comprehensive logging has been added to all modules to help debug issues.
 conda activate test_langchain_env
 
 # Navigate to project directory
-cd /home/<user>/workspace/agentic
+cd /home/<user>/workspace/workerxy
 
 # Run Streamlit (logs will appear in console)
 streamlit run ui/app.py

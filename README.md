@@ -2,38 +2,46 @@
 
 **The Ultimate AI Copilot for Network Operations & Automation.**
 
-WorkerXY is a powerful, agentic AI system designed to streamline network diagnostics, cloud management, and datacenter operations. Whether you're troubleshooting BGP drifts in a local lab or managing global scale AWS clusters, WorkerXY is your specialist companion.
+WorkerXY is a high-performance, agentic AI system designed to streamline network diagnostics, cloud management, and datacenter operations. From troubleshooting BGP drifts to managing global AWS clusters, WorkerXY is your specialist operational companion.
 
 ---
 
-## 🌟 Key Features
+## 🚀 Activation Matrix
+
+Start your components using the `workerxy` multi-tool CLI.
+
+| Command | Component | Description |
+| :--- | :--- | :--- |
+| `workerxy cli` | **Agent Cockpit** | Full-featured TUI for interactive troubleshooting. |
+| `workerxy ui` | **Dashboard** | Web-based interface for visual monitoring (Streamlit). |
+| `workerxy discord` | **Discord Bridge** | Connect your Discord server to the agent via RabbitMQ. |
+| `workerxy headless` | **Background Worker** | Headless mode for processing jobs from a message queue. |
+| `workerxy mcp` | **MCP Servers** | Launch the underlying Model Context Protocol servers. |
+| `workerxy skill` | **Skill Manager** | CLI tool for creating and managing agent capabilities. |
+
+---
+
+## 🌟 Core Features
 
 ### 🤖 Intelligent Agent Core
-- **Interactive TUI**: A rich, turn-based "Agent Cockpit" built with `rich`.
-- **Streaming Responses**: Real-time token-by-token output.
-- **Security First**: Mandatory user approval for sensitive shell and code execution (unless `--auto-approve` is set).
-
-### 🔌 Specialist Agent Registry (`/agents`)
-Dynamically load specialist agents like:
-- `dns_deepagent`: Deep DNS resolution and diagnostics.
-- `dhcp_deepagent`: DHCP lease management and troubleshooting.
+*   **Agent-to-Agent (A2A)**: Dynamically attach specialist agents at runtime via `/agents`.
+*   **Streaming TUI**: Real-time token-streaming cockpit with rich formatting.
+*   **Security Guardrails**: Mandatory approval for sensitive ops like shell/code execution.
 
 ### 🧠 Persistent Memory & Skills
-- **Contextual Memory**: Automatically remembers past interactions to provide continuity.
-- **Extensible Skills**: Extract new capabilities directly from documentation using `/skills add`.
+*   **Long-term Memory**: Remembers past interactions across sessions.
+*   **Dynamic Skills**: Extract new capabilities from documentation instantly via `/skills add <path>`.
+*   **Auto-Learning**: Updates skills based on session context.
 
-### 💾 Session & Drift Management
-- **Topic Drift Detection**: Suggests new sessions when the conversation shifts dramatically.
-- **Interaction Association**: "Remember that BGP issue?" — WorkerXY can find and resume relevant past sessions.
-
-### ⚙️ Automata (Scheduled Background Tasks)
-- **Autonomous Operations**: Schedule recurring tasks (e.g., "verify server status every 15 mins") that run in the background.
-- **Set-and-Forget**: WorkerXY handles the execution and logging while you focus on other work.
-- **Robust Management**: List, pause, resume, and inspect detailed execution logs via `/automata`.
+### ⚙️ Automata (Autonomous Ops)
+*   **Background Scheduling**: Schedule recurring tasks like "verify server status every 15 mins".
+*   **Autonomous Execution**: WorkerXY handles the execution and logging even while you're offline.
+*   **Full Lifecycle**: List, pause, resume, and inspect detailed execution logs via `/automata`.
 
 ### 🛡️ Smart Middlewares
-- **PII Masking**: Automatically pseudonymize IPs, MACs, and sensitive URLs.
-- **Context Pruning**: Intelligent summarization as you approach model token limits.
+*   **NetPII Pseudonymization**: Automatically masks IPs, MACs, and URLs for privacy.
+*   **Context Pruning**: Intelligent summarization as you approach token limits (85% threshold).
+*   **Input Protection**: Integrated guardrails to prevent prompt injections.
 
 ---
 
@@ -41,82 +49,80 @@ Dynamically load specialist agents like:
 
 ### 🏎️ Agent Cockpit (CLI)
 A high-performance terminal UI designed for operational awareness.
-- **Separated Views**: Command history, live tool execution, and background logs.
-- **Command Palette**: Full tab-autocompletion for all Slash-commands (`/agents`, `/memory`, `/session`, etc.).
+- **Unified View**: Chat history, live tool execution, and logs in one place.
+- **Autocomplete**: Full tab-autocompletion for all Slash-commands.
 
 ### 🌐 WorkerXY Dashboard (Streamlit)
-A modern, web-based interface for visual interaction and monitoring.
-- **Real-time Monitoring**: Track agent state and tool logs visually.
-- **Configuration Management**: Hot-reload middlewares and agent settings via the web.
-
----
-
-## 🚀 Quick Start
-
-### 📋 Prerequisites
-- Python 3.12+
-- `uv` or `pip`
-- RabbitMQ (for Headless/Discord mode)
-
-### ⚙️ Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/nkxy007/workerxy.git
-cd workerxy
-
-# Install dependencies using uv (recommended)
-uv sync
-
-# Or using pip
-pip install .
-```
-
-### 🏃 Running WorkerXY
-
-#### 🎮 Interactive CLI (Cockpit)
-```bash
-workerxy cli
-```
-
-#### 🌐 Web UI
-```bash
-streamlit run ui/app.py
-```
-
-#### 🤖 Headless Mode (Worker)
-Runs the agent as a background process listening for jobs via RabbitMQ.
-```bash
-workerxy headless
-```
-
-#### 💬 Discord Bridge
-Connect your Discord server to WorkerXY.
-```bash
-workerxy discord
-```
+- **Visual Logs**: Watch tool execution and agent thoughts in real-time.
+- **Hot-Configuration**: Reload middlewares and settings without restarting.
 
 ---
 
 ## 🔧 Deep Tool Integrations
 
-WorkerXY leverages the **Model Context Protocol (MCP)** and custom skills to interact with your entire infrastructure:
+WorkerXY leverages the **Model Context Protocol (MCP)** to interact with your stack:
 
-- **🌐 Web Browsing**: Real-time research and documentation extraction using the integrated browser tool.
-- **💻 SSH & CLI**: Direct, secure interaction with network devices (Cisco, Juniper, Arista) and Linux servers.
-- **📡 API Connectivity**: Native support for RESTful APIs (e.g., Mist WiFi, Meraki, custom vendor endpoints).
-- **📋 ITSM & Workflow**: Full integration with **ServiceNow** for incident tracking, change management, and CMDB updates.
-- **☁️ Cloud Operators**: Comprehensive AWS, Azure, and GCP management.
-- **📐 NetDesign**: Automated Draw.io diagram generation from natural language or network discovery.
-
+- **🌐 Browsing**: Real-time research and documentation extraction.
+- **💻 Infrastructure**: SSH & CLI interaction with Cisco, Juniper, Arista, and Linux.
+- **📋 ITSM**: Full **ServiceNow** integration for Incidents, Changes, and CMDB.
+- **📐 NetDesign**: Automated **Draw.io** diagram generation from natural language.
+- **☁️ Cloud**: Native operators for AWS, Azure, and GCP.
 
 ---
 
-## 📄 Documentation
-- [CLI Features Guide](features_cli.md)
-- [Debugging Guide](DEBUGGING_GUIDE.md)
-- [Testing Guide](PHASE1_TESTING_GUIDE.md)
+## ⌨️ Essential Slash Commands
+
+| Command | Description |
+| :--- | :--- |
+| `/session new` | Save current session and start a fresh one. |
+| `/agents list` | Manage specialist A2A agents. |
+| `/skills list` | View and add capabilities to the agent. |
+| `/automata add` | Schedule a new background task. |
+| `/middlewares` | Configure PII masking and context pruning. |
+| `/memory` | View the agent's current persistent knowledge. |
+
+---
+
+## 📖 Usage Examples
+
+### 🎮 Powered-Up Interactive CLI
+Run the agent with intelligent context detection and a specific model configuration:
+```bash
+workerxy cli --model gpt-5.1-medium --subagent-model gpt-5.1-no-thinking --automatic-context-detection --association-window 5
+```
+
+### 🤖 Custom Headless Worker
+Standard headless execution without the association overhead:
+```bash
+workerxy headless --model gpt-5.1-medium --subagent-model gpt-5.1-no-thinking
+```
+
+### 🔇 Less Noisy Logging
+For a cleaner terminal experience, use the `warning` log level:
+```bash
+workerxy cli --log-level warning
+```
+
+---
+
+## ⚙️ Quick Start
+
+### 📋 Prerequisites
+- Python 3.12+
+- `uv` (recommended) or `pip`
+- RabbitMQ (required for Discord/Headless modes)
+
+### 🛠 Installation
+```bash
+# Clone and enter
+git clone https://github.com/nkxy007/workerxy.git
+cd workerxy
+
+# Install with uv
+uv sync
+```
 
 ---
 
 Built with ❤️ by the Advanced Agentic Coding team.
+

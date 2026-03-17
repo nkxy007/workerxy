@@ -262,7 +262,7 @@ Message 4: 7 messages
 
 ```bash
 # Terminal
-cd /home/toffe/workspace/agentic
+cd /home/toffe/workspace/workerxy
 conda activate test_langchain_env
 streamlit run ui/app.py
 ```
