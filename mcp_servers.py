@@ -1009,7 +1009,7 @@ def _get_tool_by_name(tool_name: str):
         logger.error(f"Error retrieving tool '{tool_name}': {str(e)}")
         return None
 
-@mcp.tool()
+#@mcp.tool()
 async def get_skill_all_related_tools(skill_name: str, intention: str) -> str:
     """
     Get all related tools for a given skill
@@ -1872,7 +1872,7 @@ async def rest_api_inspect_env(base_url: str, intention: str) -> str:
 
 if __name__ == "__main__":
     try:
-        mcp.run(transport="streamable-http", host="0.0.0.0", port=8080)
+        mcp.run(transport="streamable-http")
     except KeyboardInterrupt:
         logger.info("Interrupted by user, Exiting...")
     except Exception as e:
