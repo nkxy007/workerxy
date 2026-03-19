@@ -143,5 +143,5 @@ After installation and initialization, start your components using the `workerxy
 
 ---
 
-Built with ❤️ by the Advanced Agentic Coding team.
+Built with ❤️ by the XTOFTech Advanced Agentic Coding team.
 
