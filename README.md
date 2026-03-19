@@ -6,21 +6,6 @@ WorkerXY is a high-performance, agentic AI system designed to streamline network
 
 ---
 
-## 🚀 Activation Matrix
-
-Start your components using the `workerxy` multi-tool CLI.
-
-| Command | Component | Description |
-| :--- | :--- | :--- |
-| `workerxy cli` | **Agent Cockpit** | Full-featured TUI for interactive troubleshooting. |
-| `workerxy ui` | **Dashboard** | Web-based interface for visual monitoring (Streamlit). |
-| `workerxy discord` | **Discord Bridge** | Connect your Discord server to the agent via RabbitMQ. |
-| `workerxy headless` | **Background Worker** | Headless mode for processing jobs from a message queue. |
-| `workerxy mcp` | **MCP Servers** | Launch the underlying Model Context Protocol servers. |
-| `workerxy skill` | **Skill Manager** | CLI tool for creating and managing agent capabilities. |
-
----
-
 ## 🌟 Core Features
 
 ### 🤖 Intelligent Agent Core
@@ -112,15 +97,49 @@ workerxy cli --log-level warning
 - `uv` (recommended) or `pip`
 - RabbitMQ (required for Discord/Headless modes)
 
-### 🛠 Installation
+### 🐳 Docker Installation (Recommended)
+The easiest way to get started with all system dependencies (like RabbitMQ and browsers):
+
 ```bash
 # Clone and enter
 git clone https://github.com/nkxy007/workerxy.git
 cd workerxy
 
-# Install with uv
-uv sync
+# Option 1: Start the basic environment (RabbitMQ and MCP Server)
+docker compose up -d rabbitmq mcp
+
+# Option 2: Start the entire background suite (MCP, Headless worker)
+docker compose up -d
+
+# Run the agent CLI interactively (creates an ephemeral container overriding the mcp command)
+docker compose run --rm mcp cli --model gpt-5.1-medium --subagent-model gpt-5.1-no-thinking --automatic-context-detection --association-window 5
 ```
+
+### 🛠 Manual Installation
+```bash
+# Clone and enter
+git clone https://github.com/nkxy007/workerxy.git
+cd workerxy
+
+# Install dependencies
+pip install -e .
+
+# Run the initialization script
+python initializer.py
+```
+
+## 🚀 Activation Matrix
+
+After installation and initialization, start your components using the `workerxy` multi-tool CLI.
+
+| Command | Component | Description |
+| :--- | :--- | :--- |
+| `workerxy cli` | **Agent Cockpit** | Full-featured TUI for interactive troubleshooting. |
+| `workerxy ui` | **Dashboard** | Web-based interface for visual monitoring (Streamlit). |
+| `workerxy discord` | **Discord Bridge** | Connect your Discord server to the agent via RabbitMQ. |
+| `workerxy headless` | **Background Worker** | Headless mode for processing jobs from a message queue. |
+| `workerxy mcp` | **MCP Servers** | Launch the underlying Model Context Protocol servers. |
+| `workerxy skill` | **Skill Manager** | CLI tool for creating and managing agent capabilities. |
 
 ---
 
