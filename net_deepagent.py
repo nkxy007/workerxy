@@ -204,7 +204,7 @@ def get_network_skills(skills_dir: Optional[str] = None) -> List[str]:
             if skill_md.exists():
                 # Include skills with 'network' in name or specific network tools
                 if ('network' in skill_dir.name.lower() or 
-                    skill_dir.name in ['ansible-for-networks', 'drawio-network-diagram', 'prisma-sdwan']):
+                    skill_dir.name in ['ansible-for-networks', 'drawio-network-diagram', 'prisma-sdwan', 'mist-wifi-api']):
                     network_skills.append(str(skill_dir.absolute()) + "/")
                     logger.info(f"Loaded network skill: {skill_dir.name}")
     
@@ -248,6 +248,9 @@ def filter_tools_by_category(tools: List[BaseTool], category: str) -> List[BaseT
                 filtered.append(tool)
         elif category == 'lab':
             if name.startswith('eveng_'):
+                filtered.append(tool)
+        elif category == 'servicenow':
+            if name.startswith('servicenow_'):
                 filtered.append(tool)
                 
     return filtered
@@ -353,11 +356,12 @@ async def create_network_agent(
     cloud_tools = filter_tools_by_category(tools, 'cloud')
     lan_tools = filter_tools_by_category(tools, 'lan')
     lab_tools = filter_tools_by_category(tools, 'lab')
+    servicenow_tools = filter_tools_by_category(tools, 'servicenow')
     
     # Filter out specialized tools from the main agent
     main_agent_tools = [
         t for t in tools 
-        if not any(t.name.lower().startswith(p) for p in ['net_', 'isp_', 'datacentre_', 'cloud', 'eveng_'])
+        if not any(t.name.lower().startswith(p) for p in ['net_', 'isp_', 'datacentre_', 'cloud', 'eveng_', 'servicenow_'])
     ]
     
     logger.info(f"Filtered tools: {len(design_tools)} design, {len(cloud_tools)} cloud, {len(lan_tools)} LAN")
@@ -433,9 +437,11 @@ async def create_network_agent(
 
     from subagents.nms_browser_agent import nms_browser_agent
     from subagents.net_lab_agent import net_lab_agent
+    from subagents.service_desk_agent import service_desk_agent
 
-    # Set tools for net_lab_agent
+    # Set tools for net_lab_agent and service_desk_agent
     net_lab_agent["tools"] = lab_tools + [search_internet, user_clarification_and_action_tool]
+    service_desk_agent["tools"] = servicenow_tools + [search_internet, user_clarification_and_action_tool]
 
     subagents = [
         LAN_subagent,
@@ -446,6 +452,7 @@ async def create_network_agent(
         datacentre_subagent,
         nms_browser_agent,
         net_lab_agent,
+        service_desk_agent,
     ]
 
     ## create deep agent
