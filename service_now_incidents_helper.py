@@ -423,8 +423,8 @@ class ServiceNowIncident:
 # Example usage
 def main():
     # Configuration - Replace with your actual ServiceNow details
-    SERVICENOW_INSTANCE = snow_creds.SERVICENOW_INSTANCE
-    ACCESS_TOKEN = snow_creds.ACCESS_TOKEN
+    SERVICENOW_INSTANCE = snow_creds.SERVICENOW_INSTANCE_URL
+    ACCESS_TOKEN = snow_creds.SERVICENOW_ACCESS_TOKEN
     
     # Create ServiceNow client
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
