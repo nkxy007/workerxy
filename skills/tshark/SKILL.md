@@ -1,7 +1,7 @@
 ---
 name: tshark
 description: Analyze network packets using tshark (Wireshark CLI). Use when the user wants to capture live traffic, read .pcap/.pcapng files, filter packets by protocol or field, extract specific fields, drill into packet details, or generate traffic statistics. Covers live capture, pcap file analysis, display filters, field extraction, protocol drill-down, conversation stats, flow analysis, and JSON/PDML output for programmatic processing.
-compatibility: Requires tshark (Wireshark) installed. On CentOS/RHEL: `dnf install wireshark-cli`. Live capture requires root or CAP_NET_RAW. Reading pcap files works as any user.
+compatibility: Requires tshark (Wireshark) installed. On CentOS/RHEL use `dnf install wireshark-cli`. Live capture requires root or CAP_NET_RAW. Reading pcap files works as any user.
 allowed-tools: Bash
 metadata:
   author: xtf
