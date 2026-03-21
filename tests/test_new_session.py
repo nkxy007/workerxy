@@ -21,6 +21,8 @@ class TestNewSession(unittest.IsolatedAsyncioTestCase):
         self.test_sessions_dir = Path.home() / ".net-deepagent" / "test_agent" / "sessions"
         self.test_sessions_dir.mkdir(parents=True, exist_ok=True)
         self.mock_ui.console = MagicMock()
+        self.mock_ui.confirm = AsyncMock(return_value=True)
+        self.mock_ui.prompt_simple = AsyncMock()
         
     def tearDown(self):
         if self.test_sessions_dir.parent.exists():
@@ -34,7 +36,7 @@ class TestNewSession(unittest.IsolatedAsyncioTestCase):
 
     async def test_session_new_no_save(self):
         messages = [HumanMessage(content="Hello"), AIMessage(content="Hi")]
-        self.mock_ui.console.input.return_value = "n"
+        self.mock_ui.confirm.return_value = False
         
         await handle_command("/session new", self.mock_ui, messages)
         
@@ -43,8 +45,8 @@ class TestNewSession(unittest.IsolatedAsyncioTestCase):
 
     async def test_session_new_with_save(self):
         messages = [HumanMessage(content="Hello"), AIMessage(content="Hi")]
-        # Mocking console inputs: first 'y' for save prompt, then 'test_save' for session name
-        self.mock_ui.console.input.side_effect = ["y", "test_save"]
+        self.mock_ui.confirm.return_value = True
+        self.mock_ui.prompt_simple.return_value = "test_save"
         
         await handle_command("/session new", self.mock_ui, messages)
         
@@ -59,8 +61,8 @@ class TestNewSession(unittest.IsolatedAsyncioTestCase):
 
     async def test_session_new_with_full_yes_save(self):
         messages = [HumanMessage(content="Hello"), AIMessage(content="Hi")]
-        # Mocking console inputs: first 'yes' for save prompt, then 'test_save_yes' for session name
-        self.mock_ui.console.input.side_effect = ["yes", "test_save_yes"]
+        self.mock_ui.confirm.return_value = True
+        self.mock_ui.prompt_simple.return_value = "test_save_yes"
         
         await handle_command("/session new", self.mock_ui, messages)
         
@@ -70,8 +72,8 @@ class TestNewSession(unittest.IsolatedAsyncioTestCase):
 
     async def test_session_new_cancel_save(self):
         messages = [HumanMessage(content="Hello"), AIMessage(content="Hi")]
-        # Mocking console inputs: first 'y' for save prompt, then empty string for session name
-        self.mock_ui.console.input.side_effect = ["y", ""]
+        self.mock_ui.confirm.return_value = True
+        self.mock_ui.prompt_simple.return_value = ""
         
         await handle_command("/session new", self.mock_ui, messages)
         
@@ -85,8 +87,8 @@ class TestNewSession(unittest.IsolatedAsyncioTestCase):
         session_file = self.test_sessions_dir / "delete_me.json"
         session_file.write_text("[]")
         
-        # User provides name in command and confirms 'y'
-        self.mock_ui.console.input.return_value = "y"
+        # User provides name in command and confirms
+        self.mock_ui.confirm.return_value = True
         
         await handle_command("/session delete delete_me", self.mock_ui, [])
         
@@ -98,8 +100,9 @@ class TestNewSession(unittest.IsolatedAsyncioTestCase):
         session_file = self.test_sessions_dir / "prompt_delete.json"
         session_file.write_text("[]")
         
-        # User provides no name, prompts for 'prompt_delete' then confirms 'y'
-        self.mock_ui.console.input.side_effect = ["prompt_delete", "y"]
+        # User provides no name, prompts for 'prompt_delete' then confirms
+        self.mock_ui.prompt_simple.return_value = "prompt_delete"
+        self.mock_ui.confirm.return_value = True
         
         await handle_command("/session delete", self.mock_ui, [])
         
@@ -110,8 +113,8 @@ class TestNewSession(unittest.IsolatedAsyncioTestCase):
         session_file = self.test_sessions_dir / "keep_me.json"
         session_file.write_text("[]")
         
-        # User provides name and cancels 'n'
-        self.mock_ui.console.input.return_value = "n"
+        # User provides name and cancels
+        self.mock_ui.confirm.return_value = False
         
         await handle_command("/session delete keep_me", self.mock_ui, [])
         

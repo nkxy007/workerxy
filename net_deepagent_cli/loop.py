@@ -11,6 +11,7 @@ import datetime
 from pathlib import Path
 from langchain_core.messages import message_to_dict, HumanMessage, AIMessage, ToolMessage
 from net_deepagent_cli.communication.session import save_session, load_session
+from utils.session_archiver import fire_and_forget_archive
 
 # Set unified log file for the entire process
 set_process_log_file("main.log")
@@ -289,6 +290,8 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                 session["messages"] = messages
                 save_session(session_id, session)
                 logger.info(f"Memory synced for session {session_id}")
+                # Archive to ChromaDB asynchronously (fire-and-forget, non-blocking)
+                fire_and_forget_archive(messages, session_id)
             except Exception as e:
                 logger.error(f"Failed to sync memory for session {session_id}: {e}")
         
@@ -309,6 +312,8 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                     json.dump(serialized_messages, f, indent=2)
                     
                 logger.info(f"Online session saved for user {author} to {filepath}")
+                # Archive to ChromaDB asynchronously (fire-and-forget, non-blocking)
+                fire_and_forget_archive(messages, f"{author}_{timestamp}")
             except Exception as e:
                 logger.error(f"Failed to save online session for {author}: {e}")
 

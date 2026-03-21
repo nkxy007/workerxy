@@ -22,6 +22,7 @@ from net_deepagent_cli.skill_commands import (
 import json
 import datetime
 import asyncio
+from utils.session_archiver import fire_and_forget_archive
 
 async def handle_command(command: str, ui, messages, agent=None):
     """Handle special slash commands"""
@@ -75,6 +76,8 @@ async def handle_command(command: str, ui, messages, agent=None):
             with open(filepath, 'w') as f:
                 json.dump(serialized_messages, f, indent=2)
             ui.print_message(f"Session saved to [bold cyan]{filename}[/bold cyan]", role="system")
+            # Archive to ChromaDB asynchronously (fire-and-forget, non-blocking)
+            fire_and_forget_archive(messages, session_name)
         except Exception as e:
             ui.print_message(f"Failed to save session: {e}", role="error")
 
@@ -283,6 +286,8 @@ async def prompt_and_save_session(messages, ui, prompt_msg: str):
                     with open(filepath, 'w') as f:
                         json.dump(serialized_messages, f, indent=2)
                     ui.print_message(f"Session saved to [bold cyan]{filename}[/bold cyan]", role="system")
+                    # Archive to ChromaDB asynchronously (fire-and-forget, non-blocking)
+                    fire_and_forget_archive(messages, session_name)
                     return True
                 except Exception as e:
                     ui.print_message(f"Failed to save session: {e}", role="error")
