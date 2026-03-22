@@ -1,7 +1,7 @@
 import requests
 import json
 from datetime import datetime, timedelta
-import snow_creds
+import creds as snow_creds
 
 
 class ServiceNowIncident:

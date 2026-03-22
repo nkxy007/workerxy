@@ -2,7 +2,7 @@ import requests
 import json
 from datetime import datetime, timedelta
 import base64
-import snow_creds
+import creds as snow_creds
 
 class ServiceNowChangeRequest:
     def __init__(self, instance_url, token):
@@ -198,7 +198,7 @@ def main():
     # Configuration - Replace with your actual ServiceNow details
     SERVICENOW_INSTANCE = snow_creds.SERVICENOW_INSTANCE_URL
     ACCESS_TOKEN = snow_creds.SERVICENOW_ACCESS_TOKEN
-    SERVER_NAME = snow_creds.SERVER_NAME
+    SERVER_NAME = snow_creds.SERVICENOW_SERVER_NAME
     
     # Create ServiceNow client
     sn_client = ServiceNowChangeRequest(SERVICENOW_INSTANCE, ACCESS_TOKEN)
