@@ -252,6 +252,9 @@ def filter_tools_by_category(tools: List[BaseTool], category: str) -> List[BaseT
         elif category == 'servicenow':
             if name.startswith('servicenow_'):
                 filtered.append(tool)
+        elif category == 'jira':
+            if name.startswith('jira_'):
+                filtered.append(tool)
                 
     return filtered
 
@@ -357,11 +360,12 @@ async def create_network_agent(
     lan_tools = filter_tools_by_category(tools, 'lan')
     lab_tools = filter_tools_by_category(tools, 'lab')
     servicenow_tools = filter_tools_by_category(tools, 'servicenow')
+    jira_tools = filter_tools_by_category(tools, 'jira')
     
     # Filter out specialized tools from the main agent
     main_agent_tools = [
         t for t in tools 
-        if not any(t.name.lower().startswith(p) for p in ['net_', 'isp_', 'datacentre_', 'cloud', 'eveng_', 'servicenow_'])
+        if not any(t.name.lower().startswith(p) for p in ['net_', 'isp_', 'datacentre_', 'cloud', 'eveng_', 'servicenow_', 'jira_'])
     ]
     
     logger.info(f"Filtered tools: {len(design_tools)} design, {len(cloud_tools)} cloud, {len(lan_tools)} LAN")
@@ -438,10 +442,12 @@ async def create_network_agent(
     from subagents.nms_browser_agent import nms_browser_agent
     from subagents.net_lab_agent import net_lab_agent
     from subagents.service_desk_agent import service_desk_agent
+    from subagents.ticket_scout_agent import ticket_scout_agent
 
-    # Set tools for net_lab_agent and service_desk_agent
+    # Set tools for net_lab_agent, service_desk_agent and ticket_scout_agent
     net_lab_agent["tools"] = lab_tools + [search_internet, user_clarification_and_action_tool]
-    service_desk_agent["tools"] = servicenow_tools + [search_internet, user_clarification_and_action_tool]
+    service_desk_agent["tools"] = servicenow_tools + [user_clarification_and_action_tool]
+    ticket_scout_agent["tools"] = jira_tools + [user_clarification_and_action_tool]
 
     subagents = [
         LAN_subagent,
@@ -453,6 +459,7 @@ async def create_network_agent(
         nms_browser_agent,
         net_lab_agent,
         service_desk_agent,
+        ticket_scout_agent,
     ]
 
     ## create deep agent

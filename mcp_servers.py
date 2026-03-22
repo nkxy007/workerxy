@@ -12,7 +12,7 @@ import logging
 import sys
 from service_now_incidents_helper import ServiceNowIncident
 from service_now_changes_helper import ServiceNowChangeRequest
-from snow_creds import SERVICENOW_INSTANCE_URL, SERVICENOW_ACCESS_TOKEN
+from creds import SERVICENOW_INSTANCE_URL, SERVICENOW_ACCESS_TOKEN
 import subprocess
 import tempfile
 import os
@@ -30,6 +30,7 @@ import csv
 from datetime import datetime
 from tools_helpers.retriever_archiver import ArchiverRetriever
 from utils.credentials_helper import get_helper
+from utils.atlassian.jira_helper import JiraClient, _load_client
 import argparse
 import getpass
 import time
@@ -69,6 +70,14 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize Retriever Archiver: {e}")
     archiver = None
+
+# Initialize Jira Client
+try:
+    jira_client = _load_client()
+    logger.info("Jira Client initialized successfully")
+except Exception as e:
+    logger.warning(f"Failed to initialize Jira Client: {e}. Jira tools will not be available.")
+    jira_client = None
 
 
 def log_tool_call_to_csv(tool_name: str, intention: str, **kwargs):
@@ -661,6 +670,232 @@ async def servicenow_create_change_request(short_description: str, description: 
         return f"✅ Change Request Created Successfully!\nNumber: {change_data.get('number')}\nSys ID: {change_data.get('sys_id')}\nLink: {result['data']['result'].get('link', 'N/A')}"
     else:
         return f"❌ Failed to create change request: {result.get('error', 'Unknown error')}"
+
+# ============================================================
+# JIRA TOOLS
+# ============================================================
+
+@mcp.tool()
+async def jira_get_ticket(issue_key: str, intention: str) -> str:
+    """Fetch a Jira issue by key (e.g. \"PROJ-123\").
+    Args:
+        issue_key (str): Jira issue key
+        intention (str): llm intention to call this tool
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(jira_get_ticket.__name__, intention, issue_key=issue_key)
+    if not jira_client:
+        return "Jira Client is not initialized. Please check credentials."
+    try:
+        result = jira_client.get_ticket(issue_key)
+        fields = result.get("fields", {})
+        summary = (
+            f"Ticket: {result.get('key')} - {fields.get('summary')}\n"
+            f"Status: {fields.get('status', {}).get('name')}\n"
+            f"Priority: {(fields.get('priority') or {}).get('name')}\n"
+            f"Assignee: {(fields.get('assignee') or {}).get('displayName', 'Unassigned')}\n"
+            f"Reporter: {(fields.get('reporter') or {}).get('displayName')}\n"
+            f"Created: {fields.get('created')}\n"
+            f"Updated: {fields.get('updated')}"
+        )
+        return summary
+    except Exception as e:
+        logger.error(f"Error fetching Jira ticket {issue_key}: {e}\n{traceback.format_exc()}")
+        return f"Error fetching Jira ticket: {e}"
+
+@mcp.tool()
+async def jira_get_ticket_details(issue_key: str, intention: str) -> str:
+    """Fetch a Jira issue with full field expansion and comments.
+    Args:
+        issue_key (str): Jira issue key
+        intention (str): llm intention to call this tool
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(jira_get_ticket_details.__name__, intention, issue_key=issue_key)
+    if not jira_client:
+        return "Jira Client is not initialized. Please check credentials."
+    try:
+        details = jira_client.get_ticket_details(issue_key)
+        return json.dumps(details, indent=2)
+    except Exception as e:
+        logger.error(f"Error fetching Jira ticket details {issue_key}: {e}\n{traceback.format_exc()}")
+        return f"Error fetching Jira ticket details: {e}"
+
+@mcp.tool()
+async def jira_update_ticket(issue_key: str, intention: str, summary: Optional[str] = None, assignee_id: Optional[str] = None, priority: Optional[str] = None, labels: Optional[str] = None, due_date: Optional[str] = None) -> str:
+    """Update one or more fields on a Jira ticket.
+    Args:
+        issue_key (str): Jira issue key
+        intention (str): llm intention to call this tool
+        summary (str): New summary/title text (optional)
+        assignee_id (str): Atlassian accountId of the new assignee (optional)
+        priority (str): Priority name, e.g. High, Medium, Low (optional)
+        labels (str): Comma-separated labels, e.g. backend,urgent (optional)
+        due_date (str): Due date in YYYY-MM-DD format (optional)
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(jira_update_ticket.__name__, intention, issue_key=issue_key, summary=summary, assignee_id=assignee_id, priority=priority, labels=labels, due_date=due_date)
+    if not jira_client:
+        return "Jira Client is not initialized. Please check credentials."
+    
+    fields = {}
+    if summary: fields["summary"] = summary
+    if assignee_id: fields["assignee"] = {"accountId": assignee_id}
+    if priority: fields["priority"] = {"name": priority}
+    if labels: fields["labels"] = [l.strip() for l in labels.split(",")]
+    if due_date: fields["duedate"] = due_date
+
+    if not fields:
+        return "No update fields provided."
+
+    try:
+        jira_client.update_ticket(issue_key, fields)
+        return f"✓ Ticket {issue_key} updated successfully."
+    except Exception as e:
+        logger.error(f"Error updating Jira ticket {issue_key}: {e}\n{traceback.format_exc()}")
+        return f"Error updating Jira ticket: {e}"
+
+@mcp.tool()
+async def jira_add_comment(issue_key: str, comment_text: str, intention: str) -> str:
+    """Add a comment to a Jira issue.
+    Args:
+        issue_key (str): Jira issue key
+        comment_text (str): Comment text
+        intention (str): llm intention to call this tool
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(jira_add_comment.__name__, intention, issue_key=issue_key, comment_text=comment_text)
+    if not jira_client:
+        return "Jira Client is not initialized. Please check credentials."
+    try:
+        result = jira_client.add_comment(issue_key, comment_text)
+        return f"✓ Comment added (id={result.get('id')}) to {issue_key}."
+    except Exception as e:
+        logger.error(f"Error adding comment to Jira ticket {issue_key}: {e}\n{traceback.format_exc()}")
+        return f"Error adding comment: {e}"
+
+@mcp.tool()
+async def jira_transition_ticket(issue_key: str, transition_name: str, intention: str) -> str:
+    """Move a ticket to a new status by transition name (e.g. \"In Progress\", \"Done\").
+    Args:
+        issue_key (str): Jira issue key
+        transition_name (str): Target transition name
+        intention (str): llm intention to call this tool
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(jira_transition_ticket.__name__, intention, issue_key=issue_key, transition_name=transition_name)
+    if not jira_client:
+        return "Jira Client is not initialized. Please check credentials."
+    try:
+        jira_client.transition_ticket(issue_key, transition_name)
+        return f"✓ Ticket {issue_key} transitioned to '{transition_name}'."
+    except Exception as e:
+        logger.error(f"Error transitioning Jira ticket {issue_key}: {e}\n{traceback.format_exc()}")
+        return f"Error transitioning ticket: {e}"
+
+@mcp.tool()
+async def jira_list_transitions(issue_key: str, intention: str) -> str:
+    """List available transitions for a ticket.
+    Args:
+        issue_key (str): Jira issue key
+        intention (str): llm intention to call this tool
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(jira_list_transitions.__name__, intention, issue_key=issue_key)
+    if not jira_client:
+        return "Jira Client is not initialized. Please check credentials."
+    try:
+        transitions = jira_client.list_transitions(issue_key)
+        if not transitions:
+            return f"No transitions available for {issue_key}."
+        lines = [f"Available transitions for {issue_key}:"]
+        for t in transitions:
+            lines.append(f"  [{t['id']}] {t['name']}")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"Error listing transitions for Jira ticket {issue_key}: {e}\n{traceback.format_exc()}")
+        return f"Error listing transitions: {e}"
+
+@mcp.tool()
+async def jira_get_recent_tickets(intention: str, project: Optional[str] = None, limit: int = 50, status: Optional[str] = None, days: int = 30) -> str:
+    """List tickets ordered by most recently created.
+    Args:
+        intention (str): llm intention to call this tool
+        project (str): Scope to a project key, e.g. PROJ (optional)
+        limit (int): Max results (default 50)
+        status (str): Filter by status, e.g. \"In Progress\" (optional)
+        days (int): How many days back to search when no project given (default 30)
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(jira_get_recent_tickets.__name__, intention, project=project, limit=limit, status=status, days=days)
+    if not jira_client:
+        return "Jira Client is not initialized. Please check credentials."
+    try:
+        issues = jira_client.get_recent_tickets(project=project, max_results=limit, status=status, days=days)
+        if not issues:
+            return "No tickets found."
+        lines = [f"Recent tickets:"]
+        for issue in issues:
+            f = issue.get("fields", {})
+            lines.append(f"- {issue.get('key')}: {f.get('summary')} (Status: {f.get('status', {}).get('name')})")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"Error fetching recent Jira tickets: {e}\n{traceback.format_exc()}")
+        return f"Error fetching recent tickets: {e}"
+
+@mcp.tool()
+async def jira_get_tickets_by_assignee(intention: str, assignee: Optional[str] = None, project: Optional[str] = None, limit: int = 50, status: Optional[str] = None, order_by: str = "created", order_dir: str = "DESC") -> str:
+    """List tickets assigned to a user.
+    Args:
+        intention (str): llm intention to call this tool
+        assignee (str): Display name or accountId. Omit to use currentUser() (optional)
+        project (str): Scope to a project key, e.g. PROJ (optional)
+        limit (int): Max results (default 50)
+        status (str): Filter by status, e.g. \"To Do\" (optional)
+        order_by (str): Sort field: created | updated | priority | status (default: created)
+        order_dir (str): Sort direction: ASC | DESC (default: DESC)
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(jira_get_tickets_by_assignee.__name__, intention, assignee=assignee, project=project, limit=limit, status=status, order_by=order_by, order_dir=order_dir)
+    if not jira_client:
+        return "Jira Client is not initialized. Please check credentials."
+    try:
+        issues = jira_client.get_tickets_by_assignee(assignee=assignee, project=project, max_results=limit, status=status, order_by=order_by, order_dir=order_dir)
+        if not issues:
+            return f"No tickets found for assignee {assignee or 'currentUser()'}."
+        lines = [f"Tickets assigned to {assignee or 'currentUser()'}:"]
+        for issue in issues:
+            f = issue.get("fields", {})
+            lines.append(f"- {issue.get('key')}: {f.get('summary')} (Status: {f.get('status', {}).get('name')})")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"Error fetching Jira tickets by assignee: {e}\n{traceback.format_exc()}")
+        return f"Error fetching tickets by assignee: {e}"
+
+@mcp.tool()
+async def jira_search_tickets(jql: str, intention: str, limit: int = 50) -> str:
+    """Search tickets with a JQL query.
+    Args:
+        jql (str): JQL query string
+        intention (str): llm intention to call this tool
+        limit (int): Max results (default 50)
+    """
+    logger.info(f"Intention: {intention}")
+    log_tool_call_to_csv(jira_search_tickets.__name__, intention, jql=jql, limit=limit)
+    if not jira_client:
+        return "Jira Client is not initialized. Please check credentials."
+    try:
+        issues = jira_client.search_tickets(jql, max_results=limit)
+        if not issues:
+            return f"No issues found for JQL: {jql}"
+        lines = [f"Found {len(issues)} issues:"]
+        for issue in issues:
+            f = issue.get("fields", {})
+            lines.append(f"- {issue.get('key')}: {f.get('summary')} (Status: {f.get('status', {}).get('name')})")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"Error searching Jira tickets with JQL {jql}: {e}\n{traceback.format_exc()}")
+        return f"Error searching tickets: {e}"
 
 @mcp.tool()
 async def cloud_ssh_tool(management_ip: str, cloud_provider: str, command: List[str], intention: str) -> str:
