@@ -31,6 +31,11 @@ async def interactive_loop(agent, args, ui: TerminalUI):
     automata_manager = AutomataManager(ui.agent_name, agent)
     automata_manager.start()
     
+    # Wire the live manager into automata_tools so the main agent's @tool functions
+    # can create / manage jobs programmatically (in addition to the /automata CLI).
+    from tools_helpers.automata_tools import set_automata_manager
+    set_automata_manager(automata_manager)
+    
     # Session state - store as LangChain messages
     messages: List[Any] = []
     

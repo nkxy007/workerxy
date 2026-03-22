@@ -379,6 +379,26 @@ async def create_network_agent(
         main_agent_tools.extend(extra_tools)
         logger.info(f"Added {len(extra_tools)} extra tool(s) to main agent: {[t.name for t in extra_tools]}")
 
+    # Build automata tool list — these are injected into the automata_agent subagent below,
+    # NOT into main_agent_tools. The main agent delegates scheduling tasks to the subagent.
+    from tools_helpers.automata_tools import (
+        automata_create_job,
+        automata_list_jobs,
+        automata_stop_job,
+        automata_remove_job,
+        automata_get_job_logs,
+        automata_read_job_log,
+    )
+    automata_tool_list = [
+        automata_create_job,
+        automata_list_jobs,
+        automata_stop_job,
+        automata_remove_job,
+        automata_get_job_logs,
+        automata_read_job_log,
+    ]
+    logger.info("Built 6 automata tools for automata_agent subagent")
+
     # Allow caller to wrap/modify tools (e.g. for security).
     # Applied to the full list; main_agent_tools is rebuilt from the wrapped set.
     if tool_wrapper:
@@ -443,11 +463,13 @@ async def create_network_agent(
     from subagents.net_lab_agent import net_lab_agent
     from subagents.service_desk_agent import service_desk_agent
     from subagents.ticket_scout_agent import ticket_scout_agent
+    from subagents.automata_agent import automata_agent
 
-    # Set tools for net_lab_agent, service_desk_agent and ticket_scout_agent
+    # Inject tools into subagents
     net_lab_agent["tools"] = lab_tools + [search_internet, user_clarification_and_action_tool]
     service_desk_agent["tools"] = servicenow_tools + [user_clarification_and_action_tool]
     ticket_scout_agent["tools"] = jira_tools + [user_clarification_and_action_tool]
+    automata_agent["tools"] = automata_tool_list
 
     subagents = [
         LAN_subagent,
@@ -460,6 +482,7 @@ async def create_network_agent(
         net_lab_agent,
         service_desk_agent,
         ticket_scout_agent,
+        automata_agent,
     ]
 
     ## create deep agent
@@ -478,6 +501,10 @@ async def create_network_agent(
             store=InMemoryStore(),
             middleware=[log_before_calling_model] + (custom_middlewares or []),
         )
+        
+        # Expose the raw LLM so the automata manager can bypass tool-calling when parsing schedules
+        net_deep_agent.raw_llm = main_model
+        
         logger.info(f"Deep agent created successfully! Type: {type(net_deep_agent)}")
         logger.debug(f"Agent has astream: {hasattr(net_deep_agent, 'astream')}")
     except Exception as e:

@@ -118,7 +118,7 @@ class AutomataManager:
              return filepath.read_text()
         return "Log file not found."
 
-    def add_task(self, prompt: str, interval_seconds: int = 0, cron: str = None, end_time: str = None) -> str:
+    def add_task(self, prompt: str, interval_seconds: int = 0, cron: str = None, end_time: str = None, run_immediately: bool = True) -> str:
         """Add a new task"""
         import uuid
         task_id = str(uuid.uuid4())[:8]
@@ -133,7 +133,7 @@ class AutomataManager:
             "enabled": True
         }
         
-        self.schedule_task_internal(task_id, task_info)
+        self.schedule_task_internal(task_id, task_info, is_new=run_immediately)
         self.tasks[task_id] = task_info
         self.save_tasks()
         return task_id
@@ -175,7 +175,7 @@ class AutomataManager:
             return True
         return False
 
-    def schedule_task_internal(self, task_id: str, task_info: Dict):
+    def schedule_task_internal(self, task_id: str, task_info: Dict, is_new: bool = False):
         """Internal method to add job to APScheduler"""
         if not task_info.get("enabled", True):
             return
@@ -204,12 +204,18 @@ class AutomataManager:
              pass
         
         if trigger:
+            job_kwargs = {
+                "trigger": trigger,
+                "id": task_id,
+                "args": [task_info["prompt"], task_id],
+                "replace_existing": True
+            }
+            if is_new:
+                job_kwargs["next_run_time"] = datetime.now()
+                
             self.scheduler.add_job(
                 self.execute_agent_task,
-                trigger=trigger,
-                id=task_id,
-                args=[task_info["prompt"], task_id],
-                replace_existing=True
+                **job_kwargs
             )
 
     def _normalize_content(self, msg_content: Any) -> str:
@@ -269,18 +275,28 @@ class AutomataManager:
                 f"- 'prompt' (str): The task to perform.\n"
                 f"- 'interval_seconds' (int): How often to run it (0 if not specified).\n"
                 f"- 'end_time' (str, optional): ISO 8601 timestamp when the task should stop (null if not specified).\n"
+                f"- 'run_immediately' (bool): True if the task should run immediately right now, False otherwise (default True).\n"
                 f"If the user says 'for 5 hours', calculate the end_time based on the Current Time.\n"
                 f"If the user says 'till 1:30', assume the next occurrence of 1:30 AM/PM and return the ISO timestamp.\n"
-                f"Example JSON: {{\"prompt\": \"check ping\", \"interval_seconds\": 60, \"end_time\": \"2024-05-20T15:00:00\"}}"
+                f"Example JSON: {{\"prompt\": \"check ping\", \"interval_seconds\": 60, \"end_time\": \"2024-05-20T15:00:00\", \"run_immediately\": true}}"
             )
             
-            # We use ainvoke on the agent. 
-            inputs = {"messages": [HumanMessage(content=parsing_prompt)]}
-            result = await self.agent.ainvoke(inputs)
+            # Use raw LLM if available to bypass tool-calling loop when parsing text
+            llm = getattr(self.agent, "raw_llm", None)
             
-            if "messages" in result:
-                last_msg = result["messages"][-1]
-                content = self._normalize_content(last_msg.content)
+            if llm:
+                result = await llm.ainvoke([HumanMessage(content=parsing_prompt)])
+                content = result.content
+                if hasattr(content, "text"):
+                    content = content.text
+            else:
+                inputs = {"messages": [HumanMessage(content=parsing_prompt)]}
+                result = await self.agent.ainvoke(inputs)
+                if "messages" in result:
+                    last_msg = result["messages"][-1]
+                    content = self._normalize_content(last_msg.content)
+                else:
+                    return {}
                 
                 # Cleanup potential markdown code blocks
                 if "```json" in content:
@@ -476,6 +492,7 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
     
     prompt = None
     interval = 0
+    run_imm = True
     
     if match:
         val = int(match.group(1))
@@ -506,13 +523,14 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
          if parsed and "prompt" in parsed and "interval_seconds" in parsed:
              prompt = parsed["prompt"]
              interval = parsed["interval_seconds"]
+             run_imm = parsed.get("run_immediately", True)
     
     if prompt and interval > 0:
         end_time = None
         if 'parsed' in locals() and parsed:
             end_time = parsed.get("end_time")
             
-        task_id = manager.add_task(prompt, interval_seconds=interval, end_time=end_time)
+        task_id = manager.add_task(prompt, interval_seconds=interval, end_time=end_time, run_immediately=run_imm)
         end_str = f", End: {end_time}" if end_time else ""
         ui.console.print(f"[green]Task added with ID {task_id} (Interval: {interval}s{end_str})[/green]")
         return True
