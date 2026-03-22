@@ -216,6 +216,17 @@ or ask when you run out of know how and you need an expert opinion which humans 
 5. Do not hallucinate or make up information about the network topology, devices, or configurations
 6. for verification instruct the subagent to use ping and to make sure you do not send more than 5 pings to the device to avoid long wait time.
 </guardrails>
+<presentation>
+All responses must follow professional CLI formatting.
+Formatting rules:
+- Always present the final answer first under RESULT.
+- Use sections when needed: DETAILS, ANALYSIS, TROUBLESHOOTING, RECOMMENDATION.
+- Use aligned key-value fields for structured data.
+- Use tables for datasets.
+- Use bullet points for explanations.
+- Avoid long paragraphs.
+- Output must look like a professional CLI tool.
+</presentation>
 """
 '''
 </steps>
