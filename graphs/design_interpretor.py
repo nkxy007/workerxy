@@ -156,6 +156,8 @@ class InterpretorState(TypedDict):
     document_result: Optional[DesignDocumentInfo]
     # Shared
     error: Optional[str]
+    fresh_run: Optional[bool]
+    cached_result_found: Optional[bool]
 
 # ---------------------------------------------------------------------------
 # Image Branch Prompt
@@ -215,10 +217,49 @@ def detect_input_type(state: InterpretorState) -> dict:
     pdf_match = re.search(r"(/[^\s]+\.pdf)", content, re.IGNORECASE)
     img_match = re.search(r"(/[^\s]+\.(?:png|jpg|jpeg))", content, re.IGNORECASE)
 
+    fresh_run = "--fresh" in content
+
+    def check_cache(file_path: str, is_doc: bool):
+        if fresh_run:
+            return None
+        basename = os.path.basename(file_path)
+        cache_path = os.path.expanduser(f"~/.net-deepagent/design/{basename}.json")
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, "r") as f:
+                    data = json.load(f)
+                return data, cache_path
+            except Exception as e:
+                print(f"Failed to load cache from {cache_path}: {e}")
+        return None
+
     if pdf_match:
-        return {"document_path": pdf_match.group(1)}
+        doc_path = pdf_match.group(1)
+        cache_res = check_cache(doc_path, True)
+        if cache_res:
+            data, cache_path = cache_res
+            doc_result = DesignDocumentInfo(**data)
+            return {
+                "document_path": doc_path,
+                "document_result": doc_result,
+                "cached_result_found": True,
+                "messages": [AIMessage(content=f"Loaded cached design document result from {cache_path}\nSummary: {doc_result.summary}")]
+            }
+        return {"document_path": doc_path, "fresh_run": fresh_run}
+
     elif img_match:
-        return {"image_path": img_match.group(1)}
+        img_path = img_match.group(1)
+        cache_res = check_cache(img_path, False)
+        if cache_res:
+            data, cache_path = cache_res
+            result = FullDesign(**data)
+            return {
+                "image_path": img_path,
+                "result": result,
+                "cached_result_found": True,
+                "messages": [AIMessage(content=f"Loaded cached image design result from {cache_path}\nSummary: {result.summary}")]
+            }
+        return {"image_path": img_path, "fresh_run": fresh_run}
 
     return {"error": "No image (.png/.jpg/.jpeg) or document (.pdf) path found in message"}
 
@@ -226,6 +267,8 @@ def detect_input_type(state: InterpretorState) -> dict:
 def route_by_input_type(state: InterpretorState) -> str:
     """Conditional router: send to the image branch or the document branch."""
     if state.get("error"):
+        return END
+    if state.get("cached_result_found"):
         return END
     if state.get("document_path"):
         return "read_design_document"
@@ -319,6 +362,19 @@ def parse_structured_data(state: InterpretorState):
             data["summary"] = "No summary provided."
 
         result = FullDesign(**data)
+        
+        image_path = state.get("image_path", "")
+        if image_path:
+            basename = os.path.basename(image_path)
+            cache_dir = os.path.expanduser("~/.net-deepagent/design")
+            os.makedirs(cache_dir, exist_ok=True)
+            cache_path = os.path.join(cache_dir, f"{basename}.json")
+            try:
+                with open(cache_path, "w") as f:
+                    json.dump(result.model_dump(), f, indent=2)
+            except Exception as e:
+                print(f"Failed to save cache to {cache_path}: {e}")
+
         summary_msg = (
             f"Design Interpretation Complete.\n"
             f"Summary: {result.summary}\n"
@@ -486,6 +542,17 @@ def read_design_document(state: InterpretorState, config: RunnableConfig) -> dic
 
     try:
         doc_result = DesignDocumentInfo(**valid_fields)
+        
+        basename = os.path.basename(doc_path)
+        cache_dir = os.path.expanduser("~/.net-deepagent/design")
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_path = os.path.join(cache_dir, f"{basename}.json")
+        try:
+            with open(cache_path, "w") as f:
+                json.dump(doc_result.model_dump(), f, indent=2)
+        except Exception as e:
+            print(f"Failed to save cache to {cache_path}: {e}")
+            
     except Exception as e:
         print(f"Could not build DesignDocumentInfo: {e}")
         doc_result = DesignDocumentInfo(summary=f"Partial extraction from {os.path.basename(doc_path)}")
@@ -572,7 +639,8 @@ def get_design_interpretor_subagent(model_name: str = "openai", api_key: str = N
             "Supports: (1) network diagram images (.png/.jpg/.jpeg) — returns devices, links, protocols and summary; "
             "(2) PDF design documents (.pdf) — returns site info, devices, management IPs, VLANs, routing protocols "
             "(OSPF, BGP, MPLS, EVPN, VXLAN, SD-WAN, GRE/IPsec tunnels, ...), links and a full summary. "
-            "Provide the absolute path to the file in your prompt."
+            "Provide the absolute path to the file in your prompt. "
+            "To force a fresh interpretation and ignore cached results, include the flag '--fresh' in your prompt."
         ),
         "runnable": design_interpretor_graph.with_config({
             "configurable": {
