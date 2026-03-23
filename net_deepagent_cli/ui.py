@@ -99,6 +99,7 @@ class TerminalUI:
                 "list": "List all scheduled tasks",
                 "add": "Add a new background task",
                 "remove": "Remove a task by ID",
+                "stop": "Stop a task by ID",
                 "resume": "Resume a stale task",
                 "logs": "List execution logs for a task",
                 "view": "View a specific log file",

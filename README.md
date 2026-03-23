@@ -19,9 +19,9 @@ WorkerXY is a high-performance, agentic AI system designed to streamline network
 *   **Auto-Learning**: Updates skills based on session context.
 
 ### ⚙️ Automata (Autonomous Ops)
-*   **Background Scheduling**: Schedule recurring tasks like "verify server status every 15 mins".
+*   **Agent-Driven Scheduling**: The `automata_agent` subagent can programmatically schedule recurring tasks like "verify server status every 15 mins".
 *   **Autonomous Execution**: WorkerXY handles the execution and logging even while you're offline.
-*   **Full Lifecycle**: List, pause, resume, and inspect detailed execution logs via `/automata`.
+*   **Full Lifecycle & Verification**: List, pause, resume, and inspect detailed execution logs via `/automata` or directly through the agent.
 
 ### 🛡️ Smart Middlewares
 *   **NetPII Pseudonymization**: Automatically masks IPs, MACs, and URLs for privacy.
@@ -62,7 +62,7 @@ WorkerXY leverages the **Model Context Protocol (MCP)** to interact with your st
 | `/session new` | Save current session and start a fresh one. |
 | `/agents list` | Manage specialist A2A agents. |
 | `/skills list` | View and add capabilities to the agent. |
-| `/automata add` | Schedule a new background task. |
+| `/automata` | List, add, or stop background tasks. |
 | `/middlewares` | Configure PII masking and context pruning. |
 | `/memory` | View the agent's current persistent knowledge. |
 

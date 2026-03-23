@@ -79,15 +79,18 @@ Dynamically attach external Agent-to-Agent (A2A) specialist agents at runtime.
 
 Scheduled tasks that run autonomously in the background while you continue chatting.
 
-| Command | Description |
+| Feature | Command / Detail |
 |---|---|
-| `/automata` | Open the automata management menu |
+| `/automata` | Open the interactive automata management menu |
 | `/automata list` | List all scheduled background tasks |
-| `/automata add` | Schedule a new recurring task |
+| `/automata add` | Schedule a new recurring task (regex + LLM parsing) |
 | `/automata remove <id>` | Remove a task by ID |
+| `/automata stop <id>` | Stop a task without removing it |
 | `/automata resume <id>` | Resume a stale/paused task |
-| `/automata logs <id>` | List execution logs for a task |
-| `/automata view <filename>` | View a specific log file |
+| `/automata logs <id>` | List timestamped log files for a task |
+| `/automata view <filename>` | View content of a specific execution log |
+| **Agent Scheduling** | The `automata_agent` subagent can create and manage jobs programmatically from chat |
+| **Immediate Execution** | Newly created jobs trigger their first run immediately by default |
 
 Logs are persisted to `~/.net-deepagent/<name>/automata_results/`.
 

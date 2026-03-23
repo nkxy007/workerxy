@@ -26,6 +26,9 @@ from dataclasses import dataclass
 import json
 import re
 from typing import Any, Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 # --- Optional imports with shims for demo compatibility ---
 try:  # Message types (LangChain Core)
@@ -362,11 +365,10 @@ class PIIPseudonymizationMiddleware(AgentMiddleware):
                     )
 
                     if masked != content:
-                        # Debug logging
-                        print(f"\n[PIIPseudonymizationMiddleware DEBUG - before_model]")
-                        print(f"  Index: {i}")
-                        print(f"  Original content: {content}")
-                        print(f"  Masked content: {masked}")
+                        logger.info(f"\n[PIIPseudonymizationMiddleware - before_model]")
+                        logger.info(f"  Index: {i}")
+                        logger.info(f"  Original content: {content}")
+                        logger.info(f"  Masked content: {masked}")
                         
                         new_messages[i] = HumanMessage(
                             content=masked,
@@ -400,7 +402,7 @@ class PIIPseudonymizationMiddleware(AgentMiddleware):
         if not messages:
             return None
 
-        print(f"\n[PIIPseudonymizationMiddleware DEBUG - after_model]")
+        logger.info(f"\n[PIIPseudonymizationMiddleware - after_model]")
         # Last AI message
         last_ai_idx = None
         last_ai_msg = None
@@ -434,10 +436,9 @@ class PIIPseudonymizationMiddleware(AgentMiddleware):
         decoded_calls = tool_calls
         if self.decode_tool_calls and tool_calls:
             try:
-                # Debug logging
-                print(f"\n[PIIPseudonymizationMiddleware DEBUG tools]")
-                print(f"  Mapping: {mapping}")
-                print(f"  Original tool_calls: {tool_calls}")
+                logger.info(f"\n[PIIPseudonymizationMiddleware - tools]")
+                logger.info(f"  Mapping: {mapping}")
+                logger.info(f"  Original tool_calls: {tool_calls}")
 
                 # Deep decode the tool calls structure
                 decoded_calls = _deep_decode(tool_calls, mapping)
