@@ -9,7 +9,7 @@ Build a **self-learning, multi-domain AI agent system** capable of handling:
 * Cloud
 * Infrastructure tasks
 
-The agent should evolve from a tool executor into a **learning, collaborating digital engineer**.
+The agent should evolve from a tool executor into a **learning, collaborating digital engineer with multi-team collaboration capability**.
 
 ---
 
@@ -20,13 +20,16 @@ The agent already supports:
 * MCP (Model Context Protocol) with robust error handling
 * Skills system (with dynamic updates via CLI)
 * CLI cockpit interface (with session saving)
+* communication with other Agents within organization using A2A protocol
 * Web UI Dashboard (Streamlit)
-* Multi-Agent Subagents (NMS Browser Agent via browser-use)
+* Multi-Agent using subagents capability to avoid contex clogging.
+* Memory preservation across sessions
+* Auto context drift detection
 * Discord integration
 * Scheduled task execution (AutomataManager)
 * API interaction capability
 * Lab integration (EVE-NG topologies and links)
-* Secure Credentials Management (`~/.net-deepagent/creds.json`)
+* Secure Credentials Management 
 
 👉 This is a strong foundation. The roadmap focuses on **intelligence, learning, and coordination**.
 
@@ -46,9 +49,9 @@ The agent already supports:
   * [x] Input schema
   * [x] Output schema
   * [x] Error handling (MCP Tool Exceptions managed)
-* [ ] Implement structured logging system
-* [ ] Add execution trace for every task
-* [ ] Build state manager (short-term memory)
+* [x] Implement structured logging system
+* [x] Add execution trace for every task
+* [x] Build state manager (short-term memory)
 
 ### Deliverables
 
@@ -67,10 +70,10 @@ Enable the agent to **learn from documents and past executions**
 
 #### 1. Document Ingestion Pipeline
 
-* [ ] File loader (PDF, Markdown, HTML, logs)
-* [ ] Chunking strategy
-* [ ] Embedding pipeline
-* [ ] Vector DB integration
+* [x] File loader (PDF, Markdown, HTML, logs)
+* [x] Chunking strategy
+* [x] Embedding pipeline
+* [x] Vector DB integration
 
 #### 2. Retrieval System
 
@@ -109,10 +112,10 @@ Expand agent capabilities into real-world engineering tasks
 
 #### Networking
 
-* [ ] Design analysis and data extraction
-* [ ] Network diagram data extraction
+* [x] Design analysis and data extraction
+* [x] Network diagram data extraction
 * [x] Troubleshooting (ping, traceroute, logs)
-* [ ] Topology analysis (EVE-NG integration)
+* [x] EVE-NG integration
 * [ ] GUI Management (NMS Browser Agent via browser-use)
 * [ ] Device configuration
 
@@ -120,7 +123,7 @@ Expand agent capabilities into real-world engineering tasks
 
 * [ ] Log analysis
 * [ ] Alert handling
-* [ ] Incident summarization
+* [x] Incident summarization
 
 #### Cloud
 
@@ -130,9 +133,9 @@ Expand agent capabilities into real-world engineering tasks
 
 #### Infrastructure
 
-* [ ] SSH automation
-* [x] Config deployment
-* [ ] System diagnostics
+* [x] SSH automation
+* [ ] Config deployment
+* [x] System diagnostics
 
 ### Deliverables
 
@@ -316,6 +319,7 @@ A system of agents that:
 * Learn like engineers
 * Collaborate like teams
 * Solve real infrastructure problems autonomously
+* auto-weave functionality where the agent can use coding agent to improve itself and create new feature and new skills, reinstall itself and update itself. it can backup itself anc conserve last good working state to fallback to it if the update failed
 
 ---
 

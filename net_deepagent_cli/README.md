@@ -7,7 +7,7 @@ A powerful terminal interface for interacting with the Net DeepAgent.
 - **Rich Terminal UI**: Beautiful markdown rendering and progress indicators.
 - **Human-in-the-loop**: Approval workflow for sensitive network operations.
 - **Middleware System**: Memory and skills injection.
-- **Automata**: Scheduled background tasks (see [AUTOMATA.md](AUTOMATA.md)).
+- **Automata**: Scheduled background tasks now powered by the `automata_agent` subagent for programmatic control (see [AUTOMATA.md](AUTOMATA.md)).
 - **Slash Commands**: `/help`, `/clear`, `/tokens`, `/skills`, `/memory`, `/exit`, `/automata`.
 
 ## Usage
