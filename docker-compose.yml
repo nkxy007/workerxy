@@ -1,0 +1,69 @@
+version: '3.8'
+
+# Reusable configuration for all workerxy services
+x-workerxy-base: &workerxy-base
+  image: workerxy:latest
+  build: .
+  volumes:
+    # Map user credentials and state to persist across launches
+    - ~/.net-deepagent:/root/.net-deepagent
+    # Enable local loading of environment variables
+    - ./.env:/app/.env
+  restart: unless-stopped
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: workerxy-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+
+  all:
+    <<: *workerxy-base
+    container_name: workerxy-all
+    entrypoint: ["workerxy", "start-all"]
+    depends_on:
+      - rabbitmq
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8501:8501"
+
+  cli:
+    <<: *workerxy-base
+    container_name: workerxy-cli
+    entrypoint: ["workerxy", "start-cli"]
+    tty: true
+    stdin_open: true
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    profiles:
+      - cli
+
+  headless:
+    <<: *workerxy-base
+    container_name: workerxy-headless
+    entrypoint: ["workerxy", "start-headless"]
+    depends_on:
+      - rabbitmq
+    profiles:
+      - headless
+
+  gui:
+    <<: *workerxy-base
+    container_name: workerxy-gui
+    entrypoint: ["workerxy", "start-gui"]
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8501:8501"
+    profiles:
+      - gui
+
+volumes:
+  rabbitmq_data:

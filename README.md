@@ -105,14 +105,37 @@ The easiest way to get started with all system dependencies (like RabbitMQ and b
 git clone https://github.com/nkxy007/workerxy.git
 cd workerxy
 
-# Option 1: Start the basic environment (RabbitMQ and MCP Server)
-docker compose up -d rabbitmq mcp
+# (Linux only) Ensure your user has Docker permissions
+sudo usermod -aG docker $USER && newgrp docker
 
-# Option 2: Start the entire background suite (MCP, Headless worker)
-docker compose up -d
+# Build the unified image
+docker compose build
 
-# Run the agent CLI interactively (creates an ephemeral container overriding the mcp command)
-docker compose run --rm mcp cli --model gpt-5.1-medium --subagent-model gpt-5.1-no-thinking --automatic-context-detection --association-window 5
+# Option 1: Start everything (MCPs, Headless, Discord, UI) in one container
+docker compose up all
+
+# Option 2: Run the smart CLI (Interactive Terminal with dual MCPs running in background)
+docker compose run --rm cli
+
+# Option 3: Start the smart Headless Worker (Headless loop + dual MCPs + Discord Bot)
+docker compose up headless
+
+# Option 4: Start the smart GUI (Streamlit Web UI + dual MCPs)
+docker compose up gui
+```
+
+### 🌍 Run From Anywhere (Global Alias)
+To avoid having to `cd` into the `workerxy` directory every time, simply create a global alias in your shell configuration (e.g., `~/.bashrc` or `~/.zshrc`):
+
+```bash
+# Add this line to your ~/.bashrc or ~/.zshrc
+alias workerxy-docker='docker compose -f /path/to/your/cloned/workerxy/docker-compose.yml --project-directory /path/to/your/cloned/workerxy'
+
+# Reload your shell
+source ~/.bashrc
+
+# Now you can start the UI from anywhere:
+workerxy-docker up gui
 ```
 
 ### 🛠 Manual Installation
@@ -124,6 +147,11 @@ cd workerxy
 # Install dependencies
 pip install -e .
 
+# (Optional) Install EVE-NG Lab tools
+# Note: eve-ng requires a legacy version of 'rich'. 
+# To avoid conflicts with modern tools, install it without dependencies:
+pip install --no-deps eve-ng==0.2.7
+
 # Run the initialization script
 python initializer.py
 ```
@@ -134,11 +162,14 @@ After installation and initialization, start your components using the `workerxy
 
 | Command | Component | Description |
 | :--- | :--- | :--- |
-| `workerxy cli` | **Agent Cockpit** | Full-featured TUI for interactive troubleshooting. |
-| `workerxy ui` | **Dashboard** | Web-based interface for visual monitoring (Streamlit). |
-| `workerxy discord` | **Discord Bridge** | Connect your Discord server to the agent via RabbitMQ. |
-| `workerxy headless` | **Background Worker** | Headless mode for processing jobs from a message queue. |
-| `workerxy mcp` | **MCP Servers** | Launch the underlying Model Context Protocol servers. |
+| `workerxy start-cli` | **Smart CLI** | Multi-tool: Starts MCPs + launches Interactive TUI. |
+| `workerxy start-headless` | **Smart Worker** | Multi-tool: Starts MCPs & Discord + launches Headless worker. |
+| `workerxy start-gui` | **Smart Dashboard** | Multi-tool: Starts MCPs + launches Streamlit UI. |
+| `workerxy start-all` | **Full Stack** | Multi-tool: Starts MCPs, Discord, Headless, and UI in one go. |
+| `workerxy mcp base` | **Core MCP** | Launch the primary network/ITSM tool server (Port 8000). |
+| `workerxy mcp lab` | **Lab MCP** | Launch the EVE-NG/Lab automation server (Port 8001). |
+| `workerxy cli` | **Direct CLI** | Launch the TUI directly (requires background MCPs). |
+| `workerxy ui` | **Direct UI** | Launch Streamlit directly (requires background MCPs). |
 | `workerxy skill` | **Skill Manager** | CLI tool for creating and managing agent capabilities. |
 
 ---

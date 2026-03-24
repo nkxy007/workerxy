@@ -19,8 +19,6 @@ dependencies = [
     "deepagents",
     "langchain-mcp-adapters",
     "google-generativeai",
-    "trulens-core",
-    "trulens-providers-openai",
     "trustcall",
     "mcp",
     "fastmcp",
@@ -39,8 +37,17 @@ dependencies = [
     "discord.py>=2.3.0",
     "InquirerPy",
     "telnetlib3",
-    "eve-ng>=0.2.7",
     "httpx",
+    "browser_use",
+]
+
+[project.optional-dependencies]
+eval = [
+    "trulens-core",
+    "trulens-providers-openai",
+]
+lab = [
+    "eve-ng>=0.2.7",
 ]
 
 [project.scripts]

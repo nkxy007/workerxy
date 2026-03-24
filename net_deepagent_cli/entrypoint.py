@@ -15,7 +15,8 @@ filterwarnings("ignore", category=UserWarning)
 
 
 def main():
-    valid_commands = ["cli", "headless", "discord", "ui", "mcp", "skill", "diagnose"]
+    valid_commands = ["cli", "headless", "discord", "ui", "mcp", "skill", "diagnose",
+                      "start-cli", "start-headless", "start-gui", "start-all"]
     if len(sys.argv) < 2 or sys.argv[1] not in valid_commands:
         print(f"Usage: workerxy {{{','.join(valid_commands)}}} [options]")
         sys.exit(1)
@@ -49,12 +50,79 @@ def main():
             # Matches existing streamlit behavior
             logger.info("Streamlit app stopped by user.")
     elif command == "mcp":
+        subcmd = sys.argv[1] if sys.argv[1:] else "base"
         try:
+            if subcmd == "lab":
+                try:
+                    lab_mcp_servers_path = os.path.join(project_root, "net_lab_mcp_server.py")
+                    subprocess.run([sys.executable, lab_mcp_servers_path] + sys.argv[2:], cwd=project_root)
+                except Exception as e:
+                    logger.error(f"Error starting lab MCP server: {e}")
+            
             mcp_servers_path = os.path.join(project_root, "mcp_servers.py")
-            subprocess.run([sys.executable, mcp_servers_path] + sys.argv[1:], cwd=project_root)
+            args = sys.argv[2:] if sys.argv[1:] and sys.argv[1] == "base" else sys.argv[1:]
+            subprocess.run([sys.executable, mcp_servers_path] + args, cwd=project_root)
         except KeyboardInterrupt:
-            # Matches existing mcp_servers.py behavior
             logger.info("MCP servers stopped by user.")
+    elif command in ["start-cli", "start-headless", "start-gui", "start-all"]:
+        import time
+        from subprocess import Popen
+        
+        processes = []
+        try:
+            mcp_path = os.path.join(project_root, "mcp_servers.py")
+            lab_mcp_path = os.path.join(project_root, "net_lab_mcp_server.py")
+            
+            logger.info("[Composite] Starting Base MCP Server...")
+            processes.append(Popen([sys.executable, mcp_path] + sys.argv[1:], cwd=project_root))
+            
+            if os.path.exists(lab_mcp_path):
+                logger.info("[Composite] Starting Lab MCP Server...")
+                processes.append(Popen([sys.executable, lab_mcp_path] + sys.argv[1:], cwd=project_root))
+                
+            time.sleep(2)  # Give MCPs a moment to bind ports
+            
+            if command == "start-cli":
+                logger.info("[Composite] Starting CLI...")
+                from net_deepagent_cli.cli import main as cli_main
+                cli_main()
+                
+            elif command == "start-headless":
+                logger.info("[Composite] Starting Discord Bot...")
+                processes.append(Popen(["workerxy", "discord"] + sys.argv[1:], cwd=project_root))
+                logger.info("[Composite] Starting Headless Agent...")
+                from net_deepagent_cli.headless import run_headless, logger as headless_logger
+                asyncio.run(run_headless())
+                
+            elif command == "start-gui":
+                logger.info("[Composite] Starting Streamlit UI...")
+                ui_app_path = os.path.join(project_root, "ui", "app.py")
+                p_ui = Popen(["streamlit", "run", ui_app_path] + sys.argv[1:], cwd=project_root)
+                processes.append(p_ui)
+                p_ui.wait()
+                
+            elif command == "start-all":
+                logger.info("[Composite] Starting Discord Bot...")
+                processes.append(Popen(["workerxy", "discord"] + sys.argv[1:], cwd=project_root))
+                logger.info("[Composite] Starting Headless Agent...")
+                processes.append(Popen(["workerxy", "headless"] + sys.argv[1:], cwd=project_root))
+                logger.info("[Composite] Starting Streamlit UI...")
+                ui_app_path = os.path.join(project_root, "ui", "app.py")
+                p_ui = Popen(["streamlit", "run", ui_app_path] + sys.argv[1:], cwd=project_root)
+                processes.append(p_ui)
+                p_ui.wait()
+                
+        except KeyboardInterrupt:
+            logger.info(f"{command} stopped by user.")
+        finally:
+            logger.info("Terminating background processes...")
+            for p in processes:
+                p.terminate()
+            for p in processes:
+                try:
+                    p.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    p.kill()
     elif command == "skill":
         try:
             skill_cli_path = os.path.join(project_root, "utils", "skill_manager", "cli.py")

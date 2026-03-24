@@ -33,7 +33,7 @@ import traceback
 import httpx
 import yaml
 from pathlib import Path
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 from evengsdk.client import EvengClient
 from evengsdk.cli.lab.topology import Topology
 import evengsdk.cli.lab.commands as lab_commands
@@ -115,6 +115,8 @@ mcp = FastMCP(
         "Interact with an EVE-NG network emulation server. "
         "Credentials are sourced from environment variables — never include them in tool arguments."
     ),
+    host="0.0.0.0",
+    port=8001,
 )
 
 # ============================================================
@@ -1064,7 +1066,7 @@ async def eveng_push_initial_config(
 # ============================================================
 if __name__ == "__main__":
     try:
-        mcp.run(transport="streamable-http", host="0.0.0.0", port=8001)
+        mcp.run(transport="streamable-http")
     except KeyboardInterrupt:
         logging.info("Interrupted by user, Exiting...")
     except Exception as e:

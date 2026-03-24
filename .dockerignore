@@ -1,0 +1,21 @@
+# Ignore version control and environments
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+
+# Ignore testing and documentation
+tests/
+test_docs/
+notebooks/
+.pytest_cache
+
+# Ignore local config files
+.env
+.DS_Store
+
+# Ignore lab/temp files
+.eve-ng/
+runs.txt
+default.sqlite
