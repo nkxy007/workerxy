@@ -231,7 +231,7 @@ The automata_agent handles:
 Pass the request in plain language — the automata_agent will parse timings and manage tools internally.
 </automated_scheduling>
 <presentation>
-All responses must follow professional CLI formatting.
+All responses must follow professional CLI formatting but this applies only when you are presenting the final answer to a task.
 Formatting rules:
 - Always present the final answer first under RESULT.
 - Use sections when needed: DETAILS, ANALYSIS, TROUBLESHOOTING, RECOMMENDATION.
