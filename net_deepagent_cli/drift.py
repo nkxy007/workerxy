@@ -34,14 +34,16 @@ class TopicDriftDetector:
             return 0.0
         return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
-    async def _get_ai_relevance(self, last_user_msg: Optional[str], last_ai_msg: Optional[str], new_input: str) -> float:
+    async def _get_ai_relevance(self, last_user_msgs: List[str], last_ai_msg: Optional[str], new_input: str) -> float:
         """Ask LLM to score relevance between 0.0 and 1.0"""
         if not self.llm:
             return 1.0 # Default to relevant if no LLM
             
         context = ""
-        if last_user_msg:
-            context += f"User previously said: \"{last_user_msg}\"\n"
+        if last_user_msgs:
+            context += "User's recent messages:\n"
+            for i, msg in enumerate(last_user_msgs, 1):
+                context += f"{i}. \"{msg}\"\n"
         if last_ai_msg:
             context += f"Assistant previously responded: \"{last_ai_msg}\"\n"
             
@@ -113,7 +115,7 @@ class TopicDriftDetector:
         
         # 5. Calculate AI Relevance (to last interaction if available)
         last_ai_msg = None
-        last_user_msg = None
+        last_user_msgs = []
         
         # Find last AI message
         for m in reversed(history):
@@ -124,18 +126,15 @@ class TopicDriftDetector:
                     last_ai_msg = str(m.content)
                 break
         
-        # Find last Human message (the one before the new_input)
-        # In history, the most recent HumanMessage is usually the one that triggered the current agent run,
-        # but check_drift is called BEFORE adding the new_input to history usually?
-        # Let's check loop.py
-        
+        # Find up to last 10 Human messages
         for m in reversed(history):
             if isinstance(m, HumanMessage) and m.content:
-                last_user_msg = str(m.content)
-                break
+                last_user_msgs.insert(0, str(m.content))
+                if len(last_user_msgs) == 10:
+                    break
         
-        if last_ai_msg or last_user_msg:
-            ai_similarity = await self._get_ai_relevance(last_user_msg, last_ai_msg, new_input)
+        if last_ai_msg or last_user_msgs:
+            ai_similarity = await self._get_ai_relevance(last_user_msgs, last_ai_msg, new_input)
             # Combine 50/50
             final_similarity = (0.3 * emb_similarity) + (0.7 * ai_similarity)
             logger.info(f"Drift Debug: Hybrid Similarity={final_similarity:.2f} (Emb={emb_similarity:.2f}, AI={ai_similarity:.2f})")
