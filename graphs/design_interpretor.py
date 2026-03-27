@@ -11,7 +11,7 @@ import operator
 from pydantic import BaseModel, Field
 from langgraph.graph import START, END, StateGraph
 from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, SystemMessage
-from ai_helper import AIHelper
+from utils.ai_helper import AIHelper
 
 # ---------------------------------------------------------------------------
 # Data Models (shared by both branches)

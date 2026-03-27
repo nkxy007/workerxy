@@ -60,7 +60,6 @@ exclude = ["*creds*", "*vault*"]
 
 [tool.setuptools]
 py-modules = [
-    "ai_helper",
     "creds",
     "custom_middleware_gpt",
     "design_crunch_tool",

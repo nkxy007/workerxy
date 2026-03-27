@@ -37,7 +37,7 @@ class AIHelper:
             base_url="https://api.xai.com/v1"
             )
         if intelligence:
-            self.model = "o4-mini"
+            self.model = "gpt-5"
         #TODO: add model exact_name key to replace the hard coded claude and gemini models
 
     def encode_image(self, image_path):
@@ -47,14 +47,14 @@ class AIHelper:
     def gemini_wrapper(self, image_data:str, context:str, image_type="png"):
         """This function takes an image path and generates interpretation using Google Gemini"""
         response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3.0-flash",
             contents=[context, 
             types.Part.from_bytes(data=image_data, mime_type=f"image/{image_type}")])
         return response
         
     def anthropic_wrapper(self, image_data:ByteString, context:str, image_type="png"):
         message = self.client.messages.create(
-        model="claude-3-5-sonnet-20241022",
+        model="claude-sonnet-4-5-20250929",
         max_tokens=8192,
         messages=[
             {
