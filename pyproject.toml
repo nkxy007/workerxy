@@ -39,6 +39,7 @@ dependencies = [
     "telnetlib3",
     "httpx",
     "browser_use",
+    "aiohttp",
 ]
 
 [project.optional-dependencies]
