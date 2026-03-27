@@ -74,6 +74,5 @@ py-modules = [
     "service_now_changes_helper",
     "service_now_incidents_helper",
     "snow_creds",
-    "test_models",
-    "verify_final_skills_v2"
+    "test_models"
 ]
