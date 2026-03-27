@@ -172,6 +172,11 @@ After installation and initialization, start your components using the `workerxy
 | `workerxy ui` | **Direct UI** | Launch Streamlit directly (requires background MCPs). |
 | `workerxy skill` | **Skill Manager** | CLI tool for creating and managing agent capabilities. |
 
+Extra examples:
+ `workerxy cli --model gpt-5.1-medium --subagent-model gpt-5.1-no-thinking --automatic-context-detection --association-window 5`
+
+ `docker compose run --rm cli --model gpt-5.1-medium --subagent-model gpt-5.1-no-thinking --automatic-context-detection --association-window 5 --log-level WARNING`
+
 ---
 
 Built with ❤️ by the XTOFTech Advanced Agentic Coding team.
