@@ -5,7 +5,7 @@ import logging
 from langchain_core.tools import tool
 from langchain_core.messages import AIMessage
 from net_deepagent_cli.communication.schema import AgentMessage
-from typing import Optional
+from typing import Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +19,9 @@ async def init_rabbit_channel(connection: aio_pika.Connection):
     await _rabbit_channel.declare_queue("inbound.agent", durable=True)
 
 @tool
-async def send_discord_message(channel_id: Optional[int] = None, message: str = "", channel_name: Optional[str] = None) -> str:
+async def send_chat_message(channel_id: Optional[Union[int, str]] = None, message: str = "", channel_name: Optional[str] = None) -> str:
     """
-    Send a message to a Discord channel. 
+    Send a message to a Chat channel (Discord/Slack). 
     You can specify either channel_id (preferred) or channel_name (e.g., 'Network-jobs').
     """
     if _rabbit_channel is None:
@@ -47,7 +47,7 @@ async def send_discord_message(channel_id: Optional[int] = None, message: str = 
         return f"Error publishing reply to RabbitMQ: {e}"
 
 
-async def send_final_reply_to_discord(
+async def send_final_reply_to_chat(
     message: AIMessage,
     channel_id: Optional[int],
     channel_name: Optional[str] = None,
@@ -76,17 +76,17 @@ async def send_final_reply_to_discord(
 
     content = content.strip()
     if not content:
-        logger.debug("send_final_reply_to_discord: empty content, skipping.")
+        logger.debug("send_final_reply_to_chat: empty content, skipping.")
         return
 
-    logger.info(f"Sending final AI reply to Discord channel {channel_id or channel_name!r}...")
-    result = await send_discord_message.ainvoke({
+    logger.info(f"Sending final AI reply to Chat channel {channel_id or channel_name!r}...")
+    result = await send_chat_message.ainvoke({
         "channel_id": channel_id,
         "message": content,
         "channel_name": channel_name,
     })
     
     if isinstance(result, str) and result.startswith("Error"):
-        logger.error(f"send_final_reply_to_discord failed: {result}")
+        logger.error(f"send_final_reply_to_chat failed: {result}")
     else:
-        logger.info(f"send_final_reply_to_discord success: {result}")
+        logger.info(f"send_final_reply_to_chat success: {result}")

@@ -164,7 +164,7 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
     
     # In LangGraph/DeepAgent, the state is passed. 
     try:
-        discord_channel_id = kwargs.get("discord_channel_id")
+        chat_channel_id = kwargs.get("chat_channel_id") or kwargs.get("discord_channel_id")
         author = kwargs.get("author")
         session_id = kwargs.get("session_id")
         
@@ -177,7 +177,7 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
             
             last_message_count = len(messages)
             
-            # Build the full input state including any extra metadata (like discord_channel_id)
+            # Build the full input state including any extra metadata (like chat_channel_id)
             input_state = {"messages": messages}
             input_state.update(kwargs)
             
@@ -267,10 +267,10 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
 
         # --- Phase 1: Discord auto-reply (headless mode only) ---
         # Fires once after the full agent turn completes (all tool iterations done).
-        # No-op in interactive CLI mode — discord_channel_id is never present there.
-        discord_channel_id = kwargs.get("discord_channel_id")
+        # No-op in interactive CLI mode — chat_channel_id is never present there.
+        chat_channel_id = kwargs.get("chat_channel_id") or kwargs.get("discord_channel_id")
         author = kwargs.get("author")
-        if discord_channel_id:
+        if chat_channel_id:
             final_ai = next(
                 (
                     m for m in reversed(messages)
@@ -279,11 +279,11 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                 None,
             )
             if final_ai and final_ai.content:
-                from net_deepagent_cli.communication.tools import send_final_reply_to_discord
-                logger.info("Phase 1: Sending final AI response to Discord...")
-                await send_final_reply_to_discord(
+                from net_deepagent_cli.communication.tools import send_final_reply_to_chat
+                logger.info("Phase 1: Sending final AI response to Chat channel...")
+                await send_final_reply_to_chat(
                     final_ai,
-                    channel_id=discord_channel_id,
+                    channel_id=chat_channel_id,
                     channel_name=kwargs.get("channel_name"),
                 )
 
@@ -301,7 +301,7 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
                 logger.error(f"Failed to sync memory for session {session_id}: {e}")
         
         # --- Legacy/Fallback Session Saving (per author per timestamp) ---
-        elif author and (discord_channel_id or kwargs.get("channel_name")):
+        elif author and (chat_channel_id or kwargs.get("channel_name")):
             try:
                 # Target directory: ~/.net_deepagent/online_chat_sessions/<user-id>/
                 base_dir = Path.home() / ".net_deepagent" / "online_chat_sessions" / str(author)

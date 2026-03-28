@@ -40,6 +40,7 @@ dependencies = [
     "httpx",
     "browser_use",
     "aiohttp",
+    "slack-bolt",
 ]
 
 [project.optional-dependencies]

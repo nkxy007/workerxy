@@ -15,7 +15,7 @@ filterwarnings("ignore", category=UserWarning)
 
 
 def main():
-    valid_commands = ["cli", "headless", "discord", "ui", "mcp", "skill", "diagnose",
+    valid_commands = ["cli", "headless", "discord", "slack", "ui", "mcp", "skill", "diagnose",
                       "start-cli", "start-headless", "start-gui", "start-all"]
     if len(sys.argv) < 2 or sys.argv[1] not in valid_commands:
         print(f"Usage: workerxy {{{','.join(valid_commands)}}} [options]")
@@ -42,6 +42,12 @@ def main():
         except KeyboardInterrupt:
             # Matches existing discord.py behavior
             logger.info("Discord bot stopped by user.")
+    elif command == "slack":
+        try:
+            from net_deepagent_cli.communication.slack_bot import main as slack_main
+            slack_main()
+        except KeyboardInterrupt:
+            logger.info("Slack bot stopped by user.")
     elif command == "ui":
         try:
             ui_app_path = os.path.join(project_root, "ui", "app.py")
@@ -90,6 +96,17 @@ def main():
             elif command == "start-headless":
                 logger.info("[Composite] Starting Discord Bot...")
                 processes.append(Popen(["workerxy", "discord"] + sys.argv[1:], cwd=project_root))
+                
+                try:
+                    if project_root not in sys.path:
+                        sys.path.insert(0, project_root)
+                    import creds
+                    if getattr(creds, "SLACK_BOT_AUTH_TOKEN", None) and getattr(creds, "SLACK_BOT_SOCKET_TOKEN", None):
+                        logger.info("[Composite] Starting Slack Bot...")
+                        processes.append(Popen(["workerxy", "slack"] + sys.argv[1:], cwd=project_root))
+                except ImportError:
+                    logger.warning("[Composite] Slack bot not started: creds.py not found.")
+                
                 logger.info("[Composite] Starting Headless Agent...")
                 from net_deepagent_cli.headless import run_headless, logger as headless_logger
                 asyncio.run(run_headless())
@@ -104,6 +121,17 @@ def main():
             elif command == "start-all":
                 logger.info("[Composite] Starting Discord Bot...")
                 processes.append(Popen(["workerxy", "discord"] + sys.argv[1:], cwd=project_root))
+                
+                try:
+                    if project_root not in sys.path:
+                        sys.path.insert(0, project_root)
+                    import creds
+                    if getattr(creds, "SLACK_BOT_AUTH_TOKEN", None) and getattr(creds, "SLACK_BOT_SOCKET_TOKEN", None):
+                        logger.info("[Composite] Starting Slack Bot...")
+                        processes.append(Popen(["workerxy", "slack"] + sys.argv[1:], cwd=project_root))
+                except ImportError:
+                    logger.warning("[Composite] Slack bot not started: creds.py not found.")
+                
                 logger.info("[Composite] Starting Headless Agent...")
                 processes.append(Popen(["workerxy", "headless"] + sys.argv[1:], cwd=project_root))
                 logger.info("[Composite] Starting Streamlit UI...")

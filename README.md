@@ -175,6 +175,8 @@ After installation and initialization, start your components using the `workerxy
 Extra examples:
  `workerxy cli --model gpt-5.1-medium --subagent-model gpt-5.1-no-thinking --automatic-context-detection --association-window 5`
 
+ `workerxy headless --model gpt-5.1-medium --subagent-model gpt-5.1-no-thinking`
+
  `docker compose run --rm cli --model gpt-5.1-medium --subagent-model gpt-5.1-no-thinking --automatic-context-detection --association-window 5 --log-level WARNING`
 
 ---

@@ -3,7 +3,7 @@ import aio_pika
 from typing import Any
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from net_deepagent_cli.communication.schema import AgentMessage
-from net_deepagent_cli.communication.tools import init_rabbit_channel, send_discord_message
+from net_deepagent_cli.communication.tools import init_rabbit_channel, send_chat_message
 from net_deepagent_cli.communication.logger import comm_logger as logger
 from net_deepagent_cli.loop import stream_agent_response
 from net_deepagent_cli.communication.session import (
@@ -40,12 +40,12 @@ async def run_agent_listener(agent: Any, connection: aio_pika.Connection, ui: An
                 if payload.channel_id or payload.channel_name:
                     task_ref = f" (ref: `{payload.message_id}`)" if payload.message_id else ""
                     ack_text = f"⚙️ Got it, {payload.author}! Working on your request{task_ref}..."
-                    await send_discord_message.ainvoke({
+                    await send_chat_message.ainvoke({
                         "channel_id": payload.channel_id,
                         "message": ack_text,
                         "channel_name": payload.channel_name,
                     })
-                    logger.info("Phase 2: Ack sent to Discord.")
+                    logger.info("Phase 2: Ack sent to Chat platform.")
 
                 # --- Memory Feature: Load and process session ---
                 RESET_KEYWORDS = ["reset", "new topic", "start over", "clear history"]
@@ -54,7 +54,7 @@ async def run_agent_listener(agent: Any, connection: aio_pika.Connection, ui: An
                     logger.info(f"Session cleared for channel {payload.channel_id}")
                     # Acknowledge the reset
                     if payload.channel_id or payload.channel_name:
-                        await send_discord_message.ainvoke({
+                        await send_chat_message.ainvoke({
                             "channel_id": payload.channel_id,
                             "message": "🔄 Conversation memory has been reset.",
                             "channel_name": payload.channel_name,
@@ -84,14 +84,14 @@ async def run_agent_listener(agent: Any, connection: aio_pika.Connection, ui: An
                 # Build context-aware message list for LLM
                 llm_messages = build_llm_messages(session)
 
-                # stream_agent_response handles Phase 1 (final reply to Discord)
-                # by detecting discord_channel_id in kwargs after streaming completes.
+                # stream_agent_response handles Phase 1 (final reply to Chat platform)
+                # by detecting chat_channel_id in kwargs after streaming completes.
                 await stream_agent_response(
                     agent,
                     llm_messages,
                     ui,
                     auto_approve=True,
-                    discord_channel_id=payload.channel_id,
+                    chat_channel_id=payload.channel_id,
                     author=payload.author,
                     channel_name=payload.channel_name,
                     session_id=payload.channel_id, # Link back to the session for saving the AI response

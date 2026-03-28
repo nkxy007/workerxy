@@ -71,17 +71,33 @@ def clear_session(session_id: Any):
 def filter_tool_messages(messages: List[Any]) -> List[Any]:
     """
     Strip all tool call inputs and tool results from history.
-    Only keep human and assistant text messages.
+    Only keep human and assistant text messages, cast to clean strings.
     """
     from langchain_core.messages import HumanMessage, AIMessage
     clean = []
     for m in messages:
-        # We only want Human and AI messages for history context
-        if isinstance(m, (HumanMessage, AIMessage)):
-            # If it's an AIMessage with tool_calls and no content, we skip it
-            if isinstance(m, AIMessage) and not m.content and hasattr(m, "tool_calls") and m.tool_calls:
-                continue
-            clean.append(m)
+        if isinstance(m, HumanMessage):
+            content = m.content
+            if isinstance(content, list):
+                content = "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in content)
+            clean.append(HumanMessage(content=content))
+            
+        elif isinstance(m, AIMessage):
+            content = m.content
+            if isinstance(content, list):
+                parts = []
+                for b in content:
+                    if isinstance(b, dict) and b.get("type") == "text":
+                        parts.append(b.get("text", ""))
+                    elif isinstance(b, str):
+                        parts.append(b)
+                content = "\n".join(parts)
+            
+            content = str(content).strip() if content else ""
+            if content:
+                # Create a fresh AIMessage without tool_calls
+                clean.append(AIMessage(content=content))
+                
     return clean
 
 def build_llm_messages(session: Dict[str, Any]) -> List[Any]:

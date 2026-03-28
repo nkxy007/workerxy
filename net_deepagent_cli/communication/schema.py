@@ -1,14 +1,14 @@
 from dataclasses import dataclass, asdict
-from typing import Optional
+from typing import Optional, Union
 import json
 
 @dataclass
 class AgentMessage:
     content: str          # the text of the message
     author: str           # who sent it
-    channel_id: Optional[int] = None   # Discord channel ID
-    channel_name: Optional[str] = None # Discord channel name (e.g. "Network-jobs")
-    guild_id: Optional[int] = None
+    channel_id: Optional[Union[int, str]] = None   # Discord or Slack channel ID
+    channel_name: Optional[str] = None # Discord/Slack channel name (e.g. "Network-jobs")
+    guild_id: Optional[Union[int, str]] = None
     message_id: Optional[str] = None  # for correlation/auditing
 
     def to_json(self) -> bytes:

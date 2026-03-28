@@ -58,7 +58,7 @@ async def run_headless():
         # but create_cli_agent expects some UI for security callbacks if auto_approve is False.
         # For now, we'll pass our UI and assume jobs are auto-approved in headless mode 
         # unless user specifies otherwise.
-        from net_deepagent_cli.communication.tools import send_discord_message
+        from net_deepagent_cli.communication.tools import send_chat_message
         
         agent = await create_cli_agent(
             agent_name=args.agent,
@@ -68,7 +68,7 @@ async def run_headless():
             design_model_name=args.design_model,
             auto_approve=True, # Headless mode usually implies auto-approve or remote approval
             ui=ui,
-            extra_tools=[send_discord_message]
+            extra_tools=[send_chat_message]
         )
         
         # Step 2: Connect to RabbitMQ

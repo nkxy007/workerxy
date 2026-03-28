@@ -349,19 +349,18 @@ class TerminalUI:
         
         args_json = json.dumps(args, indent=2)
         
-        # Dispatch webhook notification to Discord
-        import creds
-        webhook_url = os.environ.get("DISCORD_PERMISSION_WEBHOOK") or getattr(creds, "DISCORD_PERMISSION_WEBHOOK", None)
+        from net_deepagent_cli.communication.notifications import dispatch_permission_webhook
+        import asyncio
         
-        if webhook_url:
-            notification_msg = f"⚠️ Security Alert: Agent `{self.agent_name}` is requesting approval to execute a sensitive tool: `{tool_name}`.\nArguments: ```json\n{args_json}\n```\nPlease check the terminal to approve or deny."
-            try:
-                import aiohttp
-                async with aiohttp.ClientSession() as session:
-                    await session.post(webhook_url, json={"content": notification_msg})
-            except Exception as e:
-                if self.logger:
-                    self.logger.error(f"Failed to send Discord webhook notification: {e}")
+        # Dispatch webhook notifications
+        asyncio.create_task(
+            dispatch_permission_webhook(
+                agent_name=self.agent_name,
+                tool_name=tool_name,
+                args_json=args_json,
+                logger=self.logger
+            )
+        )
         
         panel = Panel(
             f"[bold red]⚠️  Security Alert: Agent wants to execute a sensitive command[/bold red]\n\n"
