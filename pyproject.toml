@@ -1,7 +1,7 @@
 [project]
 name = "workerxy"
-version = "0.2.0"
-description = "Network agent automation and LangChain-based AI system"
+version = "0.2.1"
+description = "Network agent automation and LangChain-based AI Agentic system"
 requires-python = ">=3.12"
 dependencies = [
     "streamlit>=1.52.2",
