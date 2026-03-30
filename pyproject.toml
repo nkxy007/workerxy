@@ -71,8 +71,6 @@ py-modules = [
     "net_deepagent",
     "net_deepagent_old",
     "prompts",
-    "service_now_changes_helper",
-    "service_now_incidents_helper",
     "snow_creds",
     "test_models"
 ]

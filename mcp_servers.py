@@ -10,8 +10,8 @@ import paramiko
 import re
 import logging
 import sys
-from service_now_incidents_helper import ServiceNowIncident
-from service_now_changes_helper import ServiceNowChangeRequest
+from tools_helpers.service_now_incidents_helper import ServiceNowIncident
+from tools_helpers.service_now_changes_helper import ServiceNowChangeRequest
 from creds import SERVICENOW_INSTANCE_URL, SERVICENOW_ACCESS_TOKEN
 import subprocess
 import tempfile

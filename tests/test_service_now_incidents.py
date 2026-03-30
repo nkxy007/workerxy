@@ -8,7 +8,7 @@ import requests
 # Add the parent directory to sys.path to import the helper
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from service_now_incidents_helper import ServiceNowIncident
+from tools_helpers.service_now_incidents_helper import ServiceNowIncident
 
 class TestServiceNowIncident(unittest.TestCase):
     def setUp(self):
@@ -16,9 +16,9 @@ class TestServiceNowIncident(unittest.TestCase):
         self.token = "fake-token"
         self.client = ServiceNowIncident(self.instance_url, self.token)
 
-    @patch('service_now_incidents_helper.requests.post')
-    @patch('service_now_incidents_helper.ServiceNowIncident.resolve_user_name')
-    @patch('service_now_incidents_helper.ServiceNowIncident.resolve_group_name')
+    @patch('tools_helpers.service_now_incidents_helper.requests.post')
+    @patch('tools_helpers.service_now_incidents_helper.ServiceNowIncident.resolve_user_name')
+    @patch('tools_helpers.service_now_incidents_helper.ServiceNowIncident.resolve_group_name')
     def test_create_incident_success(self, mock_resolve_group, mock_resolve_user, mock_post):
         # Mocking resolutions
         mock_resolve_user.return_value = "user_sys_id"
@@ -57,7 +57,7 @@ class TestServiceNowIncident(unittest.TestCase):
         self.assertEqual(payload['assignment_group'], "group_sys_id")
         self.assertEqual(payload['urgency'], "1")
 
-    @patch('service_now_incidents_helper.requests.post')
+    @patch('tools_helpers.service_now_incidents_helper.requests.post')
     def test_create_incident_with_sys_ids(self, mock_post):
         # Mocking POST response
         mock_response = MagicMock()
@@ -83,7 +83,7 @@ class TestServiceNowIncident(unittest.TestCase):
         self.assertEqual(payload['assignment_group'], group_sys_id)
 
     def test_create_incident_resolution_failure(self):
-        with patch('service_now_incidents_helper.ServiceNowIncident.resolve_user_name', return_value=None):
+        with patch('tools_helpers.service_now_incidents_helper.ServiceNowIncident.resolve_user_name', return_value=None):
             result = self.client.create_incident(
                 short_description="Fail Resolution",
                 caller_id="NonExistentUser"
@@ -91,7 +91,7 @@ class TestServiceNowIncident(unittest.TestCase):
             self.assertFalse(result['success'])
             self.assertIn("Could not resolve caller name", result['error'])
 
-    @patch('service_now_incidents_helper.requests.post')
+    @patch('tools_helpers.service_now_incidents_helper.requests.post')
     def test_create_incident_api_error(self, mock_post):
         # Mocking API error
         mock_response = MagicMock()

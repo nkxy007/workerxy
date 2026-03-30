@@ -11,8 +11,8 @@ sys.path.append(WORKSPACE)
 sys.modules['mcp'] = MagicMock()
 sys.modules['mcp.server'] = MagicMock()
 sys.modules['mcp.server.fastmcp'] = MagicMock()
-sys.modules['service_now_incidents_helper'] = MagicMock()
-sys.modules['service_now_changes_helper'] = MagicMock()
+sys.modules['tools_helpers.service_now_incidents_helper'] = MagicMock()
+sys.modules['tools_helpers.service_now_changes_helper'] = MagicMock()
 sys.modules['snow_creds'] = MagicMock()
 sys.modules['tools_helpers.retriever_archiver'] = MagicMock()
 sys.modules['net_deepagent_cli.communication.logger'] = MagicMock()
@@ -68,7 +68,7 @@ class TestCredentialsSourcing(unittest.TestCase):
         
         if args.vault:
             password = 'mocked-password'
-            get_helper(password=password, use_vault=True)
+            utils.credentials_helper.get_helper(password=password, use_vault=True)
             mock_get_helper.assert_called_with(password='mocked-password', use_vault=True)
 
 if __name__ == '__main__':
