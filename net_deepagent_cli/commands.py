@@ -253,6 +253,12 @@ async def handle_command(command: str, ui, messages, agent=None):
     elif cmd == "/exit":
         await handle_exit(messages, ui)
         raise EOFError()
+
+    elif cmd == "/bootup":
+        if agent is None:
+            ui.print_message("No agent attached to this session.", role="error")
+        else:
+            await handle_bootup(ui, messages, agent)
     
     else:
         ui.print_message(f"Unknown command: {cmd}", role="error")
@@ -655,3 +661,33 @@ async def configure_context_params(ui, manager):
     manager.update_middleware_params("advanced_context", params)
     ui.print_message("Advanced Context parameters updated.", role="system")
 
+
+# ---------------------------------------------------------------------------
+# /bootup command
+# ---------------------------------------------------------------------------
+
+BOOTUP_PROMPT = (
+    "You are now online and fully operational. "
+    "Please do the following:\n"
+    "1. Confirm that you are awake and ready to receive tasks.\n"
+    "2. Briefly introduce your capabilities as they apply to the current environment.\n"
+    "3. Report any ready processes or relevant operational facts you are aware of "
+    "(e.g. connected MCP servers, available tools, active subagents, monitored systems).\n"
+    "4. Check whether any routine or automatable tasks can be started right now "
+    "and, if so, propose them with a brief rationale.\n"
+    "5. Suggest a sensible starting point or set of next steps for the operator."
+    "6. if any recurrent task are in the fact-and-procedures u can initiate them."
+)
+
+
+async def handle_bootup(ui, messages, agent):
+    """Send a wake-up / readiness prompt to the LLM and stream the response."""
+    from langchain_core.messages import HumanMessage
+    from net_deepagent_cli.loop import stream_agent_response
+
+    ui.print_message(
+        "\U0001f680 Sending bootup signal to agent \u2014 please wait...",
+        role="system"
+    )
+    messages.append(HumanMessage(content=BOOTUP_PROMPT))
+    await stream_agent_response(agent, messages, ui, auto_approve=True)

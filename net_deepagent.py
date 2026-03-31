@@ -277,6 +277,7 @@ AVAILABLE_MODELS = {
 
 from langchain.agents.middleware import before_model, after_model, AgentState
 from langgraph.runtime import Runtime
+from custom_middleware.tool_announcer_middleware import announce_tool_call
 
 @before_model
 def log_before_calling_model(state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
@@ -420,15 +421,17 @@ async def create_network_agent(
         "system_prompt": "You are a knowledge acquisition expert agent. You help acquiring knowledge from various sources such as internet, expert user input, search and online documentation, etc. You get invoked only if there is a need to enhance the information given by the user or if clarification to what the user is asking can be acquired from the documents or from the user, in some cases where you have no knowledge you can run a tool to ask user for clarification. your goal is to acquire more knowledge and share with the main agent to help the main agent accomplish its task.",
         "tools": [search_internet, user_clarification_and_action_tool],
         "model": subagent_model,
+        "middleware": [announce_tool_call],
     }
 
     LAN_subagent = {
         "name": "LAN_subagent",
-        "description": "Agent specialized in the LAN network activities such as routing and switching related tasks. It has access to necessary tools and credentials needed for access.",
+        "description": "Agent specialized in the LAN network activities such as routing, switching, Wireless related tasks for an entreprise network. It has access to necessary tools and credentials needed for access.",
         "system_prompt": LAN_subagent_template,
         "tools": lan_tools + [search_internet, user_clarification_and_action_tool],
         "model": subagent_model,
         "skills": get_network_skills(),
+        "middleware": [announce_tool_call],
     }
 
     network_design_subagent = {
@@ -445,6 +448,7 @@ async def create_network_agent(
         "system_prompt": "You are a cloud computing expert agent. You help with cloud computing related tasks.",
         "tools": cloud_tools + [search_internet],
         "model": subagent_model,
+        "middleware": [announce_tool_call],
     }
 
     # Integrate the design interpreter as a compiled subagent
@@ -465,7 +469,7 @@ async def create_network_agent(
     from subagents.ticket_scout_agent import ticket_scout_agent
     from subagents.automata_agent import automata_agent
 
-    # Inject tools into subagents
+    # Inject tools and middleware into subagents
     net_lab_agent["tools"] = lab_tools + [search_internet, user_clarification_and_action_tool]
     service_desk_agent["tools"] = servicenow_tools + [user_clarification_and_action_tool]
     ticket_scout_agent["tools"] = jira_tools + [user_clarification_and_action_tool]
@@ -485,6 +489,13 @@ async def create_network_agent(
         automata_agent,
     ]
 
+    # Propagate tool announcer to ALL subagents (inline, imported, or compiled)
+    # Note: Compiled subagents currently ignore the middleware key in deepagents,
+    # but we include them here for completeness and future-proofing.
+    for _sa in subagents:
+        _sa["middleware"] = [announce_tool_call]
+
+
     ## create deep agent
     # TODO: add PII middleware to mask sensitive info like IPs, MACs, etc.
     # TODO: add way to load skills from skill.md and add it to the different system_prompt
@@ -499,7 +510,7 @@ async def create_network_agent(
             model=main_model,
             backend=FilesystemBackend(),
             store=InMemoryStore(),
-            middleware=[log_before_calling_model] + (custom_middlewares or []),
+            middleware=[log_before_calling_model, announce_tool_call] + (custom_middlewares or []),
         )
         
         # Expose the raw LLM so the automata manager can bypass tool-calling when parsing schedules

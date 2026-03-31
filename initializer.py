@@ -46,12 +46,54 @@ def gather_credentials():
         except json.JSONDecodeError:
             print("[!] Invalid JSON in creds.json, starting fresh.")
             
-    keys_needed = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"]
+    keys_needed = [
+        "OPENAI_KEY",
+        "GROQ_KEY",
+        "ANTHROPIC_KEY",
+        "GEMINI_KEY",
+        "GROK_KEY",
+        "DISCORDID",
+        "DISCORD_API_KEY",
+        "DISCORD_URI",
+        "RABBITMQUSER",
+        "RABBITMQ_PASSWORD",
+        "DEVICES_SSH_USERNAME",
+        "DEVICES_SSH_PASSWORD",
+        "SERVER_USERNAME",
+        "SERVER_PASSWORD",
+        "CLOUD_DESKTOP_USER",
+        "CLOUD_DESKTOP_PASSWORD",
+        "API_AC5_MIST_COM_ORGID",
+        "API_AC5_MIST_COM_TOKEN",
+        "API_AC5_MIST_COM_TOKEN_SCHEME",
+        "SERVICENOW_INSTANCE_URL",
+        "SERVICENOW_ACCESS_TOKEN",
+        "SERVICENOW_SERVER_NAME",
+        "JIRA_API_TOKEN",
+        "JIRA_API_TOKEN_SCOPED",
+        "JIRA_BASE_URL",
+        "JIRA_USER",
+        "DISCORD_PERMISSION_CHANNEL",
+        "DISCORD_PERMISSION_WEBHOOK",
+        "SLACK_PERMISSION_WEBHOOK",
+        "SLACK_BOT_AUTH_TOKEN",
+        "SLACK_BOT_SOCKET_TOKEN"
+    ]
+
+    hints = {
+        "DISCORDID": "Note: This is the Discord Channel ID. Discord or Slack channels must be available for headless mode."
+    }
+
     for key in keys_needed:
-        if key not in creds or not creds[key].strip():
+        if key not in creds or not str(creds[key]).strip():
+            hint = hints.get(key, "")
+            if hint:
+                print(f"\n{hint}")
             val = input(f"[?] Enter {key} (leave blank to skip): ").strip()
             if val:
                 creds[key] = val
+            elif key not in creds:
+                creds[key] = ""
         else:
             print(f"[*] {key} is already configured.")
             
@@ -129,6 +171,16 @@ def start_services(features):
         else:
             print(f" [FAIL] {name} failed to start or exited immediately.")
 
+def show_next_steps():
+    print("\n--- 🚀 Next Steps ---")
+    print("To start the WorkerXY Smart CLI (Interactive Terminal):")
+    print("  Native: workerxy start-cli")
+    print("  Docker: docker compose run --rm cli")
+    print("\nTo start the Full Stack (MCPs, Headless, Discord, and UI):")
+    print("  Native: workerxy start-all")
+    print("  Docker: docker compose up all")
+    print("\nFor more options, check the README.md or run `workerxy --help`.")
+
 def main():
     try:
         features = gather_features()
@@ -141,8 +193,11 @@ def main():
         else:
             print("[*] Service startup skipped. You can run them manually via `workerxy <component>`.")
             
+        show_next_steps()
+            
     except KeyboardInterrupt:
         print("\n[!] Initialization aborted by user.")
+        show_next_steps()
         sys.exit(1)
 
 if __name__ == "__main__":

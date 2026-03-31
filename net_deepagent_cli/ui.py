@@ -118,6 +118,7 @@ class TerminalUI:
             }
         },
         "/middlewares": {"desc": "Manage and toggle custom middlewares"},
+        "/bootup": {"desc": "Wake up the agent: confirm readiness, review active processes & facts, check for automatable routine tasks"},
         "/exit": {"desc": "Exit the CLI"}
     }
     
