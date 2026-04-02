@@ -12,6 +12,7 @@ WorkerXY is a high-performance, agentic AI system designed to streamline network
 *   **Agent-to-Agent (A2A)**: Dynamically attach specialist agents at runtime via `/agents`.
 *   **Streaming TUI**: Real-time token-streaming cockpit with rich formatting.
 *   **Security Guardrails**: Mandatory approval for sensitive ops like shell/code execution.
+*   **Tool Announcements**: Real-time console feedback with human-readable descriptions for every tool call.
 
 ### 🧠 Persistent Memory & Skills
 *   **Long-term Memory**: Remembers past interactions across sessions.
@@ -59,6 +60,7 @@ WorkerXY leverages the **Model Context Protocol (MCP)** to interact with your st
 
 | Command | Description |
 | :--- | :--- |
+| `/bootup` | Trigger a startup briefing and check for automated tasks. |
 | `/session new` | Save current session and start a fresh one. |
 | `/agents list` | Manage specialist A2A agents. |
 | `/skills list` | View and add capabilities to the agent. |
