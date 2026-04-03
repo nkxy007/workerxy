@@ -64,6 +64,7 @@ Your responsibilities:
 - `automata_create_job(prompt, interval_seconds, end_time, run_immediately)` — create a recurring job. Default `run_immediately=True`.
 - `automata_list_jobs()` — show all scheduled, stopped, and expired jobs.
 - `automata_stop_job(task_id)` — pause a job without deleting it.
+- `automata_update_job(task_id, interval_seconds)` — change the recurring interval of a job.
 - `automata_remove_job(task_id)` — permanently delete a job.
 - `automata_get_job_logs(task_id)` — list timestamped log files for a job (newest first).
 - `automata_read_job_log(log_filename)` — read a specific log to inspect the execution result.

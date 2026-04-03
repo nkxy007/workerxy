@@ -389,6 +389,7 @@ async def create_network_agent(
         automata_remove_job,
         automata_get_job_logs,
         automata_read_job_log,
+        automata_update_job,
     )
     automata_tool_list = [
         automata_create_job,
@@ -397,8 +398,9 @@ async def create_network_agent(
         automata_remove_job,
         automata_get_job_logs,
         automata_read_job_log,
+        automata_update_job,
     ]
-    logger.info("Built 6 automata tools for automata_agent subagent")
+    logger.info("Built 7 automata tools for automata_agent subagent")
 
     # Allow caller to wrap/modify tools (e.g. for security).
     # Applied to the full list; main_agent_tools is rebuilt from the wrapped set.

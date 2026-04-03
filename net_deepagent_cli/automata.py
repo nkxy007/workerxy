@@ -175,6 +175,17 @@ class AutomataManager:
             return True
         return False
 
+    def update_task_interval(self, task_id: str, interval_seconds: int):
+        """Update the interval of an existing task and reschedule if active."""
+        if task_id in self.tasks:
+            self.tasks[task_id]["interval_seconds"] = interval_seconds
+            # If the task is currently enabled, re-schedule to immediately apply new interval
+            if self.tasks[task_id].get("enabled", True):
+                self.schedule_task_internal(task_id, self.tasks[task_id], is_new=False)
+            self.save_tasks()
+            return True
+        return False
+
     def schedule_task_internal(self, task_id: str, task_info: Dict, is_new: bool = False):
         """Internal method to add job to APScheduler"""
         if not task_info.get("enabled", True):
@@ -341,6 +352,7 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
             "  [green]list[/green]                        List all tasks\n"
             "  [green]add <prompt> every <N> <unit>[/green]   Add a task (e.g., 'add check ping every 5 minutes')\n"
             "  [green]<prompt> every <N> <unit>[/green]       Implicit add (e.g., 'check ping every 10min')\n"
+            "  [green]change <id> every <N> <unit>[/green]    Change task interval (alias: update)\n"
             "  [green]remove <id>[/green]                  Remove a task by ID\n"
             "  [green]stop <id>[/green]                    Stop a task without removing it\n"
             "  [green]resume <id>[/green]                  Resume a stopped/stale task\n"
@@ -482,6 +494,35 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
             ui.console.print(f"[red]Task {task_id} not found.[/red]")
         return True
 
+    # Handle 'change' and 'update'
+    if cmd in ("change", "update"):
+        interval_regex = r"every\s+(\d+)\s*([a-zA-Z]*)"
+        match = re.search(interval_regex, command, re.IGNORECASE)
+        if match and len(parts) >= 4:
+            task_id = parts[1]
+            val = int(match.group(1))
+            unit_str = match.group(2).lower()
+            
+            if unit_str.startswith("min") or unit_str == "m":
+                interval = val * 60
+            elif unit_str.startswith("hour") or unit_str == "h":
+                interval = val * 3600
+            else:
+                interval = val
+
+            if interval <= 0:
+                ui.console.print("[red]Interval must be > 0.[/red]")
+                return True
+                
+            if manager.update_task_interval(task_id, interval):
+                ui.console.print(f"[green]Task {task_id} interval updated to {interval} seconds.[/green]")
+            else:
+                ui.console.print(f"[red]Task {task_id} not found.[/red]")
+            return True
+        else:
+            ui.console.print(f"[red]Usage: {cmd} <id> every <N> <unit>[/red]")
+            return True
+
     # Handle 'add' or implicit add
     
     # 1. Try robust regex parsing logic for intervals
@@ -549,6 +590,8 @@ async def handle_automata_ui(ui, manager: AutomataManager):
         "help": {"desc": "Show automata commands"},
         "list": {"desc": "List all scheduled tasks"},
         "add": {"desc": "Add a new background task"},
+        "change": {"desc": "Change the interval of an existing task"},
+        "update": {"desc": "Update the interval of an existing task"},
         "remove": {"desc": "Remove a task by ID"},
         "stop": {"desc": "Stop a task by ID"},
         "resume": {"desc": "Resume a stopped/stale task"},

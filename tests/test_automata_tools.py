@@ -395,6 +395,60 @@ def test_read_job_log_not_found():
 
 
 # ---------------------------------------------------------------------------
+# Test 18: update_job — success
+# ---------------------------------------------------------------------------
+
+def test_update_job_success():
+    _reset_module_manager()
+    import tools_helpers.automata_tools as at
+    mgr = _make_mock_manager()
+    mgr.update_task_interval.return_value = True
+    at._automata_manager = mgr
+
+    from tools_helpers.automata_tools import automata_update_job
+    result = automata_update_job.invoke({"task_id": "abc12345", "interval_seconds": 3600})
+
+    mgr.update_task_interval.assert_called_once_with("abc12345", 3600)
+    assert "successfully updated" in result
+    print(f"[PASS] test_update_job_success  →  '{result}'")
+
+
+# ---------------------------------------------------------------------------
+# Test 19: update_job — not found
+# ---------------------------------------------------------------------------
+
+def test_update_job_not_found():
+    _reset_module_manager()
+    import tools_helpers.automata_tools as at
+    mgr = _make_mock_manager()
+    mgr.update_task_interval.return_value = False
+    at._automata_manager = mgr
+
+    from tools_helpers.automata_tools import automata_update_job
+    result = automata_update_job.invoke({"task_id": "xxxxxxxx", "interval_seconds": 3600})
+
+    assert "not found" in result.lower() or "Error" in result
+    print(f"[PASS] test_update_job_not_found  →  '{result}'")
+
+# ---------------------------------------------------------------------------
+# Test 20: update_job — invalid interval
+# ---------------------------------------------------------------------------
+
+def test_update_job_invalid_interval():
+    _reset_module_manager()
+    import tools_helpers.automata_tools as at
+    mgr = _make_mock_manager()
+    at._automata_manager = mgr
+
+    from tools_helpers.automata_tools import automata_update_job
+    result = automata_update_job.invoke({"task_id": "abc12345", "interval_seconds": 0})
+
+    assert "Error" in result
+    assert "interval_seconds must be > 0" in result
+    print(f"[PASS] test_update_job_invalid_interval  →  '{result}'")
+
+
+# ---------------------------------------------------------------------------
 # Run directly
 # ---------------------------------------------------------------------------
 
@@ -416,4 +470,7 @@ if __name__ == "__main__":
     test_get_job_logs_with_files()
     test_read_job_log_success()
     test_read_job_log_not_found()
+    test_update_job_success()
+    test_update_job_not_found()
+    test_update_job_invalid_interval()
     print("\n✅ All automata_tools tests passed!")

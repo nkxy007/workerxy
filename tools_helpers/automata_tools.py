@@ -287,3 +287,29 @@ def automata_remove_job(task_id: str) -> str:
     except Exception as exc:
         logger.error("automata_remove_job failed: %s", exc, exc_info=True)
         return f"Error removing automata job: {exc}"
+
+@tool
+def automata_update_job(task_id: str, interval_seconds: int) -> str:
+    """Update the recurring interval of an existing automata job.
+
+    Args:
+        task_id: The 8-character task ID shown in `automata_list_jobs`.
+        interval_seconds: The new repeat period in seconds (must be > 0).
+
+    Returns:
+        Confirmation string or error message if the task is not found.
+    """
+    if _automata_manager is None:
+        return "Error: AutomataManager is not available."
+
+    if interval_seconds <= 0:
+        return f"Error: interval_seconds must be > 0, got {interval_seconds}."
+
+    try:
+        success = _automata_manager.update_task_interval(task_id, interval_seconds)
+        if success:
+            return f"Automata job '{task_id}' interval successfully updated to {interval_seconds} seconds."
+        return f"Error: No automata job found with ID '{task_id}'."
+    except Exception as exc:
+        logger.error("automata_update_job failed: %s", exc, exc_info=True)
+        return f"Error updating automata job: {exc}"
