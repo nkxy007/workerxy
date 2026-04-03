@@ -20,7 +20,7 @@ class CredentialsHelper:
     """
     
     VAULT_FILE = Path.home() / ".creds.vault"
-    CREDS_FILE = Path("creds.py")
+    CREDS_FILE = Path(__file__).parent.parent / "creds.py"
     
     def __init__(self, vault_password: Optional[str] = None, use_vault: bool = True):
         self._credentials: Dict[str, str] = {}

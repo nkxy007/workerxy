@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
+import creds
 
 from net_deepagent import (
     create_network_agent,

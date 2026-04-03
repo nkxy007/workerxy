@@ -41,6 +41,8 @@ dependencies = [
     "browser_use",
     "aiohttp",
     "slack-bolt",
+    "google-genai",
+    "pyaudio",
 ]
 
 [project.optional-dependencies]

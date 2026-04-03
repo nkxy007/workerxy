@@ -24,6 +24,9 @@ cd /home/<user>/workspace/workerxy
 
 # Run Streamlit (logs will appear in console)
 streamlit run ui/app.py
+streamlit run app.py --logger.level=debug
+## For voice mode do the following in Chrome 
+In Chrome, go to chrome://flags/#unsafely-treat-insecure-origin-as-secure, type your Streamlit http:// address into the box, switch it to "Enabled", and relaunch the browser.
 ```
 
 ### 3. **Alternative: Run with Log File**

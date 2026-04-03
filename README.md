@@ -181,6 +181,8 @@ Extra examples:
 
  `docker compose run --rm cli --model gpt-5.1-medium --subagent-model gpt-5.1-no-thinking --automatic-context-detection --association-window 5 --log-level WARNING`
 
+ `streamlit run ui/app.py --logger.level=debug`
+
 ---
 
 Built with ❤️ by the XTOFTech Advanced Agentic Coding team.

@@ -20,7 +20,13 @@ logger = logging.getLogger(__name__)
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
+# Initialize credentials early so aliases are loaded
+from utils.credentials_helper import get_helper
+get_helper(use_vault=False)
+
 from services.agent_service import AgentService
+import threading
+from tools_helpers.voice_helper import VoiceHelper
 
 logger.info("="*50)
 logger.info("Streamlit UI Starting")
@@ -28,7 +34,7 @@ logger.info("="*50)
 
 # Page configuration
 st.set_page_config(
-    page_title="AI Design Assistant",
+    page_title="WorkerXY AI Assistant",
     page_icon="🎨",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -194,6 +200,10 @@ if 'uploaded_diagrams' not in st.session_state:
     st.session_state.uploaded_diagrams = []
 if 'show_new_task_dialog' not in st.session_state:
     st.session_state.show_new_task_dialog = False
+if 'voice_helper' not in st.session_state:
+    st.session_state.voice_helper = None
+if 'voice_thread' not in st.session_state:
+    st.session_state.voice_thread = None
 
 # Session Management Functions
 @st.dialog("Save Session before New Task")
@@ -284,7 +294,25 @@ with st.sidebar:
                 st.success("Agent models updated!")
             except Exception as e:
                 st.error(f"Failed to update models: {str(e)}")
-
+                
+    st.markdown("---")
+    
+    st.subheader("🎙️ Voice Settings")
+    voice_model = st.selectbox(
+        "Voice Model",
+        options=["models/gemini-3.1-flash-live-preview", "models/gemini-2.0-flash-exp"],
+        index=0,
+        help="Select the model for real-time voice interaction"
+    )
+    voice_mode = st.selectbox(
+        "Voice Mode",
+        options=["transcription", "agent_tool"],
+        index=0,
+        help="Transcription (Default Dictation) vs Agent Tool (Voice asks deep agent)"
+    )
+    
+    # Removed start/stop buttons as Streamlit audio input does not require a backend daemon.
+    
     st.markdown("---")
 
     # Upload sections
@@ -477,6 +505,10 @@ with tab1:
     
     # Chat input area
     st.markdown("---")
+    
+    # Streamlit Browser Web Audio Recorder
+    voice_audio = st.audio_input("Record Voice Query", key="voice_input")
+    
     col1, col2 = st.columns([5, 1])
     
     with col1:
@@ -489,7 +521,21 @@ with tab1:
     
     with col2:
         send_button = st.button("Send 📤", use_container_width=True)
-    
+        
+    # Auto-transcribe if new audio given
+    if voice_audio is not None and voice_audio != st.session_state.get('last_audio'):
+        st.session_state.last_audio = voice_audio
+        with st.spinner("🎙️ Transcribing Voice..."):
+            helper = VoiceHelper(mode=voice_mode, model=voice_model)
+            logger.info(f"loaded voice helper: {type(helper)} from {__import__('inspect').getsourcefile(type(helper))}")
+            logger.info(f"dir(helper): {dir(helper)}")
+            text = run_async(helper.process_audio(voice_audio.getvalue()))
+            if text and not text.startswith("Error"):
+                user_input = text
+                send_button = True
+            else:
+                st.error(text)
+                
     # Handle message sending
     if send_button and user_input:
         logger.info(f"Send button clicked. User input: {user_input[:100]}...")
