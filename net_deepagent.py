@@ -4,6 +4,7 @@ from typing import Optional, Callable, Any, Dict, List
 from pathlib import Path
 import logging
 from net_deepagent_cli.communication.logger import setup_logger
+from net_deepagent_cli.communication.notifications import dispatch_clarification_webhook
 from net_deepagent_cli.communication.logger import setup_logger, set_process_log_file
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 from langchain_core.tools import tool
@@ -100,7 +101,8 @@ def search_internet(query: str, confidence: Optional[float] = None) -> str:
 def user_clarification_and_action_tool(question: str, intention:str="") -> str:
     """Ask the user for clarification on a given question or for user to take action.
     This tool is used if the model needs more information from the user to provide an accurate response.
-    This tool can also be used by the AI model to ask user to take action and report when the action is
+    It can be used when the model encounters a complexe situation and is unable to get out of it without user intervention. i.e some knowlede gap...
+    It can also be used by the AI model to ask user to take action and report when the action is
     completed such actions can be like ping from user laptop, get info from user`s machine. or any other action to be taken by a remote user.
     Args:
         question (str): The question or action to ask the user. it can be a multi part question.
@@ -108,11 +110,15 @@ def user_clarification_and_action_tool(question: str, intention:str="") -> str:
     Returns:
         str: user's clarification.
     """
+    # Notify comms channels (Discord / Slack) — fire-and-forget, 2s timeout
+    dispatch_clarification_webhook(question, intention, logger=logger)
+
     # Use callback if set (for UI integration), otherwise use input() for CLI
     if _user_clarification_callback:
         response = _user_clarification_callback(question, intention)
     else:
-        # Simulate asking the user for clarification (CLI mode)
+        # Enable readline so backspace / arrow keys work correctly in the terminal
+        import readline  # noqa: F401 — side-effect import activates GNU readline for input()
         print(f"Agent needs more information to answer: {question} - intention: {intention}")
         response = input(f"Agent needs more information to continue:\n {question}\nPlease provide clarification: ")
 
@@ -418,8 +424,8 @@ async def create_network_agent(
 
     ## Create Subagents
     knowledge_acquisition_subagent = {
-        "name": "recent_knowledge_acquisition_subagent",
-        "description": "Subagent specialized in acquiring additional knowledge from various sources such as internet, to get most recent information. This subagent can be used where the model confidence level is below 90%. The acquired knowledge can be on networking modern design, devices commands, devices data sheets, etc. This knowledge acquisition is necessary where the model confidence is low on the information provided by the user or if more clarification is needed from the user. Subagent may need what was the confidence level that triggered its call.",
+        "name": "recent_knowledge_and_extra_knowledge_acquisition_subagent",
+        "description": "Subagent specialized in acquiring additional knowledge from various sources such as internet to get the most recent information or directly from a user to get complete contextual information. This subagent can be used where the model direct response confidence level is below 90% or if more clarification is needed from the user. The acquired knowledge can be on networking modern design, devices commands, devices data sheets, site information, systems, api endpoints, and in general any information that can help the main agent accomplish its task. This knowledge acquisition is necessary where the model confidence is low on the information provided by the user or if more clarification is needed from the user. Subagent may need what was the confidence level that triggered its call.",
         "system_prompt": "You are a knowledge acquisition expert agent. You help acquiring knowledge from various sources such as internet, expert user input, search and online documentation, etc. You get invoked only if there is a need to enhance the information given by the user or if clarification to what the user is asking can be acquired from the documents or from the user, in some cases where you have no knowledge you can run a tool to ask user for clarification. your goal is to acquire more knowledge and share with the main agent to help the main agent accomplish its task.",
         "tools": [search_internet, user_clarification_and_action_tool],
         "model": subagent_model,
