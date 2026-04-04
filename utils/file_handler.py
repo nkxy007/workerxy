@@ -22,7 +22,7 @@ class FileHandler:
     MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10 MB
     MAX_DIAGRAM_SIZE = 5 * 1024 * 1024    # 5 MB
 
-    def __init__(self, base_upload_dir: str = "user_chat_files"):
+    def __init__(self, base_upload_dir: str = "~/.net-deepagent/user_chat_files"):
         """
         Initialize FileHandler.
 
