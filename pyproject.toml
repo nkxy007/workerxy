@@ -1,6 +1,6 @@
 [project]
 name = "workerxy"
-version = "0.2.1"
+version = "0.2.2"
 description = "Network agent automation and LangChain-based AI Agentic system"
 requires-python = ">=3.12"
 dependencies = [

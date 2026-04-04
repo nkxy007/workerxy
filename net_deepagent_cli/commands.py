@@ -676,7 +676,7 @@ BOOTUP_PROMPT = (
     "4. Check whether any routine or automatable tasks can be started right now "
     "and, if so, propose them with a brief rationale.\n"
     "5. Suggest a sensible starting point or set of next steps for the operator."
-    "6. if any recurrent task are in the fact-and-procedures u can initiate them."
+    "6. read the facts-and-procedures skill understand what procedures we have and what we routinely do. find if any reccurent jobs is mentione then initiate their cron jobs"
 )
 
 
