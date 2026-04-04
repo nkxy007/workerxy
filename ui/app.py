@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 import uuid
 import logging
+import streamlit.components.v1 as components
 
 # Configure logging
 logging.basicConfig(
@@ -507,7 +508,44 @@ with tab1:
     st.markdown("---")
     
     # Streamlit Browser Web Audio Recorder
-    voice_audio = st.audio_input("Record Voice Query", key="voice_input")
+    hotkey_script = """
+    <script>
+    const doc = window.parent.document;
+    doc.addEventListener('keydown', function(e) {
+        if (e.altKey && e.key.toLowerCase() === 'm') {
+            e.preventDefault();
+            // Attempt to find Record, Stop, or Clear buttons by common aria-labels
+            const stopBtn = doc.querySelector('[data-testid="stAudioInput"] button[aria-label*="Stop"], [data-testid="stAudioInput"] button[aria-label*="stop"]');
+            const recordBtn = doc.querySelector('[data-testid="stAudioInput"] button[aria-label*="Record"], [data-testid="stAudioInput"] button[aria-label*="record"]');
+            const clearBtn = doc.querySelector('[data-testid="stAudioInput"] button[aria-label*="Clear"], [data-testid="stAudioInput"] button[aria-label*="clear"]');
+            
+            if (stopBtn) {
+                stopBtn.click();
+            } else if (recordBtn) {
+                recordBtn.click();
+            } else if (clearBtn) {
+                clearBtn.click();
+                // Wait for React to reset the component, then click record
+                setTimeout(() => {
+                    const newRecordBtn = doc.querySelector('[data-testid="stAudioInput"] button[aria-label*="Record"], [data-testid="stAudioInput"] button[aria-label*="record"]');
+                    if (newRecordBtn) newRecordBtn.click();
+                }, 150);
+            } else {
+                // Fallback if labels differ: avoid standard download buttons
+                const allBtns = doc.querySelectorAll('[data-testid="stAudioInput"] button');
+                for (let b of allBtns) {
+                    if (!b.getAttribute('aria-label') || !b.getAttribute('aria-label').toLowerCase().includes('download')) {
+                        b.click();
+                        break;
+                    }
+                }
+            }
+        }
+    });
+    </script>
+    """
+    components.html(hotkey_script, height=0, width=0)
+    voice_audio = st.audio_input("Record Voice Query (Hotkey: Alt+M)", key="voice_input")
     
     col1, col2 = st.columns([5, 1])
     
