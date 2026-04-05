@@ -145,6 +145,332 @@ PII_DETECTORS: Mapping[str, Callable[[str], List[Tuple[str, Tuple[int, int]]]]] 
 }
 
 
+# ─────────────────────────────── Network Credential Detectors ──────────────────────────
+#
+# Design notes:
+#  - NO patterns use ^ anchors — config text often arrives with line numbers/tabs
+#    prepended (e.g. "    40\t key 7 094F..."), which breaks ^\s* matches.
+#  - Key-type prefix (0,5,6,7,8,9) is consumed but NOT captured — we want the value.
+#  - Patterns are ordered from most-specific to most-generic to minimise false positives.
+
+# Family 1 — username / enable credentials
+# Cisco password type is a single digit (0,5,6,7,8,9); consumed with (?:\s+\d)?
+NET_USER_SECRET_RE = re.compile(
+    r"(?i)\busername\s+\S+(?:\s+privilege\s+\d+)?\s+(?:password|secret)(?:\s+\d)?\s+(\S+)"
+)
+NET_ENABLE_SECRET_RE = re.compile(
+    r"(?i)\benable\s+(?:password|secret)(?:\s+\d)?\s+(\S+)"
+)
+
+# Family 2 — bare `password` line inside vty/console/aux blocks.
+# Use [ \t]+ instead of ^\s* so line numbers don't block the match.
+# Negative-lookahead skips common non-credential keywords that follow `password`.
+NET_LINE_PASS_RE = re.compile(
+    r"(?i)[ \t]+password(?:\s+\d)?\s+(?!encryption\b|level\b|radius\b|tacacs\b|aging\b|min-length\b|logging\b)(\S+)"
+)
+
+# Family 3 — SNMP community (v1/v2c) and v3 auth + priv keys.
+# Split v3 into two patterns: one for auth-key, one for priv-key (positional).
+NET_SNMP_COMM_RE = re.compile(r"(?i)\bsnmp-server\s+community\s+(\S+)")
+NET_SNMP_V3_AUTH_RE = re.compile(
+    r"(?i)\bsnmp-server\s+user\s+\S+\s+\S+\s+v3\s+auth\s+(?:md5|sha\d*)\s+(\S+)"
+)
+NET_SNMP_V3_PRIV_RE = re.compile(
+    r"(?i)\bpriv\s+(?:des|3des|aes)(?:\s+\d+)?\s+(\S+)"
+)
+
+# Family 4 — IPSec / IKE / DMVPN
+NET_ISAKMP_KEY_RE = re.compile(
+    r"(?i)\bcrypto\s+isakmp\s+key(?:\s+\d)?\s+(\S+)\s+(?:address|hostname)"
+)
+NET_IKEV2_PSK_RE = re.compile(
+    r"(?i)\bpre-shared-key(?:\s+(?:local|remote))?\s+(\S+)"
+)
+NET_ASA_TUNNEL_PSK_RE = re.compile(
+    r"(?i)\b(?:ikev1|ikev2\s+(?:local|remote)-authentication)\s+pre-shared-key\s+(\S+)"
+)
+NET_NHRP_AUTH_RE = re.compile(r"(?i)\bip\s+nhrp\s+authentication\s+(\S+)")
+
+# Family 5 — Routing protocol authentication
+NET_BGP_PASS_RE = re.compile(r"(?i)\bneighbor\s+\S+\s+password(?:\s+\d)?\s+(\S+)")
+NET_OSPF_AUTH_RE = re.compile(r"(?i)\bip\s+ospf\s+authentication-key\s+(\S+)")
+NET_OSPF_MD5_RE = re.compile(
+    r"(?i)\bip\s+ospf\s+message-digest-key\s+\d+\s+md5\s+(\S+)"
+)
+NET_LDP_PASS_RE = re.compile(r"(?i)\bmpls\s+ldp\s+neighbor\s+\S+\s+password\s+(\S+)")
+
+# Family 6 — AAA: RADIUS / TACACS+ keys
+# Legacy global syntax: radius-server key <value>
+NET_AAA_GLOBAL_KEY_RE = re.compile(
+    r"(?i)\b(?:radius-server|tacacs-server)\s+key(?:\s+\d)?\s+(\S+)"
+)
+# Per-server block syntax: "  key 7 <value>" — indented inside a server stanza.
+# Requires LEADING WHITESPACE so we don't fire on "key chain" at config root.
+# Type digit (0,5,6,7 etc.) is consumed — we capture the real value.
+# Use [ \t]+ (NOT \s+) between type and value so we never cross a newline.
+NET_AAA_SERVER_KEY_RE = re.compile(
+    r"(?i)[ \t]+key[ \t]+\d[ \t]+(\S+)"
+)
+
+# Family 7 — HSRP / VRRP authentication
+NET_HSRP_AUTH_RE = re.compile(
+    r"(?i)\bstandby\s+\d+\s+authentication(?:\s+md5\s+key-string)?\s+(\S+)"
+)
+NET_VRRP_AUTH_RE = re.compile(
+    r"(?i)\bvrrp\s+\d+\s+authentication(?:\s+(?:text|md5\s+key-string))?\s+(\S+)"
+)
+
+# Family 8 — NTP authentication key value
+NET_NTP_KEY_RE = re.compile(
+    r"(?i)\bntp\s+authentication-key\s+\d+\s+\S+\s+(\S+)"
+)
+
+# Family 9 — PPP (CHAP/PAP/EAP)
+NET_PPP_PASS_RE = re.compile(
+    r"(?i)\bppp\s+(?:chap|pap|eap)(?:\s+sent-username\s+\S+)?\s+password(?:\s+\d)?\s+(\S+)"
+)
+
+# Family 10 — Wireless PSK
+NET_WPA_PSK_RE = re.compile(
+    r"(?i)\bwpa-psk\s+(?:ascii|hex)(?:\s+\d)?\s+(\S+)"
+)
+
+# Family 11 — Key chain (EIGRP, IS-IS, etc.)
+# Do NOT use ^ anchor — use \b. key-string is specific enough to avoid FPs.
+NET_KEY_STRING_RE = re.compile(r"(?i)\bkey-string\s+(\S+)")
+
+# Family 12 — Juniper JunOS (values always quoted)
+NET_JUNOS_SECRET_RE = re.compile(
+    r'(?i)\b(?:secret|encrypted-password|authentication-key|authentication-password|privacy-password)\s+"([^"]+)"'
+)
+NET_JUNOS_PSK_RE = re.compile(
+    r'(?i)\bpre-shared-key\s+(?:ascii-text|hexadecimal)\s+"([^"]+)"'
+)
+
+# Family 13 — Juniper TACACS/RADIUS keys (unquoted format)
+NET_JUNOS_TACACS_KEY_RE = re.compile(
+    r'(?i)\b(?:secret|key)\s+"([^"]+)"'
+)
+
+# Family 14 — PKI / Certificate chains (suppress entire block)
+NET_PKI_CERT_RE = re.compile(
+    r"(?msi)^crypto\s+pki\s+certificate\s+chain\s+\S+.*?^\s*quit"
+)
+
+# Family 15 — Env-file / YAML / JSON / Ansible / Terraform (separator-based).
+# Allows optional prefix (DB_, JWT_, AWS_) and optional suffix (_KEY, _HASH, _TOKEN)
+# around the core credential word, covering SECRET_KEY=, DB_PASSWORD=, API_KEY=, etc.
+NET_GENERIC_CRED_RE = re.compile(
+    r"(?i)\b\w*(?:password|secret|api[_-]?key|token|passphrase|preshared[_-]?key)\w*\s*[:=]\s*(\S+)"
+)
+
+# Family 16 — Huawei VRP: `password cipher/irreversible-cipher/simple <value>`
+NET_HUAWEI_PASS_RE = re.compile(
+    r"(?i)\bpassword\s+(?:cipher|irreversible-cipher|simple)\s+(\S+)"
+)
+
+# Family 17 — Fortinet FortiOS: `set <cred-keyword> <value>` inside config blocks.
+# Covers: password, secret, psk, auth-password, passwd, psksecret.
+NET_FORTINET_RE = re.compile(
+    r"(?i)\bset\s+(?:password|secret|psk|psksecret|auth-password|passwd|peerpasswd)\s+(\S+)"
+)
+
+# Family 18 — Palo Alto PAN-OS: XML credential tags.
+NET_PANOS_XML_RE = re.compile(
+    r"(?i)<(?:password|secret|auth-key|api-key|phash|password-hash)>([^<]+)"
+    r"</(?:password|secret|auth-key|api-key|phash|password-hash)>"
+)
+
+# Family 19 — F5 BIG-IP TMSH / bigip.conf:
+# `passphrase <value>`, `secret <value>`, `community <value>` inside indented blocks.
+# Use leading whitespace to limit scope (values inside stanzas).
+NET_F5_RE = re.compile(
+    r"(?i)[ \t]+(?:passphrase|community)[ \t]+(\S+)"
+)
+
+# Family 20 — HP / Aruba ProCurve & CX:
+# `password manager <hash>`, `password operator <hash>`, `password all <hash>`
+# Also covers HP MSM wireless: `psk-passphrase <value>`
+NET_HP_ARUBA_RE = re.compile(
+    r"(?i)\b(?:password\s+(?:manager|operator|all|port-access)|psk-passphrase)\s+(\S+)"
+)
+
+# Family 21 — Nokia / Alcatel-Lucent SR OS:
+# `hmac-sha-256-96 <key>`, `hmac-md5-96 <key>`, `message-digest <key>`,
+# `authentication-key <value>` (unquoted), `password <value>` inside admin blocks.
+NET_NOKIA_RE = re.compile(
+    r"(?i)\b(?:hmac-(?:sha|md5)[\w-]*|message-digest(?:-key)?|auth(?:entication)?-key)\s+(\S+)"
+)
+
+# Family 22 — Brocade / Ruckus:
+# `enable super-user-password <value>`, `enable user-name <name> password <value>`
+NET_BROCADE_RE = re.compile(
+    r"(?i)\benable\s+(?:super-user-password|user-name\s+\S+\s+password)\s+(\S+)"
+)
+
+# Family 23 — Extreme Networks ExtremeXOS:
+# `create account [admin|user] <name> <password>` — password is 4th positional token.
+NET_EXTREME_RE = re.compile(
+    r"(?i)\bcreate\s+account\s+(?:admin|user|operator)\s+\S+\s+(\S+)"
+)
+
+# Family 24 — MikroTik RouterOS:
+# `/ip ipsec peer ... passphrase=<value>`, `password=<value>` in set commands.
+# Duplicate coverage: already caught by NET_GENERIC_CRED_RE for `=` cases,
+# but including explicit pattern for `/ip ... secret=<val>` style (no spaces around =).
+NET_MIKROTIK_RE = re.compile(
+    r"(?i)\b(?:password|secret|passphrase|pre-shared-key|radius-secret)=(\S+)"
+)
+
+# Family 25 — Generic CLI safety-net (space-separated, no separator required).
+# Catches any remaining vendor that uses `<cred-keyword> <value>` on an indented line
+# and is NOT already matched by a more-specific pattern above.
+# The keyword list is extended beyond Family 19 to include CLI variants seen across:
+# Nokia, Extreme, Brocade, HP, ZTE, Dell/EMC Force10, Ubiquiti EdgeOS.
+NET_VENDOR_CLI_CRED_RE = re.compile(
+    r"(?i)\b(?:encrypted-password|auth-password|priv-password|preshared-key|"
+    r"authentication-key|community-string|pap-secret|chap-secret|"
+    r"radius-secret|tacacs-secret|ldap-password|ssh-password|"
+    r"ppp-password|l2tp-secret|pptp-password|ipsec-secret|"
+    r"ospf-password|bgp-password)\s+(\S+)"
+)
+
+# ─── Ordered list for _find_net_creds ─────────────────────────────────────────
+# Most specific first; generic safety-nets at the end.
+_NET_SIMPLE_DETECTORS = [
+    # Cisco IOS / IOS-XE / NX-OS / ASA
+    NET_USER_SECRET_RE,
+    NET_ENABLE_SECRET_RE,
+    NET_ISAKMP_KEY_RE,
+    NET_ASA_TUNNEL_PSK_RE,
+    NET_IKEV2_PSK_RE,
+    NET_NHRP_AUTH_RE,
+    NET_SNMP_COMM_RE,
+    NET_SNMP_V3_AUTH_RE,
+    NET_SNMP_V3_PRIV_RE,
+    NET_BGP_PASS_RE,
+    NET_OSPF_AUTH_RE,
+    NET_OSPF_MD5_RE,
+    NET_LDP_PASS_RE,
+    NET_AAA_GLOBAL_KEY_RE,
+    NET_AAA_SERVER_KEY_RE,
+    NET_HSRP_AUTH_RE,
+    NET_VRRP_AUTH_RE,
+    NET_NTP_KEY_RE,
+    NET_PPP_PASS_RE,
+    NET_WPA_PSK_RE,
+    NET_KEY_STRING_RE,
+    NET_LINE_PASS_RE,
+    # Juniper JunOS
+    NET_JUNOS_SECRET_RE,
+    NET_JUNOS_PSK_RE,
+    NET_JUNOS_TACACS_KEY_RE,
+    # Multi-vendor specific
+    NET_HUAWEI_PASS_RE,     # Huawei VRP
+    NET_FORTINET_RE,        # Fortinet FortiOS
+    NET_PANOS_XML_RE,       # Palo Alto PAN-OS
+    NET_F5_RE,              # F5 BIG-IP
+    NET_HP_ARUBA_RE,        # HP / Aruba
+    NET_NOKIA_RE,           # Nokia SR OS
+    NET_BROCADE_RE,         # Brocade / Ruckus
+    NET_EXTREME_RE,         # Extreme Networks
+    NET_MIKROTIK_RE,        # MikroTik RouterOS
+    NET_VENDOR_CLI_CRED_RE, # Generic space-separated CLI keywords
+    NET_GENERIC_CRED_RE,    # Last resort: YAML/JSON/env-file with = or : separator
+]
+
+# Values that are keywords or trivially short digits — not real credentials
+_SUPPRESS_SKIPLIST = frozenset(
+    ["true", "false", "null", "none", "any", "local", "default", "disable", "enable"]
+)
+
+
+def _find_net_creds(text: str) -> List[Tuple[str, Tuple[int, int]]]:
+    """Find all network credential values across all families.
+
+    Returns a list of (value, (start, end)) where start/end are byte positions
+    of the *value* substring inside text.
+    """
+    matches: List[Tuple[str, Tuple[int, int]]] = []
+
+    # PKI cert block — match whole block, not just the value
+    for m in NET_PKI_CERT_RE.finditer(text):
+        matches.append((m.group(0), (m.start(), m.end())))
+
+    # All other single-group detectors
+    for regex in _NET_SIMPLE_DETECTORS:
+        for m in regex.finditer(text):
+            try:
+                val = m.group(1)
+            except IndexError:
+                continue
+            if not val:
+                continue
+            # Skip common non-secret keywords
+            if val.lower() in _SUPPRESS_SKIPLIST:
+                continue
+            # Skip bare short digits (e.g. OSPF key ID "1", area number)
+            if val.isdigit() and len(val) < 4:
+                continue
+            matches.append((val, (m.start(1), m.end(1))))
+
+    return matches
+
+
+def suppress_credentials(
+    text: str,
+    placeholder_prefix: str = "credential",
+    existing_mapping: Optional[Dict[str, str]] = None,
+) -> Tuple[str, Dict[str, str]]:
+    """Replace credentials with one-way placeholders.
+    
+    Returns (redacted_text, mapping) where mapping is {placeholder: "<SUPPRESSED>"}.
+    Original values are NEVER stored.
+    """
+    mapping = existing_mapping if existing_mapping is not None else {}
+    
+    # Track which values we've already placeholders for to keep count consistent
+    # Note: we don't store original values, so we just track the redacted state
+    counters: Dict[str, int] = {placeholder_prefix: 0}
+    for token in mapping:
+        parts = token.strip("<>").split(":")
+        if len(parts) >= 3 and parts[1] == placeholder_prefix:
+            try:
+                idx = int(parts[2])
+                counters[placeholder_prefix] = max(counters[placeholder_prefix], idx)
+            except ValueError:
+                pass
+
+    matches = _find_net_creds(text)
+    if not matches:
+        return text, mapping
+
+    # Sort by start position
+    matches.sort(key=lambda x: x[1][0])
+
+    out = []
+    last_idx = 0
+
+    for val, (start, end) in matches:
+        if start < last_idx:
+            continue
+            
+        out.append(text[last_idx:start])
+        
+        # We ALWAYS redact, but we check if we should reuse a counter if needed
+        # Actually for suppression, we just issue a new token or reuse if we had a way (we don't)
+        # To keep it simple and safe, we just issue new tokens for every match in this text
+        counters[placeholder_prefix] += 1
+        token = f"<<REDACTED:{placeholder_prefix}:{counters[placeholder_prefix]}>>"
+        mapping[token] = "<SUPPRESSED>"
+        
+        out.append(token)
+        last_idx = end
+
+    out.append(text[last_idx:])
+    return "".join(out), mapping
+
+
 def pseudonymize_text(
     text: str,
     pii_types: Sequence[str] | str = "all",
@@ -317,68 +643,64 @@ class PIIPseudonymizationMiddleware(AgentMiddleware):
         state: AgentState,
         runtime: Runtime,  # noqa: ARG002
     ) -> Dict[str, Any] | None:
+        if self.apply_to_input or self.apply_to_tool_results:
+            logger.info(f"\n[PIIPseudonymizationMiddleware - before_model]")
+
         messages = state.get("messages", [])
         if not messages:
             return None
 
         any_modified = False
         new_messages = list(messages)
+        mapping_accumulated = state.get("_pii_pseudonym_map", {})
 
-        # Optionally decode tool result messages using existing mapping
-        if self.apply_to_tool_results:
-            mapping_existing = state.get("_pii_pseudonym_map", {})
-            if mapping_existing:
-                # Find last AI message, then process ToolMessages after it
-                last_ai_idx = None
-                for i in range(len(messages) - 1, -1, -1):
-                    if isinstance(messages[i], AIMessage):
-                        last_ai_idx = i
-                        break
+        for i in range(len(new_messages)):
+            msg = new_messages[i]
 
-                if last_ai_idx is not None:
-                    for i in range(last_ai_idx + 1, len(messages)):
-                        if isinstance(messages[i], ToolMessage):
-                            msg = messages[i]
-                            decoded_content = depseudonymize_text(str(msg.content), mapping_existing)
-                            if decoded_content != msg.content:
-                                new_messages[i] = ToolMessage(
-                                    content=decoded_content,
-                                    id=getattr(msg, "id", None),
-                                    name=getattr(msg, "name", None),
-                                    tool_call_id=getattr(msg, "tool_call_id", None),
-                                )
-                                any_modified = True
-
-        # Mask HumanMessages if enabled
-        if self.apply_to_input:
-            mapping_accumulated = state.get("_pii_pseudonym_map", {})
+            # Determine if this message type should be processed
+            is_human = (isinstance(msg, HumanMessage) or 
+                       any(base.__name__ == "HumanMessage" for base in msg.__class__.__mro__))
+            is_tool = (isinstance(msg, ToolMessage) or 
+                      any(base.__name__ in ("ToolMessage", "FunctionMessage") for base in msg.__class__.__mro__))
             
-            for i in range(len(new_messages)):
-                msg = new_messages[i]
-                if isinstance(msg, HumanMessage) and getattr(msg, "content", None):
-                    content = str(msg.content)
-                    masked, mapping_accumulated = pseudonymize_text(
-                        content,
-                        pii_types=self.pii_types,
-                        placeholder_prefix=self.placeholder_prefix,
-                        existing_mapping=mapping_accumulated
-                    )
+            should_process = (is_human and self.apply_to_input) or (is_tool and self.apply_to_tool_results)
+            
+            if should_process and getattr(msg, "content", None):
+                content = str(msg.content)
+                masked, mapping_accumulated = pseudonymize_text(
+                    content,
+                    pii_types=self.pii_types,
+                    placeholder_prefix=self.placeholder_prefix,
+                    existing_mapping=mapping_accumulated
+                )
 
-                    if masked != content:
-                        logger.info(f"\n[PIIPseudonymizationMiddleware - before_model]")
-                        logger.info(f"  Index: {i}")
-                        logger.info(f"  Original content: {content}")
-                        logger.info(f"  Masked content: {masked}")
-                        
+                if masked != content:
+                    logger.info(f"  Redacted {msg.__class__.__name__} at index {i}")
+                    
+                    if isinstance(msg, HumanMessage):
                         new_messages[i] = HumanMessage(
                             content=masked,
                             id=getattr(msg, "id", None),
                             name=getattr(msg, "name", None),
+                            additional_kwargs=getattr(msg, "additional_kwargs", {}),
                         )
-                        any_modified = True
+                    elif isinstance(msg, ToolMessage):
+                        new_messages[i] = ToolMessage(
+                            content=masked,
+                            tool_call_id=getattr(msg, "tool_id", getattr(msg, "tool_call_id", "")),
+                            id=getattr(msg, "id", None),
+                            name=getattr(msg, "name", None),
+                            additional_kwargs=getattr(msg, "additional_kwargs", {}),
+                        )
+                    else:
+                        # Catch-all
+                        msg.content = masked
+                        new_messages[i] = msg
 
-            if any_modified:
-                return {"messages": new_messages, "_pii_pseudonym_map": mapping_accumulated}
+                    any_modified = True
+
+        if any_modified:
+            return {"messages": new_messages, "_pii_pseudonym_map": mapping_accumulated}
 
         if any_modified:
             return {"messages": new_messages}
@@ -398,16 +720,18 @@ class PIIPseudonymizationMiddleware(AgentMiddleware):
         state: AgentState,
         runtime: Runtime,  # noqa: ARG002
     ) -> Dict[str, Any] | None:
+        if self.apply_to_output or self.decode_tool_calls:
+            logger.info(f"\n[PIIPseudonymizationMiddleware - after_model]")
+            
         messages = state.get("messages", [])
-        if not messages:
-            return None
-
-        logger.info(f"\n[PIIPseudonymizationMiddleware - after_model]")
         # Last AI message
         last_ai_idx = None
         last_ai_msg = None
         for i in range(len(messages) - 1, -1, -1):
-            if isinstance(messages[i], AIMessage):
+            msg = messages[i]
+            is_ai = (isinstance(msg, AIMessage) or 
+                    any(base.__name__ == "AIMessage" for base in msg.__class__.__mro__))
+            if is_ai:
                 last_ai_idx = i
                 last_ai_msg = messages[i]
                 break
@@ -473,6 +797,160 @@ class PIIPseudonymizationMiddleware(AgentMiddleware):
         runtime: Runtime,  # noqa: ARG002
     ) -> Dict[str, Any] | None:
         """Async alias to `after_model` for frameworks expecting async hooks."""
+        return self.after_model(state, runtime)
+
+
+class NetCredentialSuppressorMiddleware(AgentMiddleware):
+    """Permanently suppress network credentials in model input and output.
+    
+    Unlike PIIPseudonymizationMiddleware, this is ONE-WAY. Original values
+    are redacted and NEVER stored in the state mapping.
+    
+    Configuration:
+    - `apply_to_input`: Mask credentials in HumanMessages (default True).
+    - `apply_to_ai_output`: Mask credentials in AI replies (default True).
+    """
+
+    def __init__(
+        self,
+        *,
+        apply_to_input: bool = True,
+        apply_to_ai_output: bool = True,
+        apply_to_tool_results: bool = True,
+    ) -> None:
+        super().__init__()
+        self.apply_to_input = apply_to_input
+        self.apply_to_ai_output = apply_to_ai_output
+        self.apply_to_tool_results = apply_to_tool_results
+
+    @property
+    def name(self) -> str:
+        return f"{self.__class__.__name__}"
+
+    def state_schema(self, input_schema: type) -> type:
+        try:
+            from typing_extensions import TypedDict
+        except Exception:
+            from typing import TypedDict
+
+        try:
+            class _NetCredState(input_schema, TypedDict, total=False):
+                _net_cred_suppressed_map: Dict[str, str]
+
+            return _NetCredState
+        except Exception:
+            return input_schema
+
+    def before_model(self, state: AgentState, runtime: Runtime) -> Dict[str, Any] | None:
+        if self.apply_to_input or self.apply_to_tool_results:
+            logger.info(f"\n[NetCredentialSuppressorMiddleware - before_model]")
+
+        messages = state.get("messages", [])
+        if not messages:
+            return None
+
+        any_modified = False
+        new_messages = list(messages)
+        mapping_accumulated = state.get("_net_cred_suppressed_map", {})
+
+        for i in range(len(new_messages)):
+            msg = new_messages[i]
+            
+            # Identify message type and check if we should process it
+            is_human = (isinstance(msg, HumanMessage) or 
+                       any(base.__name__ == "HumanMessage" for base in msg.__class__.__mro__))
+            is_tool = (isinstance(msg, ToolMessage) or 
+                      any(base.__name__ in ("ToolMessage", "FunctionMessage") for base in msg.__class__.__mro__))
+            
+            should_process = (is_human and self.apply_to_input) or (is_tool and self.apply_to_tool_results)
+            
+            if should_process and getattr(msg, "content", None):
+                content = str(msg.content)
+                masked, mapping_accumulated = suppress_credentials(
+                    content,
+                    existing_mapping=mapping_accumulated
+                )
+
+                if masked != content:
+                    logger.info(f"  Redacted {msg.__class__.__name__} at index {i}")
+                    
+                    if isinstance(msg, HumanMessage):
+                        new_messages[i] = HumanMessage(
+                            content=masked,
+                            id=getattr(msg, "id", None),
+                            name=getattr(msg, "name", None),
+                            additional_kwargs=getattr(msg, "additional_kwargs", {}),
+                        )
+                    elif isinstance(msg, ToolMessage):
+                        new_messages[i] = ToolMessage(
+                            content=masked,
+                            tool_call_id=getattr(msg, "tool_id", getattr(msg, "tool_call_id", "")),
+                            id=getattr(msg, "id", None),
+                            name=getattr(msg, "name", None),
+                            additional_kwargs=getattr(msg, "additional_kwargs", {}),
+                        )
+                    else:
+                        # Catch-all
+                        msg.content = masked
+                        new_messages[i] = msg
+
+                    any_modified = True
+
+        if any_modified:
+            return {"messages": new_messages, "_net_cred_suppressed_map": mapping_accumulated}
+
+        return None
+
+    def after_model(self, state: AgentState, runtime: Runtime) -> Dict[str, Any] | None:
+        if not self.apply_to_ai_output:
+            return None
+
+        messages = state.get("messages", [])
+        if not messages:
+            return None
+
+        last_ai_idx = None
+        last_ai_msg = None
+        for i in range(len(messages) - 1, -1, -1):
+            msg = messages[i]
+            is_ai = (isinstance(msg, AIMessage) or 
+                    any(base.__name__ == "AIMessage" for base in msg.__class__.__mro__))
+            if is_ai:
+                last_ai_idx = i
+                last_ai_msg = messages[i]
+                break
+
+        if last_ai_idx is None or not last_ai_msg:
+            return None
+
+        content = getattr(last_ai_msg, "content", None)
+        if not content or not isinstance(content, str):
+            return None
+
+        mapping_accumulated = state.get("_net_cred_suppressed_map", {})
+        masked, mapping_accumulated = suppress_credentials(
+            content,
+            existing_mapping=mapping_accumulated
+        )
+
+        if masked != content:
+            logger.info(f"[NetCredentialSuppressor] Redacted AI output")
+            updated_ai = AIMessage(
+                content=masked,
+                id=getattr(last_ai_msg, "id", None),
+                name=getattr(last_ai_msg, "name", None),
+                tool_calls=getattr(last_ai_msg, "tool_calls", None),
+            )
+            new_messages = list(messages)
+            new_messages[last_ai_idx] = updated_ai
+            return {"messages": new_messages, "_net_cred_suppressed_map": mapping_accumulated}
+
+        return None
+
+    async def abefore_model(self, state: AgentState, runtime: Runtime) -> Dict[str, Any] | None:
+        return self.before_model(state, runtime)
+
+    async def aafter_model(self, state: AgentState, runtime: Runtime) -> Dict[str, Any] | None:
         return self.after_model(state, runtime)
 
 

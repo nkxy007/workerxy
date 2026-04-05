@@ -36,7 +36,11 @@ class MiddlewareManager:
                 "class_path": "custom_middleware.netpii_middlewares.PIIPseudonymizationMiddleware",
                 "enabled": False,
                 "params": {
-                    "pii_types": "all"
+                    "pii_types": "all",
+                    "apply_to_input": True,
+                    "apply_to_output": False,
+                    "apply_to_tool_results": False,
+                    "decode_tool_calls": True
                 }
             },
             "security_guard": {
@@ -46,6 +50,17 @@ class MiddlewareManager:
                 "enabled": False,
                 "params": {
                     "mode": "local"
+                }
+            },
+            "net_credential_suppressor": {
+                "name": "Network Credential Suppressor",
+                "description": "Permanently redacts passwords/secrets from network device configs (Cisco, Juniper, etc.).",
+                "class_path": "custom_middleware.netpii_middlewares.NetCredentialSuppressorMiddleware",
+                "enabled": False,
+                "params": {
+                    "apply_to_input": True,
+                    "apply_to_ai_output": True,
+                    "apply_to_tool_results": True
                 }
             }
         }

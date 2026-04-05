@@ -590,13 +590,15 @@ async def handle_middlewares(ui):
         elif sub_choice == "config":
             if choice == "netpii":
                 await configure_netpii_params(ui, manager)
+            elif choice == "net_credential_suppressor":
+                await configure_netcred_params(ui, manager)
             elif choice == "advanced_context":
                 await configure_context_params(ui, manager)
             else:
                 ui.print_message(f"No additional configuration available for {mw_cfg['name']}.", role="dim")
 
 async def configure_netpii_params(ui, manager):
-    """Sub-menu for NetPII PII types selection."""
+    """Interactive menu for NetPII (Pseudonymizer) parameters."""
     from InquirerPy import inquirer
     from InquirerPy.base.control import Choice
     from custom_middleware.netpii_middlewares import PII_DETECTORS
@@ -605,33 +607,92 @@ async def configure_netpii_params(ui, manager):
     
     all_mw = manager.list_all()
     current_params = all_mw.get("netpii", {}).get("params", {})
-    current_types = current_params.get("pii_types", "all")
     
+    # --- Step 1: Boolean Flags ---
+    flag_options = [
+        Choice(value="apply_to_input", name="Mask Human Messages", enabled=current_params.get("apply_to_input", True)),
+        Choice(value="apply_to_tool_results", name="Mask Tool Results", enabled=current_params.get("apply_to_tool_results", False)),
+        Choice(value="apply_to_output", name="Decode/Pseudonymize AI Output", enabled=current_params.get("apply_to_output", False)),
+        Choice(value="decode_tool_calls", name="Decode Tool Call Parameters", enabled=current_params.get("decode_tool_calls", True)),
+    ]
+    
+    selected_flags = await inquirer.checkbox(
+        message="Toggle NetPII behaviors:",
+        choices=flag_options,
+        instruction="(Space to toggle, Enter to confirm)",
+    ).execute_async()
+    
+    if selected_flags is None:
+        ui.print_message("Configuration cancelled.", role="system")
+        return
+
+    # Create new params dict with updated boolean flags
+    new_params = current_params.copy()
+    for flag in ["apply_to_input", "apply_to_tool_results", "apply_to_output", "decode_tool_calls"]:
+        new_params[flag] = (flag in selected_flags)
+
+    # --- Step 2: PII Types Selection ---
+    current_types = current_params.get("pii_types", "all")
     if current_types == "all":
         current_types = list(PII_DETECTORS.keys())
     elif isinstance(current_types, str):
         current_types = [current_types]
     
-    # Create Choice objects with enabled status for existing types
-    choices = [
+    type_choices = [
         Choice(value=t, name=f"{t} (Detector)", enabled=(t in current_types)) 
         for t in PII_DETECTORS.keys()
     ]
         
     selected_types = await inquirer.checkbox(
         message="Select PII types to mask:",
-        choices=choices,
+        choices=type_choices,
         instruction="(Space to toggle, Enter to confirm)",
-        transformer=lambda result: f"{len(result)} types selected"
     ).execute_async()
     
     if selected_types is not None:
         if not selected_types:
-            ui.print_message("No types selected. NetPII will be effectively disabled for input masking.", role="warning")
-            manager.update_middleware_params("netpii", {"pii_types": []})
+            ui.print_message("No types selected. NetPII will ignore all PII.", role="warning")
+            new_params["pii_types"] = []
         else:
-            manager.update_middleware_params("netpii", {"pii_types": selected_types})
-            ui.print_message(f"Successfully updated PII types: [bold green]{', '.join(selected_types)}[/bold green]", role="system")
+            new_params["pii_types"] = selected_types
+            ui.print_message(f"Selected PII types: [bold green]{', '.join(selected_types)}[/bold green]", role="system")
+            
+        # Bulk update
+        manager.update_middleware_params("netpii", new_params)
+        ui.print_message("NetPII configuration updated.", role="system")
+    else:
+        ui.print_message("Configuration cancelled.", role="system")
+
+async def configure_netcred_params(ui, manager):
+    """Sub-menu for NetCred (Credential Suppressor) parameters."""
+    from InquirerPy import inquirer
+    from InquirerPy.base.control import Choice
+    
+    ui.console.print("\n[bold cyan]--- Credential Suppressor Configuration ---[/bold cyan]")
+    
+    all_mw = manager.list_all()
+    current_params = all_mw.get("net_credential_suppressor", {}).get("params", {})
+    
+    flag_options = [
+        Choice(value="apply_to_input", name="Redact Human Messages", enabled=current_params.get("apply_to_input", True)),
+        Choice(value="apply_to_tool_results", name="Redact Tool Results", enabled=current_params.get("apply_to_tool_results", True)),
+        Choice(value="apply_to_ai_output", name="Redact AI Output Content", enabled=current_params.get("apply_to_ai_output", True)),
+    ]
+    
+    selected_flags = await inquirer.checkbox(
+        message="Toggle Redaction behaviors:",
+        choices=flag_options,
+        instruction="(Space to toggle, Enter to confirm)",
+    ).execute_async()
+    
+    if selected_flags is not None:
+        new_params = {
+            "apply_to_input": ("apply_to_input" in selected_flags),
+            "apply_to_tool_results": ("apply_to_tool_results" in selected_flags),
+            "apply_to_ai_output": ("apply_to_ai_output" in selected_flags),
+        }
+        manager.update_middleware_params("net_credential_suppressor", new_params)
+        ui.print_message("Credential Suppressor configuration updated.", role="system")
     else:
         ui.print_message("Configuration cancelled.", role="system")
 
