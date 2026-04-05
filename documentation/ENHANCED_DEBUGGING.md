@@ -37,7 +37,7 @@ logger.info("=== create_network_agent() complete ===")
 ## How to Run
 
 ```bash
-cd /home/toffe/workspace/agentic
+cd /home/<user>/workspace/agentic
 conda activate test_langchain_env
 streamlit run ui/app.py 2>&1 | tee debug.log
 ```
