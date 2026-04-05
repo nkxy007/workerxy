@@ -9,10 +9,11 @@ WorkerXY is a high-performance, agentic AI system designed to streamline network
 ## 🌟 Core Features
 
 ### 🤖 Intelligent Agent Core
-*   **Agent-to-Agent (A2A)**: Dynamically attach specialist agents at runtime via `/agents`.
-*   **Streaming TUI**: Real-time token-streaming cockpit with rich formatting.
-*   **Security Guardrails**: Mandatory approval for sensitive ops like shell/code execution.
-*   **Tool Announcements**: Real-time console feedback with human-readable descriptions for every tool call.
+1. **Agent-to-Agent (A2A)**: Dynamically attach specialist agents at runtime via `/agents`.
+2. **Third-Party Plugins**: Define custom subagents declaratively in JSON files for runtime extensibility. ([Plugin Guide](file:///workerxy/documentation/PLUGINS.md))
+3. **Streaming TUI**: Real-time token-streaming cockpit with rich formatting.
+4. **Security Guardrails**: Mandatory approval for sensitive ops like shell/code execution.
+5. **Tool Announcements**: Real-time console feedback with human-readable descriptions for every tool call.
 
 ### 🧠 Persistent Memory & Skills
 *   **Long-term Memory**: Remembers past interactions across sessions.
@@ -166,7 +167,7 @@ WorkerXY supports advanced credential management to keep your API keys secure. Y
 - **Local Vault**: Encrypts `creds.json` into `~/.creds.vault` with a password.
 - **HashiCorp Vault**: Syncs credentials from a centralized KVv2 store.
 
-For full setup instructions, see the [Vault Setup Guide](file:///home/toffe/workspace/workerxy/documentation/VAULT_SETUP.md).
+For full setup instructions, see the [Vault Setup Guide](file:///home/<user>/workspace/workerxy/documentation/VAULT_SETUP.md).
 
 ## 🚀 Activation Matrix
 

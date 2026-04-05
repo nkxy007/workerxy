@@ -531,6 +531,21 @@ async def create_network_agent(
         automata_agent,
     ]
 
+    # --- Dynamic third-party plugin subagents ---
+    # Discovers ~/.net-deepagent/net-agent/subagents/*/agent.json at startup.
+    from utils.third_party_subagent_loader import load_third_party_subagents
+    _builtin_tools_map = {
+        "search_internet": search_internet,
+        "user_clarification_and_action_tool": user_clarification_and_action_tool,
+    }
+    _third_party_subagents = load_third_party_subagents(
+        all_mcp_tools=tools,
+        available_models=AVAILABLE_MODELS,
+        builtin_tools=_builtin_tools_map,
+    )
+    subagents.extend(_third_party_subagents)
+    logger.info(f"Loaded {len(_third_party_subagents)} third-party plugin subagent(s)")
+
     # Propagate tool announcer to ALL subagents (inline, imported, or compiled)
     # Note: Compiled subagents currently ignore the middleware key in deepagents,
     # but we include them here for completeness and future-proofing.
