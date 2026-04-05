@@ -37,11 +37,24 @@ from mcp.server.fastmcp import FastMCP
 from evengsdk.client import EvengClient
 from evengsdk.cli.lab.topology import Topology
 import evengsdk.cli.lab.commands as lab_commands
+import argparse
+import sys
+
+# ---------------------------------------------------------------------------
+# CLI Arguments
+# ---------------------------------------------------------------------------
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument('--log-level', default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set logging level')
+args, remaining_argv = parser.parse_known_args()
+
+# Update sys.argv to remove our custom flags so FastMCP doesn't error
+sys.argv = [sys.argv[0]] + remaining_argv
 
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+numeric_level = getattr(logging, args.log_level.upper(), logging.INFO)
+logging.basicConfig(level=numeric_level, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("eveng-mcp")
 
 # ---------------------------------------------------------------------------
@@ -139,30 +152,38 @@ def _get_eveng_client() -> EvengClient:
 
 @mcp.tool(description="Test connectivity and authentication against the EVE-NG server.")
 async def eveng_check_auth() -> str:
-    """Ping the EVE-NG API and confirm the session is valid."""
+    log.debug(f"Executing tool: eveng_check_auth")
     try:
         data = await _api("GET", "/status")
-        return json.dumps(data, indent=2)
+        result = json.dumps(data, indent=2)
+        log.debug(f"Tool eveng_check_auth output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error checking auth: {e}\n{traceback.format_exc()}")
-        return f"Error checking auth: {e}"
+        result = f"Error checking auth: {e}"
+        log.debug(f"Tool eveng_check_auth output: {result}")
+        return result
 
 
 @mcp.tool(description="Return EVE-NG server status and version information.")
 async def eveng_server_status() -> str:
-    """Retrieve EVE-NG server status."""
+    log.debug(f"Executing tool: eveng_server_status")
     try:
         data = await _api("GET", "/status")
-        return json.dumps(data, indent=2)
+        result = json.dumps(data, indent=2)
+        log.debug(f"Tool eveng_server_status output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error getting server status: {e}\n{traceback.format_exc()}")
-        return f"Error getting server status: {e}"
+        result = f"Error getting server status: {e}"
+        log.debug(f"Tool eveng_server_status output: {result}")
+        return result
 
 # ============================================================
 
 @mcp.tool(description="Set an environment variable for the EVE-NG MCP server (e.g. EVE_NG_HOST, EVE_NG_USERNAME, EVE_NG_PASSWORD).")
 async def eveng_set_env_var(key: str, value: str) -> str:
-    """Set an environment variable."""
+    log.debug(f"Executing tool: eveng_set_env_var with args: key={key}, value={value}")
     import os
     os.environ[key] = value
     
@@ -173,7 +194,9 @@ async def eveng_set_env_var(key: str, value: str) -> str:
             await _session.aclose()
         _session = None
         
-    return f"Environment variable {key} set to {value} successfully. Client will re-initialize on next use."
+    result = f"Environment variable {key} set to {value} successfully. Client will re-initialize on next use."
+    log.debug(f"Tool eveng_set_env_var output: {result}")
+    return result
 
 # LABS
 # ============================================================
@@ -186,20 +209,27 @@ async def eveng_list_labs(folder: str = "/") -> str:
     Args:
         folder: EVE-NG folder path to list (default: root "/").
     """
+    log.debug(f"Executing tool: eveng_list_labs with args: folder={folder}")
     try:
         encoded = _encode_path(folder)
         data = await _api("GET", f"/folders{encoded}")
         labs = data.get("data", {}).get("labs", [])
         if not labs:
-            return "No labs found in the specified folder."
+            result = "No labs found in the specified folder."
+            log.debug(f"Tool eveng_list_labs output: {result}")
+            return result
         lines = [f"Labs in '{folder}':"]
         for lab in labs:
             name = lab.get("file", "unknown")
             lines.append(f"  • {name}")
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        log.debug(f"Tool eveng_list_labs output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error listing labs: {e}\n{traceback.format_exc()}")
-        return f"Error listing labs: {e}"
+        result = f"Error listing labs: {e}"
+        log.debug(f"Tool eveng_list_labs output: {result}")
+        return result
 
 
 @mcp.tool(description="Describe a lab: return its metadata (author, description, version).")
@@ -210,13 +240,18 @@ async def eveng_describe_lab(lab_path: str) -> str:
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
+    log.debug(f"Executing tool: eveng_describe_lab with args: lab_path={lab_path}")
     try:
         encoded = _encode_path(lab_path)
         data = await _api("GET", f"/labs{encoded}")
-        return json.dumps(data.get("data", data), indent=2)
+        result = json.dumps(data.get("data", data), indent=2)
+        log.debug(f"Tool eveng_describe_lab output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error describing lab: {e}\n{traceback.format_exc()}")
-        return f"Error describing lab: {e}"
+        result = f"Error describing lab: {e}"
+        log.debug(f"Tool eveng_describe_lab output: {result}")
+        return result
 
 
 @mcp.tool(description="Create a new lab in EVE-NG.")
@@ -229,13 +264,18 @@ def eveng_create_lab(name: str, description: str = "", path: str = "/") -> str:
         description: Description of the lab.
         path: Path where to create the lab (default: "/").
     """
+    log.debug(f"Executing tool: eveng_create_lab with args: name={name}, description={description}, path={path}")
     client = _get_eveng_client()
     try:
         resp = client.api.create_lab(name=name, description=description, path=path)
-        return json.dumps(resp, indent=2)
+        result = json.dumps(resp, indent=2)
+        log.debug(f"Tool eveng_create_lab output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error creating lab: {e}\n{traceback.format_exc()}")
-        return f"Error creating lab: {str(e)}"
+        result = f"Error creating lab: {str(e)}"
+        log.debug(f"Tool eveng_create_lab output: {result}")
+        return result
     finally:
         client.logout()
 
@@ -248,19 +288,26 @@ async def eveng_list_lab_networks(lab_path: str) -> str:
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
+    log.debug(f"Executing tool: eveng_list_lab_networks with args: lab_path={lab_path}")
     try:
         encoded = _encode_path(lab_path)
         data = await _api("GET", f"/labs{encoded}/networks")
         networks = data.get("data", {})
         if not networks:
-            return "No networks found in this lab."
+            result = "No networks found in this lab."
+            log.debug(f"Tool eveng_list_lab_networks output: {result}")
+            return result
         lines = [f"Networks in '{lab_path}':"]
         for nid, net in networks.items():
             lines.append(f"  [{nid}] {net.get('name','?')}  type={net.get('type','?')}")
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        log.debug(f"Tool eveng_list_lab_networks output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error listing lab networks: {e}\n{traceback.format_exc()}")
-        return f"Error listing lab networks: {e}"
+        result = f"Error listing lab networks: {e}"
+        log.debug(f"Tool eveng_list_lab_networks output: {result}")
+        return result
 
 
 @mcp.tool(description="Add a network (cloud/bridge) to a lab in EVE-NG.")
@@ -274,13 +321,18 @@ def eveng_add_network(lab_path: str, name: str, network_type: str = "bridge", vi
         network_type: Type of network ('bridge', 'pnet1', etc.).
         visibility: Network visibility (1 for visible, 0 for hidden).
     """
+    log.debug(f"Executing tool: eveng_add_network with args: lab_path={lab_path}, name={name}, network_type={network_type}, visibility={visibility}")
     client = _get_eveng_client()
     try:
         resp = client.api.add_lab_network(lab_path, name=name, network_type=network_type, visibility=visibility)
-        return json.dumps(resp, indent=2)
+        result = json.dumps(resp, indent=2)
+        log.debug(f"Tool eveng_add_network output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error adding network: {e}\n{traceback.format_exc()}")
-        return f"Error adding network: {str(e)}"
+        result = f"Error adding network: {str(e)}"
+        log.debug(f"Tool eveng_add_network output: {result}")
+        return result
     finally:
         client.logout()
 
@@ -296,12 +348,15 @@ async def eveng_list_nodes(lab_path: str) -> str:
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
+    log.debug(f"Executing tool: eveng_list_nodes with args: lab_path={lab_path}")
     try:
         encoded = _encode_path(lab_path)
         data = await _api("GET", f"/labs{encoded}/nodes")
         nodes = data.get("data", {})
         if not nodes:
-            return "No nodes found in this lab."
+            result = "No nodes found in this lab."
+            log.debug(f"Tool eveng_list_nodes output: {result}")
+            return result
 
         host = _cfg("EVE_NG_HOST")
         lines = [f"Nodes in '{lab_path}':"]
@@ -318,10 +373,14 @@ async def eveng_list_nodes(lab_path: str) -> str:
             else:
                 console_str = "N/A"
             lines.append(f"  [{nid}] {name:<20} status={status_label:<8} console={console_str}")
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        log.debug(f"Tool eveng_list_nodes output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error listing nodes: {e}\n{traceback.format_exc()}")
-        return f"Error listing nodes: {e}"
+        result = f"Error listing nodes: {e}"
+        log.debug(f"Tool eveng_list_nodes output: {result}")
+        return result
 
 
 @mcp.tool(description="Get detailed information about a single node in a lab.")
@@ -333,13 +392,18 @@ async def eveng_get_node(lab_path: str, node_id: str) -> str:
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Node ID number (as a string)
     """
+    log.debug(f"Executing tool: eveng_get_node with args: lab_path={lab_path}, node_id={node_id}")
     try:
         encoded = _encode_path(lab_path)
         data = await _api("GET", f"/labs{encoded}/nodes/{node_id}")
-        return json.dumps(data.get("data", data), indent=2)
+        result = json.dumps(data.get("data", data), indent=2)
+        log.debug(f"Tool eveng_get_node output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error getting node details: {e}\n{traceback.format_exc()}")
-        return f"Error getting node details: {e}"
+        result = f"Error getting node details: {e}"
+        log.debug(f"Tool eveng_get_node output: {result}")
+        return result
 
 
 @mcp.tool(description="Add a node to a lab in EVE-NG.")
@@ -355,13 +419,18 @@ def eveng_add_node(lab_path: str, name: str, template: str, image: str, left: in
         left: X coordinate in the topology.
         top: Y coordinate in the topology.
     """
+    log.debug(f"Executing tool: eveng_add_node with args: lab_path={lab_path}, name={name}, template={template}, image={image}, left={left}, top={top}")
     client = _get_eveng_client()
     try:
         resp = client.api.add_node(lab_path, name=name, template=template, image=image, left=left, top=top)
-        return json.dumps(resp, indent=2)
+        result = json.dumps(resp, indent=2)
+        log.debug(f"Tool eveng_add_node output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error adding node: {e}\n{traceback.format_exc()}")
-        return f"Error adding node: {str(e)}"
+        result = f"Error adding node: {str(e)}"
+        log.debug(f"Tool eveng_add_node output: {result}")
+        return result
     finally:
         client.logout()
 
@@ -374,8 +443,11 @@ def eveng_build_topology_from_yaml(yaml_path: str, template_dir: str = "") -> st
         yaml_path: Absolute path to the YAML topology definition.
         template_dir: Path to directory containing Jinja2 configuration templates (optional).
     """
+    log.debug(f"Executing tool: eveng_build_topology_from_yaml with args: yaml_path={yaml_path}, template_dir={template_dir}")
     if not os.path.exists(yaml_path):
-        return f"Error: YAML file not found at {yaml_path}"
+        result = f"Error: YAML file not found at {yaml_path}"
+        log.debug(f"Tool eveng_build_topology_from_yaml output: {result}")
+        return result
         
     client = _get_eveng_client()
     try:
@@ -385,7 +457,9 @@ def eveng_build_topology_from_yaml(yaml_path: str, template_dir: str = "") -> st
         
         # Validate
         if errors := topology.validate():
-             return f"Topology validation failed: {errors}"
+             result = f"Topology validation failed: {errors}"
+             log.debug(f"Tool eveng_build_topology_from_yaml output: {result}")
+             return result
              
         # Build node configs if needed
         # Default to 'templates' dir relative to yaml if not specified
@@ -398,7 +472,9 @@ def eveng_build_topology_from_yaml(yaml_path: str, template_dir: str = "") -> st
         # Deploy lab
         resp = client.api.create_lab(**topology.lab)
         if resp["status"] != "success":
-             return f"Error creating lab: {resp.get('message')}"
+             result = f"Error creating lab: {resp.get('message')}"
+             log.debug(f"Tool eveng_build_topology_from_yaml output: {result}")
+             return result
              
         # Deploy components
         # Note: These use ThreadPoolExecutor internally
@@ -407,10 +483,14 @@ def eveng_build_topology_from_yaml(yaml_path: str, template_dir: str = "") -> st
         lab_commands.create_network_links(topology)
         lab_commands.create_p2p_links(topology)
         
-        return f"Successfully built topology from {yaml_path}"
+        result = f"Successfully built topology from {yaml_path}"
+        log.debug(f"Tool eveng_build_topology_from_yaml output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error building topology: {e}\n{traceback.format_exc()}")
-        return f"Error building topology: {str(e)}"
+        result = f"Error building topology: {str(e)}"
+        log.debug(f"Tool eveng_build_topology_from_yaml output: {result}")
+        return result
     finally:
         client.logout()
 
@@ -427,6 +507,7 @@ async def eveng_export_topology_yaml(lab_path: str) -> str:
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
+    log.debug(f"Executing tool: eveng_export_topology_yaml with args: lab_path={lab_path}")
     try:
         encoded = _encode_path(lab_path)
 
@@ -508,10 +589,14 @@ async def eveng_export_topology_yaml(lab_path: str) -> str:
             "links": links,
         }
 
-        return yaml.dump(topology, sort_keys=False)
+        result = yaml.dump(topology, sort_keys=False)
+        log.debug(f"Tool eveng_export_topology_yaml output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error exporting topology: {e}\n{traceback.format_exc()}")
-        return f"Error exporting topology: {e}"
+        result = f"Error exporting topology: {e}"
+        log.debug(f"Tool eveng_export_topology_yaml output: {result}")
+        return result
 
 
 @mcp.tool(description="Return the telnet console URL for a named node in a lab.")
@@ -523,6 +608,7 @@ async def eveng_get_node_console_url(lab_path: str, node_name: str) -> str:
         lab_path:  Full lab path, e.g. '/MyLab.unl'
         node_name: Node name as shown in the lab (case-insensitive match)
     """
+    log.debug(f"Executing tool: eveng_get_node_console_url with args: lab_path={lab_path}, node_name={node_name}")
     try:
         encoded = _encode_path(lab_path)
         data = await _api("GET", f"/labs{encoded}/nodes")
@@ -533,15 +619,23 @@ async def eveng_get_node_console_url(lab_path: str, node_name: str) -> str:
             if node.get("name", "").lower() == node_name.lower():
                 node_url = node.get("url", "")
                 if not node_url:
-                    return f"Node '{node_name}' has no console URL assigned (is it running?)."
+                    result = f"Node '{node_name}' has no console URL assigned (is it running?)."
+                    log.debug(f"Tool eveng_get_node_console_url output: {result}")
+                    return result
                 # Rewrite embedded host with configured EVE_NG_HOST
                 parts = node_url.rsplit(":", 1)
-                return f"telnet://{host}:{parts[-1]}" if len(parts) == 2 else node_url
+                result = f"telnet://{host}:{parts[-1]}" if len(parts) == 2 else node_url
+                log.debug(f"Tool eveng_get_node_console_url output: {result}")
+                return result
 
-        return f"Node '{node_name}' not found in '{lab_path}'."
+        result = f"Node '{node_name}' not found in '{lab_path}'."
+        log.debug(f"Tool eveng_get_node_console_url output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error getting node console URL: {e}\n{traceback.format_exc()}")
-        return f"Error getting node console URL: {e}"
+        result = f"Error getting node console URL: {e}"
+        log.debug(f"Tool eveng_get_node_console_url output: {result}")
+        return result
 
 
 @mcp.tool(description="Start one or all nodes in an EVE-NG lab.")
@@ -553,14 +647,19 @@ async def eveng_start_nodes(lab_path: str, node_id: Optional[str] = None) -> str
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Specific node ID to start, or omit to start all nodes.
     """
+    log.debug(f"Executing tool: eveng_start_nodes with args: lab_path={lab_path}, node_id={node_id}")
     try:
         encoded = _encode_path(lab_path)
         path = f"/labs{encoded}/nodes/{node_id}/start" if node_id else f"/labs{encoded}/nodes/start"
         data = await _api("GET", path)
-        return data.get("message", json.dumps(data))
+        result = data.get("message", json.dumps(data))
+        log.debug(f"Tool eveng_start_nodes output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error starting nodes: {e}\n{traceback.format_exc()}")
-        return f"Error starting nodes: {e}"
+        result = f"Error starting nodes: {e}"
+        log.debug(f"Tool eveng_start_nodes output: {result}")
+        return result
 
 
 @mcp.tool(description="Stop one or all nodes in an EVE-NG lab.")
@@ -572,14 +671,19 @@ async def eveng_stop_nodes(lab_path: str, node_id: Optional[str] = None) -> str:
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Specific node ID to stop, or omit to stop all nodes.
     """
+    log.debug(f"Executing tool: eveng_stop_nodes with args: lab_path={lab_path}, node_id={node_id}")
     try:
         encoded = _encode_path(lab_path)
         path = f"/labs{encoded}/nodes/{node_id}/stop" if node_id else f"/labs{encoded}/nodes/stop"
         data = await _api("GET", path)
-        return data.get("message", json.dumps(data))
+        result = data.get("message", json.dumps(data))
+        log.debug(f"Tool eveng_stop_nodes output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error stopping nodes: {e}\n{traceback.format_exc()}")
-        return f"Error stopping nodes: {e}"
+        result = f"Error stopping nodes: {e}"
+        log.debug(f"Tool eveng_stop_nodes output: {result}")
+        return result
 
 
 @mcp.tool(description="Wipe (reset to factory defaults) one or all nodes in an EVE-NG lab.")
@@ -591,14 +695,19 @@ async def eveng_wipe_nodes(lab_path: str, node_id: Optional[str] = None) -> str:
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Specific node ID to wipe, or omit to wipe all.
     """
+    log.debug(f"Executing tool: eveng_wipe_nodes with args: lab_path={lab_path}, node_id={node_id}")
     try:
         encoded = _encode_path(lab_path)
         path = f"/labs{encoded}/nodes/{node_id}/wipe" if node_id else f"/labs{encoded}/nodes/wipe"
         data = await _api("GET", path)
-        return data.get("message", json.dumps(data))
+        result = data.get("message", json.dumps(data))
+        log.debug(f"Tool eveng_wipe_nodes output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error wiping nodes: {e}\n{traceback.format_exc()}")
-        return f"Error wiping nodes: {e}"
+        result = f"Error wiping nodes: {e}"
+        log.debug(f"Tool eveng_wipe_nodes output: {result}")
+        return result
 
 # ============================================================
 # NODE CONNECTIONS / TOPOLOGY
@@ -616,6 +725,7 @@ async def eveng_list_lab_links(lab_path: str) -> str:
     Args:
         lab_path: Full lab path, e.g. '/MyLab.unl'
     """
+    log.debug(f"Executing tool: eveng_list_lab_links with args: lab_path={lab_path}")
     try:
         encoded = _encode_path(lab_path)
 
@@ -626,7 +736,9 @@ async def eveng_list_lab_links(lab_path: str) -> str:
         topology_links = topo_data.get("data", [])
 
         if not topology_links:
-            return f"No topology links found in '{lab_path}'. Is the lab empty or no interfaces wired?"
+            result = f"No topology links found in '{lab_path}'. Is the lab empty or no interfaces wired?"
+            log.debug(f"Tool eveng_list_lab_links output: {result}")
+            return result
 
         lines = [f"Topology links in '{lab_path}':"]
         for link in topology_links:
@@ -643,10 +755,14 @@ async def eveng_list_lab_links(lab_path: str) -> str:
             type_str = f" ({ltype})" if ltype else ""
             lines.append(f"  {src_str}  <-->  {dst_str}{type_str}")
 
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        log.debug(f"Tool eveng_list_lab_links output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error listing lab links: {e}\n{traceback.format_exc()}")
-        return f"Error listing lab links: {e}"
+        result = f"Error listing lab links: {e}"
+        log.debug(f"Tool eveng_list_lab_links output: {result}")
+        return result
 
 
 @mcp.tool(description="List all interfaces on a specific node and show which network each is connected to.")
@@ -658,13 +774,18 @@ async def eveng_list_node_interfaces(lab_path: str, node_id: str) -> str:
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Node ID number (as a string)
     """
+    log.debug(f"Executing tool: eveng_list_node_interfaces with args: lab_path={lab_path}, node_id={node_id}")
     try:
         encoded = _encode_path(lab_path)
         data = await _api("GET", f"/labs{encoded}/nodes/{node_id}/interfaces")
-        return json.dumps(data.get("data", data), indent=2)
+        result = json.dumps(data.get("data", data), indent=2)
+        log.debug(f"Tool eveng_list_node_interfaces output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error listing node interfaces: {e}\n{traceback.format_exc()}")
-        return f"Error listing node interfaces: {e}"
+        result = f"Error listing node interfaces: {e}"
+        log.debug(f"Tool eveng_list_node_interfaces output: {result}")
+        return result
 
 
 @mcp.tool(
@@ -691,6 +812,7 @@ async def eveng_connect_nodes(
         dst_node_id: Destination node ID
         dst_if_id:   Destination interface ID (index)
     """
+    log.debug(f"Executing tool: eveng_connect_nodes with args: lab_path={lab_path}, src_node_id={src_node_id}, src_if_id={src_if_id}, dst_node_id={dst_node_id}, dst_if_id={dst_if_id}")
     try:
         encoded = _encode_path(lab_path)
 
@@ -699,21 +821,27 @@ async def eveng_connect_nodes(
         net_resp = await _api("POST", f"/labs{encoded}/networks", json=net_payload)
         net_id = net_resp.get("data", {}).get("id")
         if not net_id:
-            return f"Failed to create bridge network: {net_resp}"
+            result = f"Failed to create bridge network: {net_resp}"
+            log.debug(f"Tool eveng_connect_nodes output: {result}")
+            return result
 
         # Connect both ends to the bridge
         for node_id, if_id in [(src_node_id, src_if_id), (dst_node_id, dst_if_id)]:
             conn_payload = {"id": int(if_id), "network_id": int(net_id)}
             await _api("PUT", f"/labs{encoded}/nodes/{node_id}/interfaces", json=conn_payload)
 
-        return (
+        result = (
             f"Connected node {src_node_id} if {src_if_id} "
             f"<--> node {dst_node_id} if {dst_if_id} "
             f"via network_id={net_id}"
         )
+        log.debug(f"Tool eveng_connect_nodes output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error connecting nodes: {e}\n{traceback.format_exc()}")
-        return f"Error connecting nodes: {e}"
+        result = f"Error connecting nodes: {e}"
+        log.debug(f"Tool eveng_connect_nodes output: {result}")
+        return result
 
 # ============================================================
 # TELNET HELPER (returns connection string for LLM / agent)
@@ -736,6 +864,7 @@ async def eveng_telnet_command(lab_path: str, node_name: str) -> str:
     Returns:
         A string like: telnet 192.168.1.1 32769
     """
+    log.debug(f"Executing tool: eveng_telnet_command with args: lab_path={lab_path}, node_name={node_name}")
     try:
         encoded = _encode_path(lab_path)
         data = await _api("GET", f"/labs{encoded}/nodes")
@@ -750,18 +879,28 @@ async def eveng_telnet_command(lab_path: str, node_name: str) -> str:
                 port     = parts[-1] if len(parts) == 2 else None
                 if status == 0:
                     port_hint = port or "?"
-                    return (
+                    result = (
                         f"Node '{node_name}' is currently stopped. "
                         f"Start it first with eveng_start_nodes, then connect via: telnet {host} {port_hint}"
                     )
+                    log.debug(f"Tool eveng_telnet_command output: {result}")
+                    return result
                 if not port:
-                    return f"Node '{node_name}' has no console port assigned."
-                return f"telnet {host} {port}"
+                    result = f"Node '{node_name}' has no console port assigned."
+                    log.debug(f"Tool eveng_telnet_command output: {result}")
+                    return result
+                result = f"telnet {host} {port}"
+                log.debug(f"Tool eveng_telnet_command output: {result}")
+                return result
 
-        return f"Node '{node_name}' not found in '{lab_path}'."
+        result = f"Node '{node_name}' not found in '{lab_path}'."
+        log.debug(f"Tool eveng_telnet_command output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error generating telnet command: {e}\n{traceback.format_exc()}")
-        return f"Error generating telnet command: {e}"
+        result = f"Error generating telnet command: {e}"
+        log.debug(f"Tool eveng_telnet_command output: {result}")
+        return result
 
 
 # ============================================================
@@ -777,13 +916,18 @@ async def eveng_list_snapshots(lab_path: str, node_id: str) -> str:
         lab_path: Full lab path, e.g. '/MyLab.unl'
         node_id:  Node ID number (as a string)
     """
+    log.debug(f"Executing tool: eveng_list_snapshots with args: lab_path={lab_path}, node_id={node_id}")
     try:
         encoded = _encode_path(lab_path)
         data = await _api("GET", f"/labs{encoded}/nodes/{node_id}/export")
-        return json.dumps(data.get("data", data), indent=2)
+        result = json.dumps(data.get("data", data), indent=2)
+        log.debug(f"Tool eveng_list_snapshots output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error listing snapshots: {e}\n{traceback.format_exc()}")
-        return f"Error listing snapshots: {e}"
+        result = f"Error listing snapshots: {e}"
+        log.debug(f"Tool eveng_list_snapshots output: {result}")
+        return result
 
 
 # ============================================================
@@ -793,30 +937,41 @@ async def eveng_list_snapshots(lab_path: str, node_id: str) -> str:
 @mcp.tool(description="List all available node templates (image types) on the EVE-NG server.")
 async def eveng_list_templates() -> str:
     """List all node templates available on the EVE-NG server."""
+    log.debug(f"Executing tool: eveng_list_templates")
     try:
         data = await _api("GET", "/list/templates/")
         templates = data.get("data", {})
         if not templates:
-            return "No templates found."
+            result = "No templates found."
+            log.debug(f"Tool eveng_list_templates output: {result}")
+            return result
         lines = ["Available node templates:"]
         for name, info in sorted(templates.items()):
             desc = info.get("description", "")
             lines.append(f"  • {name:<30} {desc}")
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        log.debug(f"Tool eveng_list_templates output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error listing templates: {e}\n{traceback.format_exc()}")
-        return f"Error listing templates: {e}"
+        result = f"Error listing templates: {e}"
+        log.debug(f"Tool eveng_list_templates output: {result}")
+        return result
 
 
 @mcp.tool(description="List all users on the EVE-NG server (admin only).")
 async def eveng_list_users() -> str:
-    """List EVE-NG users."""
+    log.debug(f"Executing tool: eveng_list_users")
     try:
         data = await _api("GET", "/users/")
-        return json.dumps(data.get("data", data), indent=2)
+        result = json.dumps(data.get("data", data), indent=2)
+        log.debug(f"Tool eveng_list_users output: {result}")
+        return result
     except Exception as e:
         log.error(f"Error listing users: {e}\n{traceback.format_exc()}")
-        return f"Error listing users: {e}"
+        result = f"Error listing users: {e}"
+        log.debug(f"Tool eveng_list_users output: {result}")
+        return result
 
 
 # ============================================================
@@ -947,11 +1102,14 @@ async def eveng_send_commands(
         connect_timeout: Seconds to wait for initial connection and banner
         command_timeout: Seconds to wait for output after each command
     """
+    log.debug(f"Executing tool: eveng_send_commands with args: lab_path={lab_path}, node_name={node_name}, commands={commands}, prompt_pattern={prompt_pattern}, connect_timeout={connect_timeout}, command_timeout={command_timeout}")
     try:
         host, port = await _resolve_console_port(lab_path, node_name)
     except ValueError as e:
         log.error(f"Value Error in eveng_send_commands: {e}\n{traceback.format_exc()}")
-        return f"Error: {e}"
+        result = f"Error: {e}"
+        log.debug(f"Tool eveng_send_commands output: {result}")
+        return result
 
     log.info("Connecting to %s console at %s:%d", node_name, host, port)
     try:
@@ -963,14 +1121,19 @@ async def eveng_send_commands(
             connect_timeout=connect_timeout,
             command_timeout=command_timeout,
         )
+        log.debug(f"Tool eveng_send_commands output: {transcript}")
         return transcript
     except asyncio.TimeoutError:
-        return (
+        result = (
             f"Timeout connecting to {node_name} at {host}:{port}. "
             f"Verify the node is running and fully booted."
         )
+        log.debug(f"Tool eveng_send_commands output: {result}")
+        return result
     except OSError as e:
-        return f"Connection error to {node_name} at {host}:{port} — {e}"
+        result = f"Connection error to {node_name} at {host}:{port} — {e}"
+        log.debug(f"Tool eveng_send_commands output: {result}")
+        return result
 
 
 @mcp.tool(
@@ -1005,11 +1168,14 @@ async def eveng_push_initial_config(
         connect_timeout:  Seconds to wait for connection
         command_timeout:  Seconds to wait per command
     """
+    log.debug(f"Executing tool: eveng_push_initial_config with args: lab_path={lab_path}, node_name={node_name}, config_lines={len(config_lines)} lines, device_type={device_type}")
     try:
         host, port = await _resolve_console_port(lab_path, node_name)
     except ValueError as e:
         log.error(f"Value Error in eveng_push_initial_config: {e}\n{traceback.format_exc()}")
-        return f"Error: {e}"
+        result = f"Error: {e}"
+        log.debug(f"Tool eveng_push_initial_config output: {result}")
+        return result
 
     dtype = device_type.lower()
 
@@ -1051,14 +1217,19 @@ async def eveng_push_initial_config(
             command_timeout=command_timeout,
             inter_command_delay=0.5,   # slower for config mode
         )
+        log.debug(f"Tool eveng_push_initial_config output: {transcript}")
         return transcript
     except asyncio.TimeoutError:
-        return (
+        result = (
             f"Timeout connecting to {node_name} at {host}:{port}. "
             f"Verify the node is running and fully booted."
         )
+        log.debug(f"Tool eveng_push_initial_config output: {result}")
+        return result
     except OSError as e:
-        return f"Connection error to {node_name} at {host}:{port} — {e}"
+        result = f"Connection error to {node_name} at {host}:{port} — {e}"
+        log.debug(f"Tool eveng_push_initial_config output: {result}")
+        return result
 
 
 # ============================================================

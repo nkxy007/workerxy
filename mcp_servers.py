@@ -39,13 +39,22 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-# Initialize credentials based on CLI arguments
+from net_deepagent_cli.communication.logger import setup_logger, set_log_level
+
+# Initialize credentials and log settings based on CLI arguments
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument('--vault', action='store_true', help='Use credentials from vault file')
+parser.add_argument('--log-level', default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set logging level')
 args, remaining_argv = parser.parse_known_args()
 
 # Update sys.argv to remove our custom flags so FastMCP doesn't error
 sys.argv = [sys.argv[0]] + remaining_argv
+
+# Set log level globally
+set_log_level(args.log_level)
+
+# Configure logging using centralized utility
+logger = setup_logger("mcp_server")
 
 if args.vault:
     # Prompt for password if we are using the vault
@@ -55,11 +64,6 @@ if args.vault:
 else:
     # Fallback to creds.py (no vault prompt)
     get_helper(use_vault=False)
-
-from net_deepagent_cli.communication.logger import setup_logger
-
-# Configure logging using centralized utility
-logger = setup_logger("mcp_server")
 
 mcp = FastMCP("network_tools_server")
 
@@ -189,6 +193,7 @@ async def get_site_info(site_name: str, intention: str) -> str:
     returns:
         str: site information
     """
+    logger.debug(f"Executing tool: get_site_info with args: site_name={site_name}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(get_site_info.__name__, intention, site_name=site_name)
     logger.info(f"Getting site info for site: {site_name}")
@@ -197,11 +202,17 @@ async def get_site_info(site_name: str, intention: str) -> str:
             data = json.load(f)
         for site in data["sites"]:
             if site_name.lower() in site["name"].lower():
-                return json.dumps(site, indent=2)
-        return f"Site {site_name} not found"
+                result = json.dumps(site, indent=2)
+                logger.debug(f"Tool get_site_info output: {result}")
+                return result
+        result = f"Site {site_name} not found"
+        logger.debug(f"Tool get_site_info output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error retrieving site info: {e}\n{traceback.format_exc()}")
-        return f"Error retrieving site info: {e}"
+        result = f"Error retrieving site info: {e}"
+        logger.debug(f"Tool get_site_info output: {result}")
+        return result
 
 @mcp.tool()
 async def net_get_devices_management_ip(site_name: str, device_type: str, intention: str) -> str:
@@ -213,6 +224,7 @@ async def net_get_devices_management_ip(site_name: str, device_type: str, intent
     returns:
         str: management IP address of the device
     """
+    logger.debug(f"Executing tool: net_get_devices_management_ip with args: site_name={site_name}, device_type={device_type}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_devices_management_ip.__name__, intention, site_name=site_name, device_type=device_type)
     logger.info(f"Getting management IP for device type {device_type} in site {site_name}")
@@ -223,16 +235,24 @@ async def net_get_devices_management_ip(site_name: str, device_type: str, intent
             if site_name in site["name"]:
                 for device in site["devices"]:
                     if device["type"].lower() == device_type.lower():
-                        return device["management_ip"]
+                        result = device["management_ip"]
+                        logger.debug(f"Tool net_get_devices_management_ip output: {result}")
+                        return result
         # return only sites names so that AI checks if the site was not mispelled
         # filter sites names from data 
         logger.warning(f"{site_name} is not found in sites container.")
         sites_names = [site["name"] for site in data["sites"]]
-        return f"Device management IP cannot be found, you could have issues wrong site name, try again. Available sites are: {', '.join(sites_names)}"
+        result = f"Device management IP cannot be found, you could have issues wrong site name, try again. Available sites are: {', '.join(sites_names)}"
+        logger.debug(f"Tool net_get_devices_management_ip output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error reading sites container: {e}\n{traceback.format_exc()}")
-        return f"Error reading sites container: {e}"
-    return "Device management IP cannot be found."
+        result = f"Error reading sites container: {e}"
+        logger.debug(f"Tool net_get_devices_management_ip output: {result}")
+        return result
+    result = "Device management IP cannot be found."
+    logger.debug(f"Tool net_get_devices_management_ip output: {result}")
+    return result
 
 @mcp.tool()
 async def net_find_network_interfaces(device_management_ip: str, intention: str) -> str:
@@ -241,6 +261,7 @@ async def net_find_network_interfaces(device_management_ip: str, intention: str)
         device_management_ip (str): management IP of the device
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: net_find_network_interfaces with args: device_management_ip={device_management_ip}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_find_network_interfaces.__name__, intention, device_management_ip=device_management_ip)
     logger.info(f"Finding network interfaces for device: {device_management_ip}")
@@ -248,10 +269,14 @@ async def net_find_network_interfaces(device_management_ip: str, intention: str)
         device = DeviceSShSession(device_management_ip)
         interfaces_with_ip = device.execute_command("show ip interfaces brief | exclude unassigned")
         interface_physical = device.execute_command("show interface status")
-        return interfaces_with_ip + "\n" + interface_physical
+        result = interfaces_with_ip + "\n" + interface_physical
+        logger.debug(f"Tool net_find_network_interfaces output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error finding network interfaces: {e}\n{traceback.format_exc()}")
-        return f"Error finding network interfaces: {type(e).__name__}: {e}"
+        result = f"Error finding network interfaces: {type(e).__name__}: {e}"
+        logger.debug(f"Tool net_find_network_interfaces output: {result}")
+        return result
 
 #@mcp.tool()
 #async def net_ping_device_from_gateway(device_ip: str, target_ip: str, intention: str, count: int = 5) -> str:
@@ -278,16 +303,21 @@ async def net_get_network_device_arp_table(device_management_ip: str, intention:
         device_management_ip (str): management IP of the device
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: net_get_network_device_arp_table with args: device_management_ip={device_management_ip}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_network_device_arp_table.__name__, intention, device_management_ip=device_management_ip)
     logger.info(f"Getting ARP table for device: {device_management_ip}")
     try:
         device = DeviceSShSession(device_management_ip)
         arp_table = device.execute_command("show ip arp")
-        return [line for line in arp_table.splitlines("\n") if line.strip()]
+        result = [line for line in arp_table.splitlines("\n") if line.strip()]
+        logger.debug(f"Tool net_get_network_device_arp_table output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error getting ARP table: {e}\n{traceback.format_exc()}")
-        return [f"Error getting ARP table: {type(e).__name__}: {e}"]
+        result = [f"Error getting ARP table: {type(e).__name__}: {e}"]
+        logger.debug(f"Tool net_get_network_device_arp_table output: {result}")
+        return result
 
 @mcp.tool()
 async def net_get_switch_mac_address_table(device_management_ip: str, intention: str) -> List[str]:
@@ -296,16 +326,21 @@ async def net_get_switch_mac_address_table(device_management_ip: str, intention:
         device_management_ip (str): management IP of the device
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: net_get_switch_mac_address_table with args: device_management_ip={device_management_ip}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_switch_mac_address_table.__name__, intention, device_management_ip=device_management_ip)
     logger.info(f"Getting MAC address table for device: {device_management_ip}")
     try:
         device = DeviceSShSession(device_management_ip)
         mac_table = device.execute_command("show mac address-table")
-        return [line for line in mac_table.splitlines("\n") if line.strip()]
+        result = [line for line in mac_table.splitlines("\n") if line.strip()]
+        logger.debug(f"Tool net_get_switch_mac_address_table output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error getting MAC address table: {e}\n{traceback.format_exc()}")
-        return [f"Error getting MAC address table: {type(e).__name__}: {e}"]
+        result = [f"Error getting MAC address table: {type(e).__name__}: {e}"]
+        logger.debug(f"Tool net_get_switch_mac_address_table output: {result}")
+        return result
 
 @mcp.tool()
 async def net_get_l2_forwarding_information(device_management_ip: str, intention: str) -> str:
@@ -314,6 +349,7 @@ async def net_get_l2_forwarding_information(device_management_ip: str, intention
         device_management_ip (str): management IP of the switch
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: net_get_l2_forwarding_information with args: device_management_ip={device_management_ip}")
     try:
         logger.info(f"Intention: {intention}")
         log_tool_call_to_csv(net_get_l2_forwarding_information.__name__, intention, device_management_ip=device_management_ip)
@@ -322,10 +358,14 @@ async def net_get_l2_forwarding_information(device_management_ip: str, intention
         # retrieve trunking and spanning tree info via ssh command
         trunking_info = device.execute_command("show interfaces trunk")
         spanning_tree_info = device.execute_command("show spanning-tree")
+        result = f"Trunking Info:\n{trunking_info}\nSpanning Tree Info:\n{spanning_tree_info}"
+        logger.debug(f"Tool net_get_l2_forwarding_information output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error retrieving L2 information: {e}\n{traceback.format_exc()}")
-        return f"Error retrieving L2 information: {e}"
-    return f"Trunking Info:\n{trunking_info}\nSpanning Tree Info:\n{spanning_tree_info}"
+        result = f"Error retrieving L2 information: {e}"
+        logger.debug(f"Tool net_get_l2_forwarding_information output: {result}")
+        return result
     
 
 @mcp.tool()
@@ -335,16 +375,21 @@ async def net_get_nat_table(router_management_ip: str, intention: str) -> List[s
         router_management_ip (str): management IP of the router
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: net_get_nat_table with args: router_management_ip={router_management_ip}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_nat_table.__name__, intention, router_management_ip=router_management_ip)
     logger.info(f"Getting NAT table for router: {router_management_ip}")
     try:
         device = DeviceSShSession(router_management_ip)
         nat_table = device.execute_command("show ip nat translations")
-        return [line for line in nat_table.splitlines("\n") if line.strip()]
+        result = [line for line in nat_table.splitlines("\n") if line.strip()]
+        logger.debug(f"Tool net_get_nat_table output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error getting NAT table: {e}\n{traceback.format_exc()}")
-        return [f"Error getting NAT table: {type(e).__name__}: {e}"]
+        result = [f"Error getting NAT table: {type(e).__name__}: {e}"]
+        logger.debug(f"Tool net_get_nat_table output: {result}")
+        return result
 
 @mcp.tool()
 async def net_get_routing_table(router_management_ip: str, intention: str) -> str:
@@ -353,16 +398,21 @@ async def net_get_routing_table(router_management_ip: str, intention: str) -> st
         router_management_ip (str): management IP of the router
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: net_get_routing_table with args: router_management_ip={router_management_ip}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_routing_table.__name__, intention, router_management_ip=router_management_ip)
     logger.info(f"Getting routing table for router: {router_management_ip}")
     try:
         device = DeviceSShSession(router_management_ip)
         routing_table = device.execute_command("show ip route")
-        return f"routing table for router {router_management_ip}:\n{routing_table.splitlines('\n')}"
+        result = f"routing table for router {router_management_ip}:\n{routing_table.splitlines('\n')}"
+        logger.debug(f"Tool net_get_routing_table output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error getting routing table: {e}\n{traceback.format_exc()}")
-        return f"Error getting routing table: {type(e).__name__}: {e}"
+        result = f"Error getting routing table: {type(e).__name__}: {e}"
+        logger.debug(f"Tool net_get_routing_table output: {result}")
+        return result
 
 @mcp.tool()
 async def net_capture_network_traffic(device_management_ip: str, interface: str, duration_seconds: int, intention: str) -> str:
@@ -373,6 +423,7 @@ async def net_capture_network_traffic(device_management_ip: str, interface: str,
         duration_seconds (int): duration of capture in seconds
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: net_capture_network_traffic with args: device_management_ip={device_management_ip}, interface={interface}, duration_seconds={duration_seconds}")
     # returns a filtered pickup file
     captured_network_traffic = "No captured traffic"
     logger.info(f"Intention: {intention}")
@@ -405,10 +456,14 @@ async def net_capture_network_traffic(device_management_ip: str, interface: str,
         else:
             # TODO: implement for juniper, arista, palo alto, etc.
             logger.warning(f"Device model {device_model} not supported for traffic capture yet.")
-        return f"Captured traffic on {interface} for {duration_seconds} seconds. is {captured_network_traffic}"
+        result = f"Captured traffic on {interface} for {duration_seconds} seconds. is {captured_network_traffic}"
+        logger.debug(f"Tool net_capture_network_traffic output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error capturing network traffic: {e}\n{traceback.format_exc()}")
-        return f"Error capturing network traffic: {type(e).__name__}: {e}"
+        result = f"Error capturing network traffic: {type(e).__name__}: {e}"
+        logger.debug(f"Tool net_capture_network_traffic output: {result}")
+        return result
 
 @mcp.tool()
 async def net_get_device_logs(device_management_ip: str, log_type: str, time_range: str, intention: str, filter_regex: str = "") -> List[str]:
@@ -420,6 +475,7 @@ async def net_get_device_logs(device_management_ip: str, log_type: str, time_ran
         intention (str): llm intention to call this tool
         filter_regex Optional[str]: optional regex or keyword to filter logs
     """
+    logger.debug(f"Executing tool: net_get_device_logs with args: device_management_ip={device_management_ip}, log_type={log_type}, time_range={time_range}, filter_regex={filter_regex}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_get_device_logs.__name__, intention, device_management_ip=device_management_ip, log_type=log_type, time_range=time_range, filter_regex=filter_regex)
     logger.info(f"Getting device logs for {device_management_ip} (type={log_type}, range={time_range})")
@@ -442,10 +498,14 @@ async def net_get_device_logs(device_management_ip: str, log_type: str, time_ran
             device_logs = [log for log in device_logs.splitlines("\n") if time_range_regexp.search(log)]
         else:
             device_logs = device_logs.splitlines("\n")
-        return device_logs[:10]  # return first 10 logs for brevity
+        result = device_logs[:10]  # return first 10 logs for brevity
+        logger.debug(f"Tool net_get_device_logs output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error getting device logs: {e}\n{traceback.format_exc()}")
-        return [f"Error getting device logs: {type(e).__name__}: {e}"]
+        result = [f"Error getting device logs: {type(e).__name__}: {e}"]
+        logger.debug(f"Tool net_get_device_logs output: {result}")
+        return result
 
 @mcp.tool()
 async def net_run_commands_on_device(device_management_ip: str, commands: List[str], intention: str, privileged: bool = False) -> str:
@@ -458,6 +518,7 @@ async def net_run_commands_on_device(device_management_ip: str, commands: List[s
     returns:
         str: output of the command execution
     """
+    logger.debug(f"Executing tool: net_run_commands_on_device with args: device_management_ip={device_management_ip}, commands={commands}, privileged={privileged}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_run_commands_on_device.__name__, intention, device_management_ip=device_management_ip, commands=commands)
     logger.info(f"Running commands on {device_management_ip}: {commands}")
@@ -472,10 +533,13 @@ async def net_run_commands_on_device(device_management_ip: str, commands: List[s
             for command in commands:
                 _output = device.execute_command(command)
                 output += f"Command: {command}\nOutput: {_output}\n"
+        logger.debug(f"Tool net_run_commands_on_device output: {output}")
         return output
     except Exception as e:
         logger.error(f"Error running commands: {e}\n{traceback.format_exc()}")
-        return f"Error running commands: {type(e).__name__}: {e}"
+        result = f"Error running commands: {type(e).__name__}: {e}"
+        logger.debug(f"Tool net_run_commands_on_device output: {result}")
+        return result
 
 @mcp.tool()
 async def servicenow_get_incidents_by_priority(priority: int, intention: str) -> str:
@@ -486,6 +550,7 @@ async def servicenow_get_incidents_by_priority(priority: int, intention: str) ->
     returns:
         str: summary of active incidents with the specified priority
     """
+    logger.debug(f"Executing tool: servicenow_get_incidents_by_priority with args: priority={priority}")
     SERVICENOW_INSTANCE = SERVICENOW_INSTANCE_URL
     ACCESS_TOKEN = SERVICENOW_ACCESS_TOKEN
     
@@ -495,16 +560,19 @@ async def servicenow_get_incidents_by_priority(priority: int, intention: str) ->
     logger.info(f"Getting active ServiceNow incidents with priority {priority}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
-    result = sn_client.get_active_incidents(priority=priority)
+    result_raw = sn_client.get_active_incidents(priority=priority)
     
-    if result['success']:
-        incidents = result['data']['result']
-        summary = f"Retrieved {result['count']} active incidents with priority {priority}:\n"
+    if result_raw['success']:
+        incidents = result_raw['data']['result']
+        summary = f"Retrieved {result_raw['count']} active incidents with priority {priority}:\n"
         for inc in incidents:
             summary += f"- Number: {inc.get('number')}, Short Description: {inc.get('short_description')}\n"
+        logger.debug(f"Tool servicenow_get_incidents_by_priority output: {summary}")
         return summary
     else:
-        return f"Error retrieving incidents: {result['error']}"
+        result = f"Error retrieving incidents: {result_raw['error']}"
+        logger.debug(f"Tool servicenow_get_incidents_by_priority output: {result}")
+        return result
 
 @mcp.tool()
 async def servicenow_get_incidents_by_incident_id(incident_id: str, intention: str) -> str:
@@ -515,6 +583,7 @@ async def servicenow_get_incidents_by_incident_id(incident_id: str, intention: s
     returns:
         str: details of the specified incident
     """
+    logger.debug(f"Executing tool: servicenow_get_incidents_by_incident_id with args: incident_id={incident_id}")
     SERVICENOW_INSTANCE = SERVICENOW_INSTANCE_URL
     ACCESS_TOKEN = SERVICENOW_ACCESS_TOKEN
     
@@ -524,15 +593,18 @@ async def servicenow_get_incidents_by_incident_id(incident_id: str, intention: s
     logger.info(f"Getting ServiceNow incident details for ID: {incident_id}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     # get all incidents and filter incidents where 
-    result = sn_client.get_incident_by_id(incident_id)
+    result_raw = sn_client.get_incident_by_id(incident_id)
     
-    if result['success']:
+    if result_raw['success']:
         # get_incident_by_id returns {'result': {...}} so result['data']['result'] is the object
-        incident = result['data'].get('result', {})
+        incident = result_raw['data'].get('result', {})
         details = f"Incident Details:\nNumber: {incident.get('number')}\nShort Description: {incident.get('short_description')}\nState: {incident.get('state')}\nPriority: {incident.get('priority')}\n"
+        logger.debug(f"Tool servicenow_get_incidents_by_incident_id output: {details}")
         return details
     else:
-        return f"Error retrieving incident: {result['error']}"
+        result = f"Error retrieving incident: {result_raw['error']}"
+        logger.debug(f"Tool servicenow_get_incidents_by_incident_id output: {result}")
+        return result
     
 @mcp.tool()
 async def servicenow_get_incidents_by_user(user: str, intention: str) -> str:
@@ -543,6 +615,7 @@ async def servicenow_get_incidents_by_user(user: str, intention: str) -> str:
     returns:
         str: summary of incidents assigned to the user
     """
+    logger.debug(f"Executing tool: servicenow_get_incidents_by_user with args: user={user}")
     SERVICENOW_INSTANCE = SERVICENOW_INSTANCE_URL
     ACCESS_TOKEN = SERVICENOW_ACCESS_TOKEN
     
@@ -552,16 +625,19 @@ async def servicenow_get_incidents_by_user(user: str, intention: str) -> str:
     logger.info(f"Getting ServiceNow incidents for user: {user}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
-    result = sn_client.get_my_incidents(user)
+    result_raw = sn_client.get_my_incidents(user)
     
-    if result['success']:
-        incidents = result['data']['result']
-        summary = f"Retrieved {result['count']} incidents assigned to user {user}:\n"
+    if result_raw['success']:
+        incidents = result_raw['data']['result']
+        summary = f"Retrieved {result_raw['count']} incidents assigned to user {user}:\n"
         for inc in incidents:
             summary += f"- Number: {inc.get('number')}, Short Description: {inc.get('short_description')}\n"
+        logger.debug(f"Tool servicenow_get_incidents_by_user output: {summary}")
         return summary
     else:
-        return f"Error retrieving incidents: {result['error']}"
+        result = f"Error retrieving incidents: {result_raw['error']}"
+        logger.debug(f"Tool servicenow_get_incidents_by_user output: {result}")
+        return result
 
 @mcp.tool()
 async def servicenow_get_unassigned_incidents_for_group(group_name: str, intention: str) -> str:
@@ -572,6 +648,7 @@ async def servicenow_get_unassigned_incidents_for_group(group_name: str, intenti
     returns:
         str: summary of unassigned incidents for the group
     """
+    logger.debug(f"Executing tool: servicenow_get_unassigned_incidents_for_group with args: group_name={group_name}")
     SERVICENOW_INSTANCE = SERVICENOW_INSTANCE_URL
     ACCESS_TOKEN = SERVICENOW_ACCESS_TOKEN
     
@@ -581,20 +658,25 @@ async def servicenow_get_unassigned_incidents_for_group(group_name: str, intenti
     logger.info(f"Getting unassigned incidents for group: {group_name}")
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
-    result = sn_client.get_unassigned_group_incidents(group_name)
+    result_raw = sn_client.get_unassigned_group_incidents(group_name)
     
-    if result['success']:
-        incidents = result['data']['result']
-        count = result['count']
+    if result_raw['success']:
+        incidents = result_raw['data']['result']
+        count = result_raw['count']
         if count == 0:
-            return f"No unassigned incidents found for group '{group_name}'."
+            result = f"No unassigned incidents found for group '{group_name}'."
+            logger.debug(f"Tool servicenow_get_unassigned_incidents_for_group output: {result}")
+            return result
             
         summary = f"Retrieved {count} unassigned incidents for group '{group_name}':\n"
         for inc in incidents:
             summary += f"- Number: {inc.get('number')}, Short Description: {inc.get('short_description')}\n"
+        logger.debug(f"Tool servicenow_get_unassigned_incidents_for_group output: {summary}")
         return summary
     else:
-        return f"Error retrieving unassigned incidents: {result.get('error', 'Unknown error')}"
+        result = f"Error retrieving unassigned incidents: {result_raw.get('error', 'Unknown error')}"
+        logger.debug(f"Tool servicenow_get_unassigned_incidents_for_group output: {result}")
+        return result
 
 @mcp.tool()
 async def servicenow_create_incident(short_description: str, intention: str, description: str = '', caller_id: str = '', urgency: int = 3, impact: int = 3, assignment_group: str = '') -> str:
@@ -610,6 +692,7 @@ async def servicenow_create_incident(short_description: str, intention: str, des
     returns:
         str: summary of the created incident
     """
+    logger.debug(f"Executing tool: servicenow_create_incident with args: short_description={short_description}, caller_id={caller_id}, urgency={urgency}, impact={impact}, assignment_group={assignment_group}")
     SERVICENOW_INSTANCE = SERVICENOW_INSTANCE_URL
     ACCESS_TOKEN = SERVICENOW_ACCESS_TOKEN
     
@@ -619,7 +702,7 @@ async def servicenow_create_incident(short_description: str, intention: str, des
     
     sn_client = ServiceNowIncident(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
-    result = sn_client.create_incident(
+    result_raw = sn_client.create_incident(
         short_description=short_description,
         description=description,
         caller_id=caller_id,
@@ -628,11 +711,15 @@ async def servicenow_create_incident(short_description: str, intention: str, des
         assignment_group=assignment_group
     )
     
-    if result['success']:
-        incident_data = result['data']['result']
-        return f"✅ Incident Created Successfully!\nNumber: {incident_data.get('number')}\nShort Description: {incident_data.get('short_description')}\nPriority: {incident_data.get('priority')}\nSys ID: {incident_data.get('sys_id')}"
+    if result_raw['success']:
+        incident_data = result_raw['data']['result']
+        result = f"✅ Incident Created Successfully!\nNumber: {incident_data.get('number')}\nShort Description: {incident_data.get('short_description')}\nPriority: {incident_data.get('priority')}\nSys ID: {incident_data.get('sys_id')}"
+        logger.debug(f"Tool servicenow_create_incident output: {result}")
+        return result
     else:
-        return f"❌ Failed to create incident: {result.get('error', 'Unknown error')}"
+        result = f"❌ Failed to create incident: {result_raw.get('error', 'Unknown error')}"
+        logger.debug(f"Tool servicenow_create_incident output: {result}")
+        return result
 
 @mcp.tool()
 async def servicenow_create_change_request(short_description: str, description: str, intention: str, priority: str = '4', risk: str = '3', impact: str = '3', ci_name: str = '') -> str:
@@ -648,6 +735,7 @@ async def servicenow_create_change_request(short_description: str, description: 
     returns:
         str: summary of the created change request
     """
+    logger.debug(f"Executing tool: servicenow_create_change_request with args: short_description={short_description}, description={description}, priority={priority}, risk={risk}, impact={impact}, ci_name={ci_name}")
     SERVICENOW_INSTANCE = SERVICENOW_INSTANCE_URL
     ACCESS_TOKEN = SERVICENOW_ACCESS_TOKEN
     
@@ -656,7 +744,7 @@ async def servicenow_create_change_request(short_description: str, description: 
     logger.info(f"Creating change request: {short_description}")
     sn_client = ServiceNowChangeRequest(SERVICENOW_INSTANCE, ACCESS_TOKEN)
     
-    result = sn_client.create_change_request(
+    result_raw = sn_client.create_change_request(
         short_description=short_description,
         description=description,
         priority=priority,
@@ -665,11 +753,15 @@ async def servicenow_create_change_request(short_description: str, description: 
         cmdb_ci=ci_name
     )
     
-    if result['success']:
-        change_data = result['data']['result']
-        return f"✅ Change Request Created Successfully!\nNumber: {change_data.get('number')}\nSys ID: {change_data.get('sys_id')}\nLink: {result['data']['result'].get('link', 'N/A')}"
+    if result_raw['success']:
+        change_data = result_raw['data']['result']
+        result = f"✅ Change Request Created Successfully!\nNumber: {change_data.get('number')}\nSys ID: {change_data.get('sys_id')}\nLink: {result_raw['data']['result'].get('link', 'N/A')}"
+        logger.debug(f"Tool servicenow_create_change_request output: {result}")
+        return result
     else:
-        return f"❌ Failed to create change request: {result.get('error', 'Unknown error')}"
+        result = f"❌ Failed to create change request: {result_raw.get('error', 'Unknown error')}"
+        logger.debug(f"Tool servicenow_create_change_request output: {result}")
+        return result
 
 # ============================================================
 # JIRA TOOLS
@@ -682,15 +774,18 @@ async def jira_get_ticket(issue_key: str, intention: str) -> str:
         issue_key (str): Jira issue key
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: jira_get_ticket with args: issue_key={issue_key}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(jira_get_ticket.__name__, intention, issue_key=issue_key)
     if not jira_client:
-        return "Jira Client is not initialized. Please check credentials."
+        result = "Jira Client is not initialized. Please check credentials."
+        logger.debug(f"Tool jira_get_ticket output: {result}")
+        return result
     try:
-        result = jira_client.get_ticket(issue_key)
-        fields = result.get("fields", {})
+        result_raw = jira_client.get_ticket(issue_key)
+        fields = result_raw.get("fields", {})
         summary = (
-            f"Ticket: {result.get('key')} - {fields.get('summary')}\n"
+            f"Ticket: {result_raw.get('key')} - {fields.get('summary')}\n"
             f"Status: {fields.get('status', {}).get('name')}\n"
             f"Priority: {(fields.get('priority') or {}).get('name')}\n"
             f"Assignee: {(fields.get('assignee') or {}).get('displayName', 'Unassigned')}\n"
@@ -698,10 +793,13 @@ async def jira_get_ticket(issue_key: str, intention: str) -> str:
             f"Created: {fields.get('created')}\n"
             f"Updated: {fields.get('updated')}"
         )
+        logger.debug(f"Tool jira_get_ticket output: {summary}")
         return summary
     except Exception as e:
         logger.error(f"Error fetching Jira ticket {issue_key}: {e}\n{traceback.format_exc()}")
-        return f"Error fetching Jira ticket: {e}"
+        result = f"Error fetching Jira ticket: {e}"
+        logger.debug(f"Tool jira_get_ticket output: {result}")
+        return result
 
 @mcp.tool()
 async def jira_get_ticket_details(issue_key: str, intention: str) -> str:
@@ -710,16 +808,23 @@ async def jira_get_ticket_details(issue_key: str, intention: str) -> str:
         issue_key (str): Jira issue key
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: jira_get_ticket_details with args: issue_key={issue_key}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(jira_get_ticket_details.__name__, intention, issue_key=issue_key)
     if not jira_client:
-        return "Jira Client is not initialized. Please check credentials."
+        result = "Jira Client is not initialized. Please check credentials."
+        logger.debug(f"Tool jira_get_ticket_details output: {result}")
+        return result
     try:
         details = jira_client.get_ticket_details(issue_key)
-        return json.dumps(details, indent=2)
+        result = json.dumps(details, indent=2)
+        logger.debug(f"Tool jira_get_ticket_details output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error fetching Jira ticket details {issue_key}: {e}\n{traceback.format_exc()}")
-        return f"Error fetching Jira ticket details: {e}"
+        result = f"Error fetching Jira ticket details: {e}"
+        logger.debug(f"Tool jira_get_ticket_details output: {result}")
+        return result
 
 @mcp.tool()
 async def jira_update_ticket(issue_key: str, intention: str, summary: Optional[str] = None, assignee_id: Optional[str] = None, priority: Optional[str] = None, labels: Optional[str] = None, due_date: Optional[str] = None) -> str:
@@ -733,10 +838,13 @@ async def jira_update_ticket(issue_key: str, intention: str, summary: Optional[s
         labels (str): Comma-separated labels, e.g. backend,urgent (optional)
         due_date (str): Due date in YYYY-MM-DD format (optional)
     """
+    logger.debug(f"Executing tool: jira_update_ticket with args: issue_key={issue_key}, summary={summary}, assignee_id={assignee_id}, priority={priority}, labels={labels}, due_date={due_date}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(jira_update_ticket.__name__, intention, issue_key=issue_key, summary=summary, assignee_id=assignee_id, priority=priority, labels=labels, due_date=due_date)
     if not jira_client:
-        return "Jira Client is not initialized. Please check credentials."
+        result = "Jira Client is not initialized. Please check credentials."
+        logger.debug(f"Tool jira_update_ticket output: {result}")
+        return result
     
     fields = {}
     if summary: fields["summary"] = summary
@@ -746,14 +854,20 @@ async def jira_update_ticket(issue_key: str, intention: str, summary: Optional[s
     if due_date: fields["duedate"] = due_date
 
     if not fields:
-        return "No update fields provided."
+        result = "No update fields provided."
+        logger.debug(f"Tool jira_update_ticket output: {result}")
+        return result
 
     try:
         jira_client.update_ticket(issue_key, fields)
-        return f"✓ Ticket {issue_key} updated successfully."
+        result = f"✓ Ticket {issue_key} updated successfully."
+        logger.debug(f"Tool jira_update_ticket output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error updating Jira ticket {issue_key}: {e}\n{traceback.format_exc()}")
-        return f"Error updating Jira ticket: {e}"
+        result = f"Error updating Jira ticket: {e}"
+        logger.debug(f"Tool jira_update_ticket output: {result}")
+        return result
 
 @mcp.tool()
 async def jira_add_comment(issue_key: str, comment_text: str, intention: str) -> str:
@@ -763,16 +877,23 @@ async def jira_add_comment(issue_key: str, comment_text: str, intention: str) ->
         comment_text (str): Comment text
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: jira_add_comment with args: issue_key={issue_key}, comment_text={comment_text}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(jira_add_comment.__name__, intention, issue_key=issue_key, comment_text=comment_text)
     if not jira_client:
-        return "Jira Client is not initialized. Please check credentials."
+        result = "Jira Client is not initialized. Please check credentials."
+        logger.debug(f"Tool jira_add_comment output: {result}")
+        return result
     try:
-        result = jira_client.add_comment(issue_key, comment_text)
-        return f"✓ Comment added (id={result.get('id')}) to {issue_key}."
+        result_raw = jira_client.add_comment(issue_key, comment_text)
+        result = f"✓ Comment added (id={result_raw.get('id')}) to {issue_key}."
+        logger.debug(f"Tool jira_add_comment output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error adding comment to Jira ticket {issue_key}: {e}\n{traceback.format_exc()}")
-        return f"Error adding comment: {e}"
+        result = f"Error adding comment: {e}"
+        logger.debug(f"Tool jira_add_comment output: {result}")
+        return result
 
 @mcp.tool()
 async def jira_transition_ticket(issue_key: str, transition_name: str, intention: str) -> str:
@@ -782,16 +903,23 @@ async def jira_transition_ticket(issue_key: str, transition_name: str, intention
         transition_name (str): Target transition name
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: jira_transition_ticket with args: issue_key={issue_key}, transition_name={transition_name}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(jira_transition_ticket.__name__, intention, issue_key=issue_key, transition_name=transition_name)
     if not jira_client:
-        return "Jira Client is not initialized. Please check credentials."
+        result = "Jira Client is not initialized. Please check credentials."
+        logger.debug(f"Tool jira_transition_ticket output: {result}")
+        return result
     try:
         jira_client.transition_ticket(issue_key, transition_name)
-        return f"✓ Ticket {issue_key} transitioned to '{transition_name}'."
+        result = f"✓ Ticket {issue_key} transitioned to '{transition_name}'."
+        logger.debug(f"Tool jira_transition_ticket output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error transitioning Jira ticket {issue_key}: {e}\n{traceback.format_exc()}")
-        return f"Error transitioning ticket: {e}"
+        result = f"Error transitioning ticket: {e}"
+        logger.debug(f"Tool jira_transition_ticket output: {result}")
+        return result
 
 @mcp.tool()
 async def jira_list_transitions(issue_key: str, intention: str) -> str:
@@ -800,21 +928,30 @@ async def jira_list_transitions(issue_key: str, intention: str) -> str:
         issue_key (str): Jira issue key
         intention (str): llm intention to call this tool
     """
+    logger.debug(f"Executing tool: jira_list_transitions with args: issue_key={issue_key}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(jira_list_transitions.__name__, intention, issue_key=issue_key)
     if not jira_client:
-        return "Jira Client is not initialized. Please check credentials."
+        result = "Jira Client is not initialized. Please check credentials."
+        logger.debug(f"Tool jira_list_transitions output: {result}")
+        return result
     try:
         transitions = jira_client.list_transitions(issue_key)
         if not transitions:
-            return f"No transitions available for {issue_key}."
+            result = f"No transitions available for {issue_key}."
+            logger.debug(f"Tool jira_list_transitions output: {result}")
+            return result
         lines = [f"Available transitions for {issue_key}:"]
         for t in transitions:
             lines.append(f"  [{t['id']}] {t['name']}")
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        logger.debug(f"Tool jira_list_transitions output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error listing transitions for Jira ticket {issue_key}: {e}\n{traceback.format_exc()}")
-        return f"Error listing transitions: {e}"
+        result = f"Error listing transitions: {e}"
+        logger.debug(f"Tool jira_list_transitions output: {result}")
+        return result
 
 @mcp.tool()
 async def jira_get_recent_tickets(intention: str, project: Optional[str] = None, limit: int = 50, status: Optional[str] = None, days: int = 30) -> str:
@@ -826,22 +963,31 @@ async def jira_get_recent_tickets(intention: str, project: Optional[str] = None,
         status (str): Filter by status, e.g. \"In Progress\" (optional)
         days (int): How many days back to search when no project given (default 30)
     """
+    logger.debug(f"Executing tool: jira_get_recent_tickets with args: project={project}, limit={limit}, status={status}, days={days}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(jira_get_recent_tickets.__name__, intention, project=project, limit=limit, status=status, days=days)
     if not jira_client:
-        return "Jira Client is not initialized. Please check credentials."
+        result = "Jira Client is not initialized. Please check credentials."
+        logger.debug(f"Tool jira_get_recent_tickets output: {result}")
+        return result
     try:
         issues = jira_client.get_recent_tickets(project=project, max_results=limit, status=status, days=days)
         if not issues:
-            return "No tickets found."
+            result = "No tickets found."
+            logger.debug(f"Tool jira_get_recent_tickets output: {result}")
+            return result
         lines = [f"Recent tickets:"]
         for issue in issues:
             f = issue.get("fields", {})
             lines.append(f"- {issue.get('key')}: {f.get('summary')} (Status: {f.get('status', {}).get('name')})")
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        logger.debug(f"Tool jira_get_recent_tickets output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error fetching recent Jira tickets: {e}\n{traceback.format_exc()}")
-        return f"Error fetching recent tickets: {e}"
+        result = f"Error fetching recent tickets: {e}"
+        logger.debug(f"Tool jira_get_recent_tickets output: {result}")
+        return result
 
 @mcp.tool()
 async def jira_get_tickets_by_assignee(intention: str, assignee: Optional[str] = None, project: Optional[str] = None, limit: int = 50, status: Optional[str] = None, order_by: str = "created", order_dir: str = "DESC") -> str:
@@ -855,22 +1001,31 @@ async def jira_get_tickets_by_assignee(intention: str, assignee: Optional[str] =
         order_by (str): Sort field: created | updated | priority | status (default: created)
         order_dir (str): Sort direction: ASC | DESC (default: DESC)
     """
+    logger.debug(f"Executing tool: jira_get_tickets_by_assignee with args: assignee={assignee}, project={project}, limit={limit}, status={status}, order_by={order_by}, order_dir={order_dir}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(jira_get_tickets_by_assignee.__name__, intention, assignee=assignee, project=project, limit=limit, status=status, order_by=order_by, order_dir=order_dir)
     if not jira_client:
-        return "Jira Client is not initialized. Please check credentials."
+        result = "Jira Client is not initialized. Please check credentials."
+        logger.debug(f"Tool jira_get_tickets_by_assignee output: {result}")
+        return result
     try:
         issues = jira_client.get_tickets_by_assignee(assignee=assignee, project=project, max_results=limit, status=status, order_by=order_by, order_dir=order_dir)
         if not issues:
-            return f"No tickets found for assignee {assignee or 'currentUser()'}."
+            result = f"No tickets found for assignee {assignee or 'currentUser()'}."
+            logger.debug(f"Tool jira_get_tickets_by_assignee output: {result}")
+            return result
         lines = [f"Tickets assigned to {assignee or 'currentUser()'}:"]
         for issue in issues:
             f = issue.get("fields", {})
             lines.append(f"- {issue.get('key')}: {f.get('summary')} (Status: {f.get('status', {}).get('name')})")
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        logger.debug(f"Tool jira_get_tickets_by_assignee output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error fetching Jira tickets by assignee: {e}\n{traceback.format_exc()}")
-        return f"Error fetching tickets by assignee: {e}"
+        result = f"Error fetching tickets by assignee: {e}"
+        logger.debug(f"Tool jira_get_tickets_by_assignee output: {result}")
+        return result
 
 @mcp.tool()
 async def jira_search_tickets(jql: str, intention: str, limit: int = 50) -> str:
@@ -880,22 +1035,31 @@ async def jira_search_tickets(jql: str, intention: str, limit: int = 50) -> str:
         intention (str): llm intention to call this tool
         limit (int): Max results (default 50)
     """
+    logger.debug(f"Executing tool: jira_search_tickets with args: jql={jql}, limit={limit}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(jira_search_tickets.__name__, intention, jql=jql, limit=limit)
     if not jira_client:
-        return "Jira Client is not initialized. Please check credentials."
+        result = "Jira Client is not initialized. Please check credentials."
+        logger.debug(f"Tool jira_search_tickets output: {result}")
+        return result
     try:
         issues = jira_client.search_tickets(jql, max_results=limit)
         if not issues:
-            return f"No issues found for JQL: {jql}"
+            result = f"No issues found for JQL: {jql}"
+            logger.debug(f"Tool jira_search_tickets output: {result}")
+            return result
         lines = [f"Found {len(issues)} issues:"]
         for issue in issues:
             f = issue.get("fields", {})
             lines.append(f"- {issue.get('key')}: {f.get('summary')} (Status: {f.get('status', {}).get('name')})")
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        logger.debug(f"Tool jira_search_tickets output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error searching Jira tickets with JQL {jql}: {e}\n{traceback.format_exc()}")
-        return f"Error searching tickets: {e}"
+        result = f"Error searching tickets: {e}"
+        logger.debug(f"Tool jira_search_tickets output: {result}")
+        return result
 
 @mcp.tool()
 async def cloud_ssh_tool(management_ip: str, cloud_provider: str, command: List[str], intention: str) -> str:
@@ -908,6 +1072,7 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, command: List[
     returns:
         str: output of the command execution
     """
+    logger.debug(f"Executing tool: cloud_ssh_tool with args: management_ip={management_ip}, cloud_provider={cloud_provider}, command={command}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(cloud_ssh_tool.__name__, intention, management_ip=management_ip, cloud_provider=cloud_provider, command=command)
     try:
@@ -920,10 +1085,13 @@ async def cloud_ssh_tool(management_ip: str, cloud_provider: str, command: List[
             logger.info(f"Executing command: {cmd}")
             _output = device.execute_command(cmd)
             output += f"Command: {cmd}\nOutput: {_output}\n"
+        logger.debug(f"Tool cloud_ssh_tool output: {output}")
         return output
     except Exception as e:
         logger.error(f"Error connecting/executing on cloud VM: {e}\n{traceback.format_exc()}")
-        return f"Error connecting/executing on cloud VM: {type(e).__name__}: {e}"
+        result = f"Error connecting/executing on cloud VM: {type(e).__name__}: {e}"
+        logger.debug(f"Tool cloud_ssh_tool output: {result}")
+        return result
 
 @mcp.tool()
 async def linux_server_ssh_tool(management_ip: str, command: List[str], intention: str) -> str:
@@ -935,6 +1103,7 @@ async def linux_server_ssh_tool(management_ip: str, command: List[str], intentio
     returns:
         str: output of the command execution
     """
+    logger.debug(f"Executing tool: linux_server_ssh_tool with args: management_ip={management_ip}, command={command}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(linux_server_ssh_tool.__name__, intention, management_ip=management_ip, command=command)
     try:
@@ -947,10 +1116,13 @@ async def linux_server_ssh_tool(management_ip: str, command: List[str], intentio
             logger.info(f"Executing command: {cmd}")
             _output = device.execute_command(cmd)
             output += f"Command: {cmd}\nOutput: {_output}\n"
+        logger.debug(f"Tool linux_server_ssh_tool output: {output}")
         return output
     except Exception as e:
         logger.error(f"Error connecting/executing on Linux server: {e}\n{traceback.format_exc()}")
-        return f"Error connecting/executing on Linux server: {type(e).__name__}: {e}"
+        result = f"Error connecting/executing on Linux server: {type(e).__name__}: {e}"
+        logger.debug(f"Tool linux_server_ssh_tool output: {result}")
+        return result
 
 @mcp.tool()
 async def execute_shell_command(command: str, intention: str, timeout: int = 60) -> str:
@@ -968,6 +1140,7 @@ async def execute_shell_command(command: str, intention: str, timeout: int = 60)
     Returns:
         str: Combined stdout and stderr output.
     """
+    logger.debug(f"Executing tool: execute_shell_command with args: command={command}, timeout={timeout}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(execute_shell_command.__name__, intention, command=command, timeout=timeout)
     logger.info(f"Executing shell command: {command}")
@@ -995,6 +1168,7 @@ async def execute_shell_command(command: str, intention: str, timeout: int = 60)
             if return_code != 0:
                 output += f"\nCommand failed with return code {return_code}"
                 
+            logger.debug(f"Tool execute_shell_command output: {output}")
             return output
             
         except asyncio.TimeoutError:
@@ -1002,11 +1176,15 @@ async def execute_shell_command(command: str, intention: str, timeout: int = 60)
                 process.kill()
             except ProcessLookupError:
                 pass
-            return f"Error: Command timed out after {timeout} seconds"
+            result = f"Error: Command timed out after {timeout} seconds"
+            logger.debug(f"Tool execute_shell_command output: {result}")
+            return result
             
     except Exception as e:
         logger.error(f"Error executing shell command: {e}\n{traceback.format_exc()}")
-        return f"Error executing command: {str(e)}"
+        result = f"Error executing command: {str(e)}"
+        logger.debug(f"Tool execute_shell_command output: {result}")
+        return result
 
 @mcp.tool()
 async def execute_generated_code(code: str, intention: str, mode: str = "docker", dependencies: List[str] = []) -> str:
@@ -1024,6 +1202,7 @@ async def execute_generated_code(code: str, intention: str, mode: str = "docker"
     Returns:
         str: The combined stdout/stderr output of the executed code, or error details.
     """
+    logger.debug(f"Executing tool: execute_generated_code with args: code={code}, mode={mode}, dependencies={dependencies}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(execute_generated_code.__name__, intention, code=code, mode=mode, dependencies=dependencies)
     logger.info(f"Executing generated code. Mode: {mode}")
@@ -1055,7 +1234,7 @@ async def execute_generated_code(code: str, intention: str, mode: str = "docker"
                 
                 # Ensure the container can read the file
                 os.chmod(temp_script_path, 0o644)
-
+ 
                 docker_cmd = ["docker", "run", "--rm", "-v", volume_mount, "python:3-slim", "bash", "-c"]
                 
                 # Construct the shell command inside docker
@@ -1105,9 +1284,12 @@ async def execute_generated_code(code: str, intention: str, mode: str = "docker"
                     os.remove(temp_script_path)
 
         
+ 
 
         else:
-            return f"Error: Unknown execution mode: {mode}, supported modes are: docker, local_process"
+            result = f"Error: Unknown execution mode: {mode}, supported modes are: docker, local_process"
+            logger.debug(f"Tool execute_generated_code output: {result}")
+            return result
 
     except subprocess.TimeoutExpired:
         output += "\nExecution timed out."
@@ -1115,6 +1297,7 @@ async def execute_generated_code(code: str, intention: str, mode: str = "docker"
         logger.error(f"Execution failed: {e}\n{traceback.format_exc()}")
         output += f"\nExecution failed: {str(e)} + {traceback.format_exc()}"
 
+    logger.debug(f"Tool execute_generated_code output: {output}")
     return output
 
 
@@ -1150,6 +1333,7 @@ lines = original_output.split('\\n')
 modified_output = json.dumps({"line_count": len(lines), "preview": lines[0]})
 '''
     """
+    logger.debug(f"Executing tool: net_execute_with_tool_modification with args: tool_name={tool_name}, tool_params={tool_params}, modification_code={modification_code}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(net_execute_with_tool_modification.__name__, intention, tool_name=tool_name, tool_params=tool_params, modification_code=modification_code)
     logger.info(f"Executing tool '{tool_name}' with modification")
@@ -1196,11 +1380,13 @@ modified_output = json.dumps({"line_count": len(lines), "preview": lines[0]})
             result = str(result)
             
         logger.info("Tool modification completed successfully")
+        logger.debug(f"Tool net_execute_with_tool_modification output: {result}")
         return result
         
     except Exception as e:
         error_msg = f"Error executing tool with modification: {str(e)}"
         logger.error(f"{error_msg}\n{traceback.format_exc()}")
+        logger.debug(f"Tool net_execute_with_tool_modification output: {error_msg}")
         return error_msg
 
 
@@ -1303,6 +1489,7 @@ async def visualize_drawio_diagram(
     Returns:
         str: base64 encoded png image of the diagram
     """
+    logger.debug(f"Executing tool: visualize_drawio_diagram with args: diagram_xml_code={diagram_xml_code}, save_to_file={save_to_file}, width={width}, height={height}, scale={scale}, border={border}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(visualize_drawio_diagram.__name__, intention, diagram_xml_code=diagram_xml_code, save_to_file=save_to_file, width=width, height=height, scale=scale, border=border)
     logger.info("Visualizing draw.io diagram via export API")
@@ -1355,11 +1542,14 @@ async def visualize_drawio_diagram(
                 
                 base64_result = base64.b64encode(image_bytes).decode('utf-8')
                 logger.info(f"Successfully visualized diagram. Base64 length: {len(base64_result)}")
+                logger.debug(f"Tool visualize_drawio_diagram output: [Base64 string, length {len(base64_result)}]")
                 return base64_result
                 
         except Exception as e:
             logger.error(f"Exception during draw.io visualization: {e}\n{traceback.format_exc()}")
-            return f"Error: {str(e)}"
+            result = f"Error: {str(e)}"
+            logger.debug(f"Tool visualize_drawio_diagram output: {result}")
+            return result
 
 @mcp.tool()
 async def analyze_drawio_diagram(diagram_xml: str, intention: str, original_request: str = "") -> str:
@@ -1375,6 +1565,7 @@ async def analyze_drawio_diagram(diagram_xml: str, intention: str, original_requ
     Returns:
         str: A Markdown formatted audit report.
     """
+    logger.debug(f"Executing tool: analyze_drawio_diagram with args: diagram_xml={diagram_xml}, original_request={original_request}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(analyze_drawio_diagram.__name__, intention, diagram_xml=diagram_xml, original_request=original_request)
     logger.info("Analyzing draw.io diagram logic")
@@ -1491,14 +1682,15 @@ async def analyze_drawio_diagram(diagram_xml: str, intention: str, original_requ
         report.append("• *Note: Automated visual inspection is currently disabled. Feed the rendered image to a vision-capable LLM for final aesthetic and contextual verification.*")
             
         report.append("\n#### 📈 Graph Stats")
-        report.append(f"- **Nodes**: {len(nodes)}")
-        report.append(f"- **Connections**: {len(edges)}")
-        
-        return "\n".join(report)
+        result = "\n".join(report)
+        logger.debug(f"Tool analyze_drawio_diagram output: {result}")
+        return result
 
     except Exception as e:
         logger.error(f"Audit failed: {e}\n{traceback.format_exc()}")
-        return f"Error analyzing XML: {str(e)}"
+        result = f"Error analyzing XML: {str(e)}"
+        logger.debug(f"Tool analyze_drawio_diagram output: {result}")
+        return result
 
 @mcp.tool()
 async def archive_current_conversation(messages: List[Dict[str, str]], intention: str, metadata: Optional[Dict] = None) -> str:
@@ -1513,6 +1705,7 @@ async def archive_current_conversation(messages: List[Dict[str, str]], intention
     Returns:
         str: Outcome of the archival process.
     """
+    logger.debug(f"Executing tool: archive_current_conversation with args: num_messages={len(messages)}, metadata={metadata}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(archive_current_conversation.__name__, intention, num_messages=len(messages))
     
@@ -1521,10 +1714,14 @@ async def archive_current_conversation(messages: List[Dict[str, str]], intention
     
     try:
         doc_id = archiver.archive_conversation(messages, metadata=metadata)
-        return f"✅ Conversation archived successfully with document ID: {doc_id}"
+        result = f"✅ Conversation archived successfully with document ID: {doc_id}"
+        logger.debug(f"Tool archive_current_conversation output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error archiving conversation: {e}\n{traceback.format_exc()}")
-        return f"❌ Failed to archive conversation: {str(e)}"
+        result = f"❌ Failed to archive conversation: {str(e)}"
+        logger.debug(f"Tool archive_current_conversation output: {result}")
+        return result
 
 @mcp.tool()
 async def archive_local_document(file_path: str, intention: str, metadata: Optional[Dict] = None) -> str:
@@ -1539,6 +1736,7 @@ async def archive_local_document(file_path: str, intention: str, metadata: Optio
     Returns:
         str: Outcome of the ingestion process.
     """
+    logger.debug(f"Executing tool: archive_local_document with args: file_path={file_path}, metadata={metadata}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(archive_local_document.__name__, intention, file_path=file_path)
     
@@ -1547,10 +1745,14 @@ async def archive_local_document(file_path: str, intention: str, metadata: Optio
     
     try:
         doc_id = archiver.archive_documentation(file_path, metadata=metadata)
-        return f"✅ Document '{file_path}' archived successfully with ID: {doc_id}"
+        result = f"✅ Document '{file_path}' archived successfully with ID: {doc_id}"
+        logger.debug(f"Tool archive_local_document output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error archiving document: {e}\n{traceback.format_exc()}")
-        return f"❌ Failed to archive document: {str(e)}"
+        result = f"❌ Failed to archive document: {str(e)}"
+        logger.debug(f"Tool archive_local_document output: {result}")
+        return result
 
 @mcp.tool()
 async def query_agent_archives(query: str, intention: str) -> str:
@@ -1565,6 +1767,7 @@ async def query_agent_archives(query: str, intention: str) -> str:
     Returns:
         str: Augmented answer based on archived information.
     """
+    logger.debug(f"Executing tool: query_agent_archives with args: query={query}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(query_agent_archives.__name__, intention, query=query)
     
@@ -1572,13 +1775,17 @@ async def query_agent_archives(query: str, intention: str) -> str:
         return "Error: Retriever Archiver is not initialized."
     
     try:
-        result = archiver.rag_query(query)
-        answer = result['answer']
-        sources = ", ".join(result['sources'])
-        return f"RECALLED INFORMATION:\n{answer}\n\nSOURCES: {sources}"
+        result_raw = archiver.rag_query(query)
+        answer = result_raw['answer']
+        sources = ", ".join(result_raw['sources'])
+        result = f"RECALLED INFORMATION:\n{answer}\n\nSOURCES: {sources}"
+        logger.debug(f"Tool query_agent_archives output: {result}")
+        return result
     except Exception as e:
         logger.error(f"Error querying archives: {e}\n{traceback.format_exc()}")
-        return f"❌ Failed to query archives: {str(e)}"
+        result = f"❌ Failed to query archives: {str(e)}"
+        logger.debug(f"Tool query_agent_archives output: {result}")
+        return result
 
 ## API Calls adapter #####
 # ---------------------------------------------------------------------------
@@ -2024,11 +2231,14 @@ async def rest_api_call(params: RestApiCallInput, intention: str) -> str:
               "error": str              # only present on failure
             }
     """
+    logger.debug(f"Executing tool: rest_api_call with args: params={params.model_dump(exclude={'body'}, exclude_none=True)}")
     logger.info(f"calling: {rest_api_call.__name__}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(rest_api_call.__name__,intention, query=params.model_dump(exclude={"body"}, exclude_none=True))
-    result = await _execute_request(params)
-    return json.dumps(result, indent=2, default=str)
+    result_raw = await _execute_request(params)
+    result = json.dumps(result_raw, indent=2, default=str)
+    logger.debug(f"Tool rest_api_call output: {result}")
+    return result
 
 
 @mcp.tool(
@@ -2054,6 +2264,7 @@ async def rest_api_inspect_env(base_url: str, intention: str) -> str:
     Returns:
         str: JSON showing the derived prefix and all expected variable names per auth method.
     """
+    logger.debug(f"Executing tool: rest_api_inspect_env with args: base_url={base_url}")
     logger.info(f"calling: {rest_api_inspect_env.__name__}")
     logger.info(f"Intention: {intention}")
     log_tool_call_to_csv(rest_api_inspect_env.__name__, intention)
@@ -2091,7 +2302,7 @@ async def rest_api_inspect_env(base_url: str, intention: str) -> str:
             "HTTPS_PROXY": bool(os.environ.get("HTTPS_PROXY")),
         }
 
-        return json.dumps({
+        result = json.dumps({
             "base_url": base_url,
             "hostname": parsed.hostname,
             "env_prefix": prefix,
@@ -2099,9 +2310,13 @@ async def rest_api_inspect_env(base_url: str, intention: str) -> str:
             "vars_present_in_env": presence,
             "proxy_vars": global_proxy,
         }, indent=2)
+        logger.debug(f"Tool rest_api_inspect_env output: {result}")
+        return result
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        result = json.dumps({"error": str(e)})
+        logger.debug(f"Tool rest_api_inspect_env output: {result}")
+        return result
 
 
 if __name__ == "__main__":

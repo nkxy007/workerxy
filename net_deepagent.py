@@ -87,6 +87,7 @@ def search_internet(query: str, confidence: Optional[float] = None) -> str:
     Returns:
         str: search results.
     """
+    logger.debug(f"Executing local tool: search_internet with args: query={query}, confidence={confidence}")
     # Simulate an internet search
     print("="*20)
     print(f"Searching the internet for: {query}")
@@ -96,7 +97,9 @@ def search_internet(query: str, confidence: Optional[float] = None) -> str:
     response = thinking_model.invoke(
         [HumanMessage(content=f"Search the internet for: {query}")],
         tools=[{"type":"web_search"}])
-    return f"Search results for '{query}' are: {response.content}"
+    result = f"Search results for '{query}' are: {response.content}"
+    logger.debug(f"Local tool search_internet output: {result}")
+    return result
 
 @tool
 def user_clarification_and_action_tool(question: str, intention:str="") -> str:
@@ -111,6 +114,7 @@ def user_clarification_and_action_tool(question: str, intention:str="") -> str:
     Returns:
         str: user's clarification.
     """
+    logger.debug(f"Executing local tool: user_clarification_and_action_tool with args: question={question}, intention={intention}")
     # Notify comms channels (Discord / Slack) — fire-and-forget, 2s timeout
     dispatch_clarification_webhook(question, intention, logger=logger)
 
@@ -123,7 +127,9 @@ def user_clarification_and_action_tool(question: str, intention:str="") -> str:
         print(f"Agent needs more information to answer: {question} - intention: {intention}")
         response = input(f"Agent needs more information to continue:\n {question}\nPlease provide clarification: ")
 
-    return f"User clarification for '{question}': {response=}"
+    result = f"User clarification for '{question}': {response=}"
+    logger.debug(f"Local tool user_clarification_and_action_tool output: {result}")
+    return result
 
 @tool
 def skill_generator_from_documentation(documentation: str) -> str:
@@ -148,6 +154,7 @@ async def navigate_the_gui(url:str, question: str, browse_instruction:str="") ->
     As long as it has the URL and what to look for and if needed browser-instructions it can allow to navigate to the
     right resource and get the information or even modify the information. This use browser_use as its agent to do the work"""
     
+    logger.debug(f"Executing local tool: navigate_the_gui with args: url={url}, question={question}, browse_instruction={browse_instruction}")
     print("="*20)
     print(f"I am scrolling the gui of {url} to find information on {question}")
     from browser_use import Agent
@@ -169,7 +176,8 @@ async def navigate_the_gui(url:str, question: str, browse_instruction:str="") ->
         )
         
         # Directly await the agent run since we are in an async function
-        real_answer = await agent.run()
+        real_answer_obj = await agent.run()
+        real_answer = str(real_answer_obj)
         print(real_answer)
         
     except Exception as e:
@@ -181,7 +189,8 @@ async def navigate_the_gui(url:str, question: str, browse_instruction:str="") ->
         # Close the browser to prevent resource leaks
         await browser.close()
         
-    return str(real_answer)
+    logger.debug(f"Local tool navigate_the_gui output: {real_answer}")
+    return real_answer
 
 
 def get_network_skills(skills_dir: Optional[str] = None) -> List[str]:
@@ -288,8 +297,26 @@ from custom_middleware.tool_announcer_middleware import announce_tool_call
 
 @before_model
 def log_before_calling_model(state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
-    #print(f"Model returned: {state['messages'][-1].content}")
+    # Get last message to log context (Human or Tool result)
+    last_message = state['messages'][-1] if state['messages'] else None
+    msg_type = type(last_message).__name__ if last_message else "None"
+    msg_content = last_message.content if last_message else "No content"
+    
+    logger.debug(f"--- Before Model Call ---")
+    logger.debug(f"Last message type: {msg_type}")
+    logger.debug(f"Last message content: {msg_content}")
     print("⚙ Calling intelligence model ......")
+    return None
+
+@after_model
+def log_after_model(state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
+    # Log the AI's response
+    last_message = state['messages'][-1] if state['messages'] else None
+    if isinstance(last_message, AIMessage):
+        logger.debug(f"--- After Model Call ---")
+        logger.debug(f"AI Message: {last_message.content}")
+        if last_message.tool_calls:
+            logger.debug(f"AI requested tool calls: {last_message.tool_calls}")
     return None
 
 async def create_network_agent(
@@ -525,7 +552,7 @@ async def create_network_agent(
             model=main_model,
             backend=FilesystemBackend(),
             store=InMemoryStore(),
-            middleware=[log_before_calling_model, announce_tool_call] + (custom_middlewares or []),
+            middleware=[log_before_calling_model, log_after_model, announce_tool_call] + (custom_middlewares or []),
         )
         
         # Expose the raw LLM so the automata manager can bypass tool-calling when parsing schedules
