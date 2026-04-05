@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock
 
 # Add current path to sys.path
-sys.path.append("/home/toffe/workspace/agentic")
+sys.path.append(str(Path.home() / "workspace" / "agentic"))
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from net_deepagent_cli.communication.session import TOKEN_THRESHOLD, load_session, clear_session, save_session, filter_tool_messages, build_llm_messages

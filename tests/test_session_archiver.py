@@ -3,7 +3,7 @@ Unit tests for utils/session_archiver.py
 
 Run with:
     conda activate test_langchain_env
-    cd /home/toffe/workspace/workerxy
+    cd /path/to/workerxy
     python -m pytest tests/test_session_archiver.py -v
 """
 

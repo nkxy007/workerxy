@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 # Workspace path
-WORKSPACE = '/home/toffe/workspace/agentic'
+WORKSPACE = str(Path.home() / "workspace" / "agentic")
 sys.path.append(WORKSPACE)
 
 # Mock FastMCP and other dependencies that might be missing or trigger server code

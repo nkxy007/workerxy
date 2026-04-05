@@ -5,7 +5,7 @@ import json
 from unittest.mock import MagicMock, AsyncMock
 
 # Add current path to sys.path
-sys.path.append("/home/toffe/workspace/agentic")
+sys.path.append(str(Path.home() / "workspace" / "agentic"))
 
 from langchain_core.messages import HumanMessage, AIMessage
 from net_deepagent_cli.loop import stream_agent_response

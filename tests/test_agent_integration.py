@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 from unittest.mock import AsyncMock, patch
+from pathlib import Path
 from langchain_core.messages import HumanMessage
 
 # Add workspace root to path
@@ -22,7 +23,8 @@ async def test_agent_integration(mock_mcp):
         design_model_name="gpt-5.1"
     )
     
-    sample_image = "/home/toffe/workspace/agentic/small_network_diagram.png"
+    
+    sample_image = str(Path.home() / "workspace" / "agentic" / "small_network_diagram.png")
     if not os.path.exists(sample_image):
         print(f"Sample image not found: {sample_image}")
         return
