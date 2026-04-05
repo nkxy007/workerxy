@@ -15,7 +15,7 @@ filterwarnings("ignore", category=UserWarning)
 
 
 def main():
-    valid_commands = ["cli", "headless", "discord", "slack", "ui", "mcp", "skill", "diagnose",
+    valid_commands = ["cli", "headless", "discord", "slack", "ui", "mcp", "skill", "diagnose", "vault",
                       "start-cli", "start-headless", "start-gui", "start-all"]
     if len(sys.argv) < 2 or sys.argv[1] not in valid_commands:
         print(f"Usage: workerxy {{{','.join(valid_commands)}}} [options]")
@@ -163,6 +163,12 @@ def main():
             diagnose_main()
         except KeyboardInterrupt:
             logger.info("Diagnostic tool stopped by user.")
+    elif command == "vault":
+        try:
+            from net_deepagent_cli.vault import vault_main
+            vault_main()
+        except KeyboardInterrupt:
+            logger.info("Vault manager stopped by user.")
 
 
 if __name__ == "__main__":

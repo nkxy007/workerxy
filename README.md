@@ -154,9 +154,19 @@ pip install -e .
 # To avoid conflicts with modern tools, install it without dependencies:
 pip install --no-deps eve-ng==0.2.7
 
+```bash
 # Run the initialization script
 python initializer.py
 ```
+
+## 🔐 Credential Security & Vault
+
+WorkerXY supports advanced credential management to keep your API keys secure. You can use either a **Local Encrypted Vault** or a **HashiCorp Vault** instance.
+
+- **Local Vault**: Encrypts `creds.json` into `~/.creds.vault` with a password.
+- **HashiCorp Vault**: Syncs credentials from a centralized KVv2 store.
+
+For full setup instructions, see the [Vault Setup Guide](file:///home/toffe/workspace/workerxy/documentation/VAULT_SETUP.md).
 
 ## 🚀 Activation Matrix
 

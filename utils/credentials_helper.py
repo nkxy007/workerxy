@@ -22,22 +22,30 @@ class CredentialsHelper:
     VAULT_FILE = Path.home() / ".creds.vault"
     CREDS_FILE = Path(__file__).parent.parent / "creds.py"
     
-    def __init__(self, vault_password: Optional[str] = None, use_vault: bool = True):
+    # Defaults for HashiCorp Vault
+    DEFAULT_HC_MOUNT = "secret"
+    DEFAULT_HC_PATH = "workerxy"
+    
+    def __init__(self, vault_password: Optional[str] = None, use_vault: bool = True, use_hashicorp: bool = False):
         self._credentials: Dict[str, str] = {}
         self._initialized = False
-        self._load_all(vault_password, use_vault)
+        self._load_all(vault_password, use_vault, use_hashicorp)
 
-    def _load_all(self, vault_password: Optional[str] = None, use_vault: bool = True):
+    def _load_all(self, vault_password: Optional[str] = None, use_vault: bool = True, use_hashicorp: bool = False):
         """Loads all available credentials into internal cache and environment variables."""
         # 1. Load from legacy creds.py if available
         if self.CREDS_FILE.exists():
             self._load_from_creds_py()
         
-        # 2. Load from vault file if available (only if use_vault is True)
+        # 2. Load from local vault file if available (only if use_vault is True)
         if use_vault and self.VAULT_FILE.exists():
             self._load_from_vault(vault_password)
+            
+        # 3. Load from HashiCorp Vault if enabled
+        if use_hashicorp:
+            self._load_from_hashicorp()
         
-        # 3. Inject all found credentials into environment variables
+        # 4. Inject all found credentials into environment variables
         self._inject_into_env()
         self._initialized = True
 
@@ -90,6 +98,37 @@ class CredentialsHelper:
             logger.error(f"Failed to decrypt vault: {e}")
             print("Error: Invalid vault password or corrupted vault file.")
 
+    def _load_from_hashicorp(self):
+        """Fetches credentials from HashiCorp Vault (KVv2)."""
+        addr = os.environ.get("VAULT_ADDR")
+        token = os.environ.get("VAULT_TOKEN")
+        mount = os.environ.get("VAULT_MOUNT", self.DEFAULT_HC_MOUNT)
+        path = os.environ.get("VAULT_PATH", self.DEFAULT_HC_PATH)
+        
+        if not addr or not token:
+            logger.warning("HashiCorp Vault enabled but VAULT_ADDR or VAULT_TOKEN not found in environment.")
+            return
+
+        logger.info(f"Connecting to HashiCorp Vault at {addr}...")
+        try:
+            import hvac
+            client = hvac.Client(url=addr, token=token)
+            if not client.is_authenticated():
+                logger.error("HashiCorp Vault authentication failed.")
+                return
+                
+            read_response = client.secrets.kv.v2.read_secret_version(path=path, mount_point=mount)
+            hc_creds = read_response['data']['data']
+            
+            # Ensure we are dealing with strings as expected by the rest of the app
+            self._credentials.update({k: str(v) for k, v in hc_creds.items()})
+            logger.info(f"Successfully loaded {len(hc_creds)} credentials from HashiCorp Vault ({mount}/{path})")
+            
+        except ImportError:
+            logger.error("hvac library not found. Please install it with 'pip install hvac'.")
+        except Exception as e:
+            logger.error(f"Failed to fetch from HashiCorp Vault: {e}")
+
     def _inject_into_env(self):
         """Injects loaded credentials into os.environ for broad accessibility."""
         # Map certain keys to standard environment variable names if necessary
@@ -140,13 +179,45 @@ class CredentialsHelper:
             f.write(salt + encrypted_data)
         print(f"Vault created successfully at {cls.VAULT_FILE}")
 
+    @classmethod
+    def seal_to_hashicorp(cls, credentials: Dict[str, str]):
+        """Uploads credentials to HashiCorp Vault (KVv2)."""
+        addr = os.environ.get("VAULT_ADDR")
+        token = os.environ.get("VAULT_TOKEN")
+        mount = os.environ.get("VAULT_MOUNT", cls.DEFAULT_HC_MOUNT)
+        path = os.environ.get("VAULT_PATH", cls.DEFAULT_HC_PATH)
+        
+        if not addr or not token:
+            logger.error("VAULT_ADDR and VAULT_TOKEN must be set to use HashiCorp Vault.")
+            return False
+
+        try:
+            import hvac
+            client = hvac.Client(url=addr, token=token)
+            client.secrets.kv.v2.create_or_update_secret(path=path, secret=credentials, mount_point=mount)
+            logger.info(f"Successfully uploaded credentials to HashiCorp Vault at {mount}/{path}")
+            return True
+        except ImportError:
+            logger.error("hvac library not found. Please install it with 'pip install hvac'.")
+        except Exception as e:
+            logger.error(f"Failed to upload to HashiCorp Vault: {e}")
+        return False
+
 # Singleton instance for easy access
 _instance: Optional[CredentialsHelper] = None
 
-def get_helper(password: Optional[str] = None, use_vault: bool = True) -> CredentialsHelper:
+def get_helper(password: Optional[str] = None, use_vault: bool = True, use_hashicorp: bool = False) -> CredentialsHelper:
     global _instance
     if _instance is None:
-        _instance = CredentialsHelper(password, use_vault)
+        _instance = CredentialsHelper(password, use_vault, use_hashicorp)
+    else:
+        # If the singleton was already created without HashiCorp, but it's now requested, we must load it.
+        # Check if we should re-load HashiCorp
+        was_hashicorp_loaded = getattr(_instance, '_hashicorp_loaded', False)
+        if use_hashicorp and not was_hashicorp_loaded:
+            _instance._load_from_hashicorp()
+            _instance._hashicorp_loaded = True
+            _instance._inject_into_env()
     return _instance
 
 def get_credential(key: str, default: Optional[str] = None) -> Optional[str]:

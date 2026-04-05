@@ -141,7 +141,8 @@ async def create_cli_agent(
     design_model_name: str,
     auto_approve: bool = False,
     ui: Any = None,
-    extra_tools: List[Any] = []
+    extra_tools: List[Any] = [],
+    use_hashicorp: bool = False
 ):
     """Create agent with CLI-specific middleware"""
     
@@ -216,7 +217,8 @@ async def create_cli_agent(
         design_model_name=design_model_name,
         extra_tools=a2a_tools + extra_tools,
         tool_wrapper=security_tool_wrapper,
-        custom_middlewares=[custom_registry]
+        custom_middlewares=[custom_registry],
+        use_hashicorp=use_hashicorp
     )
     
     # Initialize middleware

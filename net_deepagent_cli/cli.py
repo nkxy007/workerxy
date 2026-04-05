@@ -22,6 +22,7 @@ async def run_cli():
     parser.add_argument("--automatic-context-detection", action="store_true", help="Proactively detect topic drift")
     parser.add_argument("--association-window", type=int, default=5, help="Lookback window for past session association in days")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Set the logging level")
+    parser.add_argument("--hashicorp", action="store_true", help="Use HashiCorp Vault for credentials")
     
     args = parser.parse_args()
 
@@ -53,7 +54,8 @@ async def run_cli():
             design_model_name=args.design_model,
             auto_approve=args.auto_approve,
             ui=ui,
-            extra_tools=[]
+            extra_tools=[],
+            use_hashicorp=args.hashicorp
         )
         
         ui.print_message("Agent initialized successfully.", role="system")

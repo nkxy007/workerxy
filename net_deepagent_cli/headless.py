@@ -35,6 +35,7 @@ async def run_headless():
     parser.add_argument("--design-model", default="gpt-5.1", help="Design model to use")
     parser.add_argument("--mcp-server", default="http://localhost:8000/mcp", help="MCP server URL")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], help="Set the logging level")
+    parser.add_argument("--hashicorp", action="store_true", help="Use HashiCorp Vault for credentials")
     
     args = parser.parse_args()
 
@@ -68,7 +69,8 @@ async def run_headless():
             design_model_name=args.design_model,
             auto_approve=True, # Headless mode usually implies auto-approve or remote approval
             ui=ui,
-            extra_tools=[send_chat_message]
+            extra_tools=[send_chat_message],
+            use_hashicorp=args.hashicorp
         )
         
         # Step 2: Connect to RabbitMQ

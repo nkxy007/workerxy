@@ -12,7 +12,8 @@ from utils.credentials_helper import get_credential, get_helper
 import os
 from pydantic import BaseModel, Field
 
-# Initialize credentials
+# Initialize credentials with auto-discovery (local file-based)
+# Note: CLI entrypoints often re-initialize this with --hashicorp if requested.
 get_helper()
 
 # Set unified log file for the entire process
@@ -300,6 +301,7 @@ async def create_network_agent(
     extra_tools: List[Any] = [],
     tool_wrapper: Optional[Callable[[List[Any]], List[Any]]] = None,
     custom_middlewares: List[Any] = None,
+    use_hashicorp: bool = False,
 ):
     """
     Create and configure the network deep agent with subagents.
@@ -311,6 +313,7 @@ async def create_network_agent(
         design_model_name: Model to use for design subagent (default: gpt-5.1)
         custom_system_prompt: Optional custom system prompt for main agent
         extra_tools: Optional list of additional tools to make available to the agent
+        use_hashicorp: Whether to fetch credentials from HashiCorp Vault
 
     Returns:
         Configured deep agent instance
@@ -318,6 +321,10 @@ async def create_network_agent(
     logger.info("=== create_network_agent() called ===")
     logger.debug(f"MCP URL: {mcp_server_url}")
     logger.debug(f"Main model: {main_model_name}")
+    logger.debug(f"HashiCorp Vault enabled: {use_hashicorp}")
+
+    # Ensure credentials are fresh and from the correct source
+    get_helper(use_hashicorp=use_hashicorp)
 
     ## MCP client and tools
     tools = []

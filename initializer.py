@@ -3,7 +3,9 @@ import sys
 import json
 import subprocess
 import time
+import getpass
 from pathlib import Path
+from utils.credentials_helper import CredentialsHelper
 
 CREDS_FILE = Path.home() / ".net-deepagent" / "creds.json"
 PREFS_FILE = Path.home() / ".net-deepagent" / "preferences.json"
@@ -100,6 +102,47 @@ def gather_credentials():
     with open(CREDS_FILE, 'w') as f:
         json.dump(creds, f, indent=4)
         print(f"[*] Credentials saved to {CREDS_FILE}")
+
+    # --- Secure Vault Option ---
+    print("\n--- 🔒 Secure Vault Option ---")
+    seal_choice = input("[?] Would you like to seal these credentials in an encrypted vault? [y/N]: ").strip().lower()
+    if seal_choice == 'y':
+        print("\nNote: The vault password is NOT stored and is unrecoverable if lost.")
+        pwd = getpass.getpass("Set a strong vault password: ")
+        confirm = getpass.getpass("Confirm vault password: ")
+        
+        if pwd == confirm:
+            try:
+                # Use the helper to create the vault
+                CredentialsHelper.create_vault(creds, pwd)
+                print(f"[*] Successfully created encrypted vault at {CredentialsHelper.VAULT_FILE}")
+                
+                # Optional cleanup
+                rm_choice = input(f"[?] Remove plain-text JSON file ({CREDS_FILE}) for security? [y/N]: ").strip().lower()
+                if rm_choice == 'y':
+                    os.remove(CREDS_FILE)
+                    print(f"[*] Plain-text credentials file removed.")
+            except Exception as e:
+                print(f"[!] Error creating local vault: {e}")
+        else:
+            print("[!] Passwords do not match. Skipping local vault creation.")
+
+    # --- HashiCorp Vault Option ---
+    print("\n--- ☁️ HashiCorp Vault Option ---")
+    hc_choice = input("[?] Would you like to upload these credentials to HashiCorp Vault? [y/N]: ").strip().lower()
+    if hc_choice == 'y':
+        # Check for required env vars
+        if not os.environ.get("VAULT_ADDR") or not os.environ.get("VAULT_TOKEN"):
+            print("[!] Error: VAULT_ADDR and VAULT_TOKEN not found in environment.")
+            print("    Please export them before using HashiCorp Vault.")
+        else:
+            if CredentialsHelper.seal_to_hashicorp(creds):
+                # Optional cleanup if not already done
+                if os.path.exists(CREDS_FILE):
+                    rm_choice = input(f"[?] Remove plain-text JSON file ({CREDS_FILE}) for security? [y/N]: ").strip().lower()
+                    if rm_choice == 'y':
+                        os.remove(CREDS_FILE)
+                        print(f"[*] Plain-text credentials file removed.")
 
 def set_preferences():
     print("\n--- ⚙️ User Preferences ---")

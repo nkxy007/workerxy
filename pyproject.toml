@@ -1,6 +1,6 @@
 [project]
 name = "workerxy"
-version = "0.2.2"
+version = "0.2.3"
 description = "Network agent automation and LangChain-based AI Agentic system"
 requires-python = ">=3.12"
 dependencies = [
@@ -42,7 +42,7 @@ dependencies = [
     "aiohttp",
     "slack-bolt",
     "google-genai",
-    "pyaudio",
+    "hvac",
 ]
 
 [project.optional-dependencies]
