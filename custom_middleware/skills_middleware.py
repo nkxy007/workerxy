@@ -34,7 +34,7 @@ class SkillLearningMiddleware:
         self.pending_updates: Dict[str, List[Dict]] = {}  # skill_name -> list of proposals
         self.conversation_buffer = []  # Buffer recent conversation context
         
-        logger.info(f"SkillLearningMiddleware initialized with {len(self.detector.skills)} skills")
+        logger.info(f"SkillLearningMiddleware initialized with {len(self.detector.skills)} skills in {self.skills_dir}")
     
     def process_message(self, message: Dict[str, Any]) -> None:
         """
