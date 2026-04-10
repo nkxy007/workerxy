@@ -154,7 +154,8 @@ async def interactive_loop(agent, args, ui: TerminalUI):
                 await handle_skill_updates(agent.skill_learning_middleware, ui)
                 
     except Exception as e:
-        ui.console.print(f"[red]Error in interactive loop: {e}[/red]")
+        from rich.markup import escape
+        ui.console.print(f"[red]Error in interactive loop: {escape(str(e))}[/red]")
     finally:
         if 'automata_manager' in locals():
             automata_manager.stop()
@@ -325,7 +326,8 @@ async def stream_agent_response(agent, messages, ui: TerminalUI, auto_approve: b
     except Exception as e:
         ui.print_message(f"An error occurred: {str(e)}", role="error")
         import traceback
-        ui.console.print(f"[dim]{traceback.format_exc()}[/dim]")
+        from rich.markup import escape
+        ui.console.print(f"[dim]{escape(traceback.format_exc())}[/dim]")
 
 def requires_approval(tool_name: str) -> bool:
     """Check if tool requires human approval"""

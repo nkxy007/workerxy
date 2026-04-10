@@ -67,7 +67,8 @@ async def run_cli():
     except Exception as e:
         ui.print_message(f"Failed to start agent: {str(e)}", role="error")
         import traceback
-        ui.console.print(f"[dim]{traceback.format_exc()}[/dim]")
+        from rich.markup import escape
+        ui.console.print(f"[dim]{escape(traceback.format_exc())}[/dim]")
         sys.exit(1)
     finally:
         # Cleanup resources

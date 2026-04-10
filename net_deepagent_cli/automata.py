@@ -413,13 +413,14 @@ async def process_automata_command(manager: AutomataManager, command: str, ui) -
                         status = "DISABLED"
                         status_style = "dim"
                     
+                from rich.markup import escape
                 table.add_row(
                     t["id"],
-                    t["prompt"],
+                    escape(str(t.get("prompt", ""))),
                     interval_str,
                     end_time_str,
                     t.get("last_run", "Never"),
-                    f"[{status_style}]{status}[/{status_style}]"
+                    f"[{status_style}]{escape(str(status))}[/{status_style}]"
                 )
             ui.console.print(table)
         return True

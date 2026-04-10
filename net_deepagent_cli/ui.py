@@ -1,4 +1,5 @@
 from rich.console import Console
+from rich.markup import escape
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.live import Live
@@ -277,19 +278,19 @@ class TerminalUI:
                 if text_content.strip():
                     self.console.print(Markdown(text_content))
             except Exception:
-                self.console.print(text_content)
+                self.console.print(escape(text_content))
         elif role == "system":
             if self.logger:
                 self.logger.info(f"SYSTEM: {text_content}")
-            self.console.print(f"[bold blue]System:[/bold blue] {text_content}")
+            self.console.print(f"[bold blue]System:[/bold blue] {escape(text_content)}")
         elif role == "error":
             if self.logger:
                 self.logger.error(f"ERROR: {text_content}")
-            self.console.print(f"[bold red]Error:[/bold red] {text_content}")
+            self.console.print(f"[bold red]Error:[/bold red] {escape(text_content)}")
         else:
             if self.logger:
                 self.logger.info(f"USER: {text_content}")
-            self.console.print(f"[bold green]User:[/bold green] {text_content}")
+            self.console.print(f"[bold green]User:[/bold green] {escape(text_content)}")
         
         import sys
         sys.stdout.flush()
