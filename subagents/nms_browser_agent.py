@@ -33,7 +33,7 @@ def nms_browser(task: str, trajectories: Optional[List[Dict[str, Any]]] = None) 
 nms_browser_agent = {
     "name": "nms_browser_agent",
     "description": (
-        "Use this subagent when the task requires navigating a GUI NMS "
+        "Use this subagent when the task requires navigating a GUI NMS with no API endpoint available in our skillset"
         "(SolarWinds, PRTG, Zabbix, etc.) or researching vendor documentation, "
         "configuration guides, or CVEs on the web. Do Not Use it for API calls."
     ),
