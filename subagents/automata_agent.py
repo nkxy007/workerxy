@@ -7,10 +7,11 @@ from subagents.prompts import AUTOMATA_AGENT_PROMPT
 automata_agent = {
     "name": "automata_agent",
     "description": (
-        "Use this subagent for any scheduling or recurring task management requests. "
+        "This agent deela mainly with scheduled actions locally, like cron jobs. "
+        "Use this subagent for scheduling a once to run task or a recurring task on our agency"
         "Examples: creating a background job to ping a host every N minutes, "
-        "listing or stopping scheduled jobs, and reading job execution logs to verify results. "
-        "Delegate here whenever a ticket or user asks for a periodic, scheduled, or repeating action."
+        "It can perform listing jobs, stopping scheduled jobs or activities, and reading job execution logs to verify results. "
+        "Delegate to this agent whenever a ticket, a task or user asks for a periodic, scheduled, or repeating actions handling."
     ),
     "system_prompt": AUTOMATA_AGENT_PROMPT,
     "tools": [],  # Injected in net_deepagent.py from tools_helpers/automata_tools.py
