@@ -111,6 +111,7 @@ class DeviceSShSession:
         self.username = username or os.environ.get("DEVICES_SSH_USERNAME", "admin")
         self.password = password or os.environ.get("DEVICES_SSH_PASSWORD", "password")
         self.model = model
+        self.fire_n_forget = False
         logger.debug(f"DeviceSShSession initialized for {management_ip} with model {self.model} and username {self.username}")
 
     def execute_command(self, command: str) -> str:
@@ -121,7 +122,7 @@ class DeviceSShSession:
             ssh.connect(self.management_ip, username=self.username, password=self.password, timeout=5)
             if not "\n" in command:
                 command += " \n"
-            if not "?" in command and self.model=="cisco":
+            if not "?" in command and self.fire_n_forget:
                 ssh.exec_command("terminal length 0\n")
                 stdin, stdout, stderr = ssh.exec_command(command)
                 time.sleep(0.5)
@@ -134,8 +135,11 @@ class DeviceSShSession:
                 if shell.recv_ready():
                     logger.info(shell.recv(65535).decode())
                 # Send command with ?
+                if self.model == "cisco":
+                    shell.send("terminal length 0\n")
+                    time.sleep(0.5)
                 shell.send(command)
-                time.sleep(1)
+                time.sleep(3)
 
                 output = ""
                 while shell.recv_ready():
@@ -153,7 +157,7 @@ class DeviceSShSession:
             ssh.connect(self.management_ip, username=self.username, password=self.password, timeout=5)
             if not "\n" in command:
                 command += " \n"
-            if not "?" in command and self.model=="cisco":
+            if not "?" in command and self.fire_n_forget:
                 ssh.exec_command("terminal length 0\n")
                 time.sleep(0.5)
                 ssh.exec_command("enable\n")
@@ -170,9 +174,12 @@ class DeviceSShSession:
                 # Send command with ?
                 if self.model=="cisco":
                     shell.send("enable\n")
+                    time.sleep(0.5)
+                    shell.send("terminal length 0\n")
+                    time.sleep(0.5)
                 time.sleep(0.5)
                 shell.send(command)
-                time.sleep(1)
+                time.sleep(3)
 
                 output = ""
                 while shell.recv_ready():
